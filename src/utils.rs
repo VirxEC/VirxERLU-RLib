@@ -22,7 +22,7 @@ pub fn _multithreaded_generate_hierarchy(sorted_slices: Vec<Box<Slice>>) -> Box<
     let (tx, rx) = mpsc::channel();
 
     let down_sorted_slices = sorted_slices[..split].to_vec();
-    
+
     thread::spawn(move || {
         let down = generate_hierarchy_from_vec(down_sorted_slices);
         tx.send(down).unwrap();
@@ -183,6 +183,10 @@ pub fn get_vec3(py: Python, py_vec: &PyObject) -> PyResult<Vec3> {
     Ok(vec)
 }
 
+pub fn get_vec_from_vec3(vec: Vec3) -> Vec<f32> {
+    vec![vec.x, vec.y, vec.z]
+}
+
 pub fn flattened(vec: &Vec3) -> Vec3 {
     Vec3 {
         x: vec.x,
@@ -277,4 +281,14 @@ pub fn get_distance_remaining(ball: Box<Ball>, car: &Car, shot_vector: &Vec3) ->
     }
 
     distance_remaining
+}
+
+pub fn is_slice_viable(target: Vec3, ball: Box<Ball>, car: &Car, game_time: &f32) -> bool {
+    let shot_vector = (target - ball.location).normalize();
+
+    let time_remaining = ball.time - game_time;
+    let distance_remaining = get_distance_remaining(ball.clone(), car, &shot_vector);
+    let speed = distance_remaining / time_remaining;
+
+    speed < 1600.
 }

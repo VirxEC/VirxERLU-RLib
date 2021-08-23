@@ -3,14 +3,16 @@ extern crate rl_ball_sym;
 
 mod utils;
 
-use crate::utils::{get_vec3, Car};
+use crate::utils::{Car, get_vec3, is_slice_viable};
 use cpython::{exc, py_fn, py_module_initializer, PyBool, PyDict, PyErr, PyFloat, PyList, PyObject, PyResult, Python, PythonObject};
 use rl_ball_sym::simulation::{
     ball::{Ball, BallPrediction},
     game::Game,
 };
 // use std::{thread, time};
-use utils::{Hitbox, Slice, angle, generate_hierarchy_from_vec, get_distance_remaining, incomplete_dist_2d};
+use utils::{angle, generate_hierarchy_from_vec, get_vec_from_vec3, incomplete_dist_2d, Hitbox, Slice};
+
+static mut GAME_TIME: f32 = 0.;
 
 static mut GAME: Option<Game> = None;
 static NO_GAME_ERR: &str = "GAME is unset. Call a function like load_soccar first.";
@@ -31,6 +33,7 @@ py_module_initializer!(virxrlru, |py, m| {
     m.add(py, "set_gravity", py_fn!(py, set_gravity(gravity: PyDict)))?;
     m.add(py, "tick", py_fn!(py, tick(time: PyFloat, ball: PyDict, car: PyDict)))?;
     m.add(py, "use_binary_search", py_fn!(py, use_binary_tree(use_: PyBool)))?;
+    m.add(py, "get_slice", py_fn!(py, get_slice(time: PyFloat)))?;
     m.add(py, "calculate_intercept", py_fn!(py, calculate_intercept(target: PyList)))?;
     Ok(())
 });
@@ -100,6 +103,10 @@ fn tick(py: Python, py_time: PyFloat, py_ball: PyDict, py_car: PyDict) -> PyResu
     }
 
     game.ball.time = py_time.value(py) as f32;
+
+    unsafe {
+        GAME_TIME = game.ball.time.clone();
+    }
 
     match py_ball.get_item(py, "location") {
         Some(location) => {
@@ -217,9 +224,37 @@ fn use_binary_tree(py: Python, py_bool: PyBool) -> PyResult<PyObject> {
     Ok(py.None())
 }
 
+fn get_slice(py: Python, slice_time: PyFloat) -> PyResult<PyObject> {
+    let game_time: &f32;
+    let ball_struct: &BallPrediction;
+
+    unsafe {
+        game_time = &GAME_TIME;
+
+        if BALL_STRUCT.is_none() {
+            return Err(PyErr::new::<exc::NameError, _>(py, NO_BALL_STRUCT_ERR));
+        }
+
+        ball_struct = BALL_STRUCT.as_ref().unwrap();
+    }
+
+    let py_slice = PyDict::new(py);
+    let slice_num = ((slice_time.value(py) as f32 - game_time) * 120.).round() as usize;
+
+    let slice = ball_struct.slices[slice_num.clamp(1, ball_struct.num_slices) - 1].clone();
+
+    py_slice.set_item(py, "time", slice.time)?;
+    py_slice.set_item(py, "location", get_vec_from_vec3(slice.location))?;
+    py_slice.set_item(py, "velocity", get_vec_from_vec3(slice.velocity))?;
+    py_slice.set_item(py, "angular_velocity", get_vec_from_vec3(slice.angular_velocity))?;
+
+    Ok(py_slice.into_object())
+}
+
 fn calculate_intercept(py: Python, py_target: PyList) -> PyResult<PyObject> {
     let use_binary_tree: &bool;
     let game: &Game;
+    let game_time: &f32;
     let car: &Car;
     let mut ball_slices: Vec<Box<Ball>>;
 
@@ -229,6 +264,8 @@ fn calculate_intercept(py: Python, py_target: PyList) -> PyResult<PyObject> {
         }
 
         game = GAME.as_ref().unwrap();
+
+        game_time = &GAME_TIME;
 
         if CAR.is_none() {
             return Err(PyErr::new::<exc::NameError, _>(py, NO_CAR_ERR));
@@ -254,17 +291,17 @@ fn calculate_intercept(py: Python, py_target: PyList) -> PyResult<PyObject> {
 
     if ball_slices.len() != 0 {
         if *use_binary_tree {
-            let mut passed_goal = false;
+            // let mut passed_goal = false;
 
             // filter out any impossibilities
             ball_slices = ball_slices
                 .into_iter()
                 .filter(|ball| {
-                    if !passed_goal {
-                        passed_goal = ball.location.y.abs() > 5120. + ball.collision_radius;
-                    }
+                    // if !passed_goal {
+                    //     passed_goal = ball.location.y.abs() > 5120. + ball.collision_radius;
+                    // }
 
-                    if passed_goal || ball.location.z > dist_from_side {
+                    if /*passed_goal ||*/ ball.location.z > dist_from_side {
                         return false;
                     }
 
@@ -296,11 +333,7 @@ fn calculate_intercept(py: Python, py_target: PyList) -> PyResult<PyObject> {
 
             // traverse the binary tree
             loop {
-                let ball = slice.ball.clone();
-
-                let shot_vector = (target - ball.location).normalize();
-
-                let found = get_distance_remaining(ball.clone(), car, &shot_vector) / ball.time < 1600.;
+                let found = is_slice_viable(target, slice.ball.clone(), car, game_time);
 
                 // thread::sleep(time::Duration::from_nanos(1));
 
@@ -316,9 +349,9 @@ fn calculate_intercept(py: Python, py_target: PyList) -> PyResult<PyObject> {
             }
         } else {
             for ball in ball_slices {
-                if ball.location.y.abs() > 5120. + ball.collision_radius {
-                    break;
-                }
+                // if ball.location.y.abs() > 5120. + ball.collision_radius {
+                //     break;
+                // }
 
                 let shot_vector = (target - ball.location).normalize();
                 let car_to_ball = (ball.location - car.location).normalize();
@@ -327,11 +360,12 @@ fn calculate_intercept(py: Python, py_target: PyList) -> PyResult<PyObject> {
                     continue;
                 }
 
-                let found = get_distance_remaining(ball.clone(), car, &shot_vector) / ball.time < 1600.;
+                let found = is_slice_viable(target, ball.clone(), car, game_time);
                 // thread::sleep(time::Duration::from_nanos(1));
 
                 if found {
                     found_ball = Some(ball.clone());
+                    break;
                 }
             }
         }
