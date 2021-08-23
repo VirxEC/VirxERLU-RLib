@@ -1,4 +1,4 @@
-use std::{f32::consts::PI, sync::mpsc, thread};
+use std::f32::consts::PI;
 
 use cpython::{exc, ObjectProtocol, PyErr, PyObject, PyResult, Python};
 use rl_ball_sym::{linear_algebra::vector::Vec3, simulation::ball::Ball};
@@ -8,76 +8,9 @@ static MAX_TURN_RADIUS: f32 = 1. / 0.0017996;
 #[derive(Clone)]
 pub struct Slice {
     pub ball: Box<Ball>,
-    pub distance: f32,
-    pub up: Option<Box<Slice>>,
-    pub down: Option<Box<Slice>>,
-}
-
-pub fn _multithreaded_generate_hierarchy(sorted_slices: Vec<Box<Slice>>) -> Box<Slice> {
-    let last = sorted_slices.len() - 1;
-    let split = last / 2;
-
-    let mut slices = sorted_slices[split].clone();
-
-    let (tx, rx) = mpsc::channel();
-
-    let down_sorted_slices = sorted_slices[..split].to_vec();
-
-    thread::spawn(move || {
-        let down = generate_hierarchy_from_vec(down_sorted_slices);
-        tx.send(down).unwrap();
-    });
-
-    slices.up = generate_hierarchy_from_slice(&sorted_slices[split + 1..]);
-    slices.down = rx.recv().unwrap();
-
-    slices
-}
-
-pub fn generate_hierarchy_from_vec(sorted_slices: Vec<Box<Slice>>) -> Option<Box<Slice>> {
-    // This function looks the same because the syntax for accessing stuff from a vec and a vec slice is the same
-    // It actually saves time, because the vec doesn't have to be converted to a slice which is unnecessary sometimes
-    let slices_length = sorted_slices.len();
-
-    match slices_length {
-        0 => None,
-        1 => Some(sorted_slices[0].clone()),
-        _ => {
-            // Determine where to split the range
-            let split = slices_length / 2;
-
-            // Process the resulting sub-ranges recursively
-
-            let mut split_slice = sorted_slices[split].clone();
-
-            split_slice.down = generate_hierarchy_from_slice(&sorted_slices[..split]);
-            split_slice.up = generate_hierarchy_from_slice(&sorted_slices[split + 1..]);
-
-            Some(split_slice)
-        }
-    }
-}
-
-pub fn generate_hierarchy_from_slice(sorted_slices: &[Box<Slice>]) -> Option<Box<Slice>> {
-    let slices_length = sorted_slices.len();
-
-    match slices_length {
-        0 => None,
-        1 => Some(sorted_slices[0].clone()),
-        _ => {
-            // Determine where to split the range
-            let split = slices_length / 2;
-
-            // Process the resulting sub-ranges recursively
-
-            let mut split_slice = sorted_slices[split].clone();
-
-            split_slice.down = generate_hierarchy_from_slice(&sorted_slices[..split]);
-            split_slice.up = generate_hierarchy_from_slice(&sorted_slices[split + 1..]);
-
-            Some(split_slice)
-        }
-    }
+    pub distance_remaining: f32,
+    pub speed: f32,
+    pub shot_vector: Vec3,
 }
 
 pub struct Hitbox {
@@ -195,9 +128,9 @@ pub fn flattened(vec: &Vec3) -> Vec3 {
     }
 }
 
-pub fn angle(vec1: &Vec3, vec2: &Vec3) -> f32 {
-    vec1.dot(vec2).clamp(-1., 1.).acos()
-}
+// pub fn angle(vec1: &Vec3, vec2: &Vec3) -> f32 {
+//     vec1.dot(vec2).clamp(-1., 1.).acos()
+// }
 
 pub fn angle_tau_2d(vec1: &Vec3, vec2: &Vec3) -> f32 {
     let angle = vec2.y.atan2(vec2.x) - vec1.y.atan2(vec1.x);
@@ -283,12 +216,6 @@ pub fn get_distance_remaining(ball: Box<Ball>, car: &Car, shot_vector: &Vec3) ->
     distance_remaining
 }
 
-pub fn is_slice_viable(target: Vec3, ball: Box<Ball>, car: &Car, game_time: &f32) -> bool {
-    let shot_vector = (target - ball.location).normalize();
-
-    let time_remaining = ball.time - game_time;
-    let distance_remaining = get_distance_remaining(ball.clone(), car, &shot_vector);
-    let speed = distance_remaining / time_remaining;
-
-    speed < 1600.
+pub fn is_slice_viable(_target: Vec3, _gravity: &Vec3, _ball: Box<Ball>, _car: &Car, _distance_remaining: f32, minimum_speed_required: f32, _shot_vector: &Vec3) -> bool {
+    minimum_speed_required < 1600.
 }

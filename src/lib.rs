@@ -3,14 +3,15 @@ extern crate rl_ball_sym;
 
 mod utils;
 
-use crate::utils::{Car, get_vec3, is_slice_viable};
 use cpython::{exc, py_fn, py_module_initializer, PyBool, PyDict, PyErr, PyFloat, PyList, PyObject, PyResult, Python, PythonObject};
-use rl_ball_sym::simulation::{
-    ball::{Ball, BallPrediction},
-    game::Game,
+use rl_ball_sym::{
+    linear_algebra::vector::Vec3,
+    simulation::{
+        ball::{Ball, BallPrediction},
+        game::Game,
+    },
 };
-// use std::{thread, time};
-use utils::{angle, generate_hierarchy_from_vec, get_vec_from_vec3, incomplete_dist_2d, Hitbox, Slice};
+use utils::{get_distance_remaining, get_vec3, get_vec_from_vec3, is_slice_viable, Car, Hitbox, Slice};
 
 static mut GAME_TIME: f32 = 0.;
 
@@ -253,19 +254,16 @@ fn get_slice(py: Python, slice_time: PyFloat) -> PyResult<PyObject> {
 
 fn calculate_intercept(py: Python, py_target: PyList) -> PyResult<PyObject> {
     let use_binary_tree: &bool;
-    let game: &Game;
-    let game_time: &f32;
+    let gravity: &Vec3;
     let car: &Car;
-    let mut ball_slices: Vec<Box<Ball>>;
+    let ball_slices: Vec<Box<Ball>>;
 
     unsafe {
         if GAME.is_none() {
             return Err(PyErr::new::<exc::NameError, _>(py, NO_GAME_ERR));
         }
 
-        game = GAME.as_ref().unwrap();
-
-        game_time = &GAME_TIME;
+        gravity = &GAME.as_ref().unwrap().gravity;
 
         if CAR.is_none() {
             return Err(PyErr::new::<exc::NameError, _>(py, NO_CAR_ERR));
@@ -284,7 +282,7 @@ fn calculate_intercept(py: Python, py_target: PyList) -> PyResult<PyObject> {
 
     let target = get_vec3(py, py_target.as_object())?;
 
-    let dist_from_side = game.ball.collision_radius + car.hitbox.height + 17.;
+    // let dist_from_side = game.ball.collision_radius + car.hitbox.height + 17.;
 
     let mut found_ball = None;
     let mut found_slice = None;
@@ -294,57 +292,67 @@ fn calculate_intercept(py: Python, py_target: PyList) -> PyResult<PyObject> {
             // let mut passed_goal = false;
 
             // filter out any impossibilities
-            ball_slices = ball_slices
-                .into_iter()
-                .filter(|ball| {
-                    // if !passed_goal {
-                    //     passed_goal = ball.location.y.abs() > 5120. + ball.collision_radius;
-                    // }
+            // ball_slices = ball_slices
+            //     .into_iter()
+            //     .filter(|ball| {
+            //         // if !passed_goal {
+            //         //     passed_goal = ball.location.y.abs() > 5120. + ball.collision_radius;
+            //         // }
 
-                    if /*passed_goal ||*/ ball.location.z > dist_from_side {
-                        return false;
-                    }
+            //         if /*passed_goal ||*/ ball.location.z > dist_from_side {
+            //             return false;
+            //         }
 
-                    let shot_vector = (target - ball.location).normalize();
-                    let car_to_ball = (ball.location - car.location).normalize();
+            //         let shot_vector = (target - ball.location).normalize();
+            //         let car_to_ball = (ball.location - car.location).normalize();
 
-                    return angle(&shot_vector, &car_to_ball) < 1.8;
-                })
-                .collect();
+            //         return angle(&shot_vector, &car_to_ball) < 1.8;
+            //     })
+            //     .collect();
 
             // convert vector of boxed balls to a vector of slices
             let mut sorted_slices: Vec<Box<Slice>> = ball_slices
                 .iter()
                 .map(|ball| {
+                    let shot_vector = (target - ball.location).normalize();
+                    let distance_remaining = get_distance_remaining(ball.clone(), car, &shot_vector);
+                    let time = ball.time;
+
                     Box::new(Slice {
                         ball: ball.clone(),
-                        distance: incomplete_dist_2d(&ball.location, &car.location),
-                        up: None,
-                        down: None,
+                        distance_remaining,
+                        speed: distance_remaining / time,
+                        shot_vector,
                     })
                 })
                 .collect();
 
             // sort the slices by distance
-            sorted_slices.sort_unstable_by(|a, b| a.distance.partial_cmp(&b.distance).unwrap());
+            sorted_slices.sort_unstable_by(|a, b| a.speed.partial_cmp(&b.speed).unwrap());
 
             // construct the binary tree
-            let mut slice = generate_hierarchy_from_vec(sorted_slices).unwrap();
+            // let mut slice = generate_hierarchy_from_vec(sorted_slices).unwrap();
 
             // traverse the binary tree
+            let mut first = 0;
+            let mut last = sorted_slices.len() - 1;
+
             loop {
-                let found = is_slice_viable(target, slice.ball.clone(), car, game_time);
+                let split = first + (last - first) / 2;
+                // println!("{} | {} | {}", first, last, split);
+                let slice = sorted_slices[split].clone();
+
+                let found = is_slice_viable(target, gravity, slice.ball.clone(), car, slice.distance_remaining, slice.speed, &slice.shot_vector);
 
                 // thread::sleep(time::Duration::from_nanos(1));
 
-                if slice.down.is_none() && slice.up.is_none() {
+                if first == last {
                     break;
                 } else if found {
                     found_slice = Some(slice.clone());
-                    match slice.down {
-                        Some(down) => slice = down,
-                        None => break,
-                    }
+                    last = split;
+                } else {
+                    first = split;
                 }
             }
         } else {
@@ -354,13 +362,15 @@ fn calculate_intercept(py: Python, py_target: PyList) -> PyResult<PyObject> {
                 // }
 
                 let shot_vector = (target - ball.location).normalize();
-                let car_to_ball = (ball.location - car.location).normalize();
+                // let car_to_ball = (ball.location - car.location).normalize();
 
-                if angle(&shot_vector, &car_to_ball) > 1.8 {
-                    continue;
-                }
+                // if angle(&shot_vector, &car_to_ball) > 1.8 {
+                //     continue;
+                // }
 
-                let found = is_slice_viable(target, ball.clone(), car, game_time);
+                let distance_remaining = get_distance_remaining(ball.clone(), car, &shot_vector);
+
+                let found = is_slice_viable(target, gravity, ball.clone(), car, distance_remaining, distance_remaining / ball.time, &shot_vector);
                 // thread::sleep(time::Duration::from_nanos(1));
 
                 if found {
