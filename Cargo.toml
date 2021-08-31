@@ -11,6 +11,7 @@ path = "src/lib.rs"
 
 [dependencies]
 rl_ball_sym = "0.4"
+byteorder = "1.*"
 
 [dependencies.cpython]
 version = "0.6"
