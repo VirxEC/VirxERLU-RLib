@@ -273,9 +273,9 @@ fn calc_dr_and_ft(py: Python, py_target: PyList, py_slice_time: PyFloat) -> PyRe
     let final_target: Vec3;
     let mut distance_remaining = -car.hitbox.length / 2.;
 
-    let mut debug_stuff = Vec::new();
+    // let mut debug_stuff = Vec::new();
 
-    debug_stuff.push(get_vec_from_vec3(car.location));
+    // debug_stuff.push(get_vec_from_vec3(car.location));
     // debug_stuff.push(get_vec_from_vec3(offset_target));
 
     if angle_to_target < MIN_ADJUST_RADIANS + NO_ADJUST_RADIANS || offset_target.dot(&car.right).abs() <= 10. {
@@ -302,7 +302,7 @@ fn calc_dr_and_ft(py: Python, py_target: PyList, py_slice_time: PyFloat) -> PyRe
 
         if angle_tau_2d(&car.forward, &(offset_target - car.location)) > NO_ADJUST_RADIANS {
             let turn_info = TurnInfo::calc_turn_info(car, &offset_target, turn_accel_lut, turn_accel_boost_lut, turn_decel_lut);
-            debug_stuff.push(get_vec_from_vec3(turn_info.car_location));
+            // debug_stuff.push(get_vec_from_vec3(turn_info.car_location));
             distance_remaining += turn_info.distance as f32 + dist_2d(&turn_info.car_location, &offset_target);
         } else {
             distance_remaining += dist_2d(&car.location, &offset_target);
@@ -388,7 +388,7 @@ fn calc_dr_and_ft(py: Python, py_target: PyList, py_slice_time: PyFloat) -> PyRe
 
         if dist_2d(&car.location, &enter_turn_point) > car.hitbox.width / 2. {
             let turn_info = TurnInfo::calc_turn_info(car, &enter_turn_point, turn_accel_lut, turn_accel_boost_lut, turn_decel_lut);
-            debug_stuff.push(get_vec_from_vec3(turn_info.car_location));
+            // debug_stuff.push(get_vec_from_vec3(turn_info.car_location));
             distance_remaining += turn_info.distance as f32 + dist_2d(&turn_info.car_location, &enter_turn_point);
             final_target = enter_turn_point;
         } else {
@@ -402,7 +402,7 @@ fn calc_dr_and_ft(py: Python, py_target: PyList, py_slice_time: PyFloat) -> PyRe
 
     result.set_item(py, "distance_remaining", distance_remaining)?;
     result.set_item(py, "final_target", get_vec_from_vec3(final_target))?;
-    result.set_item(py, "debug_stuff", debug_stuff)?;
+    // result.set_item(py, "debug_stuff", debug_stuff)?;
 
     Ok(result.into_object())
 }
