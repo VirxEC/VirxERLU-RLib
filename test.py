@@ -40,8 +40,8 @@ for _ in range(10000):
         },
         car={
             "location": [
-                1000,
-                1000,
+                -1000,
+                4000,
                 100,
             ],
             "velocity": [
@@ -60,7 +60,7 @@ for _ in range(10000):
                 36,
             ],
             "pitch": 0,
-            "yaw": 0,
+            "yaw": 1,
             "roll": 0,
             "boost": 100,
             "demolished": False,

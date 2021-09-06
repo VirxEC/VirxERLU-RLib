@@ -1,15 +1,12 @@
-use std::{
-    cmp::Ordering,
-    f32::consts::PI,
-    io::{Cursor, ErrorKind},
-};
+use std::{cmp::Ordering, f32::consts::{FRAC_PI_2,FRAC_PI_4, PI, TAU}, io::{Cursor, ErrorKind}};
 
 use byteorder::{BigEndian, ReadBytesExt};
 use cpython::{exc, ObjectProtocol, PyDict, PyErr, PyObject, PyResult, Python};
 use rl_ball_sym::linear_algebra::vector::Vec3;
 
-pub static NO_ADJUST_RADIANS: f32 = 0.05;
-pub static MIN_ADJUST_RADIANS: f32 = 0.5;
+// pub static NO_ADJUST_RADIANS_12K: f32 = 0.001; // equates to about 12 units at a distance of 12k units
+pub static NO_ADJUST_RADIANS: f32 = 0.025;
+pub static MIN_ADJUST_RADIANS: f32 = FRAC_PI_4; // right angle (pi/4*2)
 
 // pub static VMAX: f32 = 1234.;
 // pub static TAU: f32 = 0.74704;
@@ -17,8 +14,6 @@ pub static MIN_ADJUST_RADIANS: f32 = 0.5;
 pub static MAX_TURN_RADIUS: f32 = 1. / 0.00076;
 pub static MAX_SPEED: f32 = 2300.;
 pub static BOOST_CONSUMPTION: f32 = 33. + 1. / 3.;
-
-pub static HALF_PI: f32 = PI / 2.;
 
 pub struct TurnLut {
     pub time_sorted: Vec<TurnLutEntry>,
@@ -28,6 +23,11 @@ pub struct TurnLut {
 impl TurnLut {
     pub fn from(mut entries: Vec<TurnLutEntry>) -> Self {
         entries.sort_unstable_by(|a, b| a.time.partial_cmp(&b.time).unwrap_or(Ordering::Equal));
+
+        for (time_index, entry) in entries.iter_mut().enumerate() {
+            entry.time_sorted_index = time_index;
+        }
+
         let time_sorted = entries.clone();
 
         entries.sort_by(|a, b| a.velocity.partial_cmp(&b.velocity).unwrap_or(Ordering::Equal));
@@ -47,6 +47,8 @@ pub struct TurnLutEntry {
     pub distance: f32,
     pub location: Vec3,
     pub forward: Vec3,
+    pub right: Vec3,
+    pub time_sorted_index: usize,
 }
 
 pub fn read_turn_bin(bin_data: Vec<u8>) -> Vec<TurnLutEntry> {
@@ -104,6 +106,8 @@ pub fn read_turn_bin(bin_data: Vec<u8>) -> Vec<TurnLutEntry> {
             distance,
             location,
             forward,
+            right: rotate_2d(&forward, &FRAC_PI_2),
+            time_sorted_index: 0,
         });
     }
 
@@ -301,15 +305,15 @@ pub fn angle_tau_2d(vec1: &Vec3, vec2: &Vec3) -> f32 {
     angle
 }
 
-pub fn angle_tau_2d_cache(vec1_atan2: &f32, vec2: &Vec3) -> f32 {
-    let angle = vec2.y.atan2(vec2.x) - vec1_atan2;
+// pub fn angle_tau_2d_cache(vec1_atan2: &f32, vec2: &Vec3) -> f32 {
+//     let angle = vec2.y.atan2(vec2.x) - vec1_atan2;
 
-    if angle < 0. {
-        return angle + 2. * PI;
-    }
+//     if angle < 0. {
+//         return angle + 2. * PI;
+//     }
 
-    angle
-}
+//     angle
+// }
 
 // pub fn dist(vec1: &Vec3, vec2: &Vec3) -> f32 {
 //     (*vec2 - *vec1).magnitude()
@@ -330,6 +334,20 @@ pub fn rotate_2d(vec: &Vec3, angle: &f32) -> Vec3 {
         y: angle.sin() * vec.x + angle.cos() * vec.y,
         z: vec.z,
     }
+}
+
+pub fn localize(car: &Car, vec: Vec3) -> Vec3  {
+    let vec = vec - car.location;
+
+    Vec3 {
+        x: vec.dot(&car.forward),
+        y: vec.dot(&car.right),
+        z: vec.dot(&car.up),
+    }
+}
+
+pub fn globalize(car: &Car, vec: &Vec3) -> Vec3 {
+    car.forward * vec.x + car.right * vec.y + car.up * vec.z + car.location
 }
 
 // fn lerp<T: Copy + Add<Output = T> + Sub<Output = T> + Mul<Output = T>>(a: T, b: T, t: T) -> T {
@@ -422,21 +440,60 @@ pub fn binary_search_turn_lut_time(lut: &TurnLut, time: &f32) -> usize {
     left
 }
 
-pub fn linear_search_turn_lut_target(lut: &TurnLut, car_location: &Vec3, car_forward: &Vec3, target: &Vec3, start_index: usize) -> usize {
+pub fn linear_search_turn_lut_target(lut: &TurnLut, car_location: &Vec3, car_forward: &Vec3, target_location: &Vec3, start_index: usize) -> usize {
     let mut index = start_index;
 
-    // we must take the target, get rid of our car's location and orientation, then add back on the LUT's car's orientation.
-    let target_local = *target - *car_location;
-    let target_atan2 = target_local.y.atan2(target_local.x) - car_forward.y.atan2(car_forward.x) + lut.time_sorted[index].forward.y.atan2(lut.time_sorted[index].forward.x);
-
-    let mut prev_angle = angle_tau_2d_cache(&target_atan2, &lut.time_sorted[index].forward);
-    let mut angle = angle_tau_2d_cache(&target_atan2, &lut.time_sorted[index + 1].forward);
-
-    while prev_angle - angle > 0. {
-        index += 1;
-        prev_angle = angle;
-        angle = angle_tau_2d_cache(&target_atan2, &lut.time_sorted[index + 1].forward);
+    let target;
+    {
+        let target_local = *target_location - *car_location;
+        let target_rotate = angle_tau_2d(&car_forward, &lut.time_sorted[index].forward);
+        target = rotate_2d(&target_local, &target_rotate) + lut.time_sorted[index].location;
     }
+
+    let mut angle;
+    let mut is_forward;
+
+    {
+        let target_local = target - lut.time_sorted[index].location;
+        angle = lut.time_sorted[index].right.dot(&target_local).abs();
+        is_forward = lut.time_sorted[index].forward.dot(&target_local) > 0.;
+    }
+
+    let mut next_index = index + 2;
+    let mut next_angle;
+    let mut next_is_forward;
+
+    {
+        let target_local = target - lut.time_sorted[next_index].location;
+        next_angle = lut.time_sorted[next_index].right.dot(&target_local).abs();
+        next_is_forward = lut.time_sorted[next_index].forward.dot(&target_local) > 0.;
+    }
+    
+    while !next_is_forward || next_angle <= angle || !is_forward {
+        // println!("index: {} | angle: {} | is_forward: {} | next_angle: {} | next_is_forward: {}", index, angle, is_forward, next_angle, next_is_forward);
+        
+        index = next_index;
+        angle = next_angle;
+        is_forward = next_is_forward;
+
+        if is_forward {
+            next_index += match angle as usize / 100 {
+                i if i >= 2 => i,
+                _ => 2,
+            };
+        } else {
+            next_index += match angle as usize / 20 {
+                i if i >= 2 => i,
+                _ => 2,
+            };
+        }
+
+        let target_local = target - lut.time_sorted[next_index].location;
+        next_angle = lut.time_sorted[next_index].right.dot(&target_local).abs();
+        next_is_forward = lut.time_sorted[next_index].forward.dot(&target_local) > 0.;
+    }
+
+    // println!("index: {} | angle: {} | is_forward: {} | next_angle: {} | next_is_forward: {}", index, angle, is_forward, next_angle, next_is_forward);
 
     index
 }
@@ -471,6 +528,17 @@ impl Default for TurnInfo {
 
 impl TurnInfo {
     pub fn calc_turn_info(car: &Car, target: &Vec3, turn_accel_lut: &TurnLut, turn_accel_boost_lut: &TurnLut, turn_decel_lut: &TurnLut) -> Self {
+        // println!("");
+        let mut target = *target;
+        let mut local_target = localize(car, target);
+        let inverted = local_target.y < 0.;
+        // println!("inverted: {} | target: {:?}", inverted, target);
+
+        if inverted {
+            local_target.y = -local_target.y;
+            target = globalize(car, &local_target)
+        }
+
         let mut car_speed = car.velocity.dot(&car.forward);
 
         let mut car_location = car.location;
@@ -482,12 +550,12 @@ impl TurnInfo {
         let mut done = false;
 
         if boost >= 4 {
-            let start_velocity_index = binary_search_turn_lut_velocity(&turn_accel_boost_lut, &car_speed);
+            let start_velocity_index = binary_search_turn_lut_velocity(turn_accel_boost_lut, &car_speed);
             let start_slice = &turn_accel_boost_lut.velocity_sorted[start_velocity_index];
-            let start_time_index = binary_search_turn_lut_time(&turn_accel_boost_lut, &start_slice.time);
 
-            let mut final_time_index = linear_search_turn_lut_target(&turn_accel_boost_lut, &car_location, &car_forward, target, start_time_index);
+            // println!("Starting values | index: {} | speed: {} | location: {:?} | forward: {:?} | distance: {} | time: {} | boost: {}", start_slice.time_sorted_index, car_speed, car_location, car_forward, distance, time, boost);
 
+            let final_time_index = linear_search_turn_lut_target(turn_accel_boost_lut, &car_location, &car_forward, &target, start_slice.time_sorted_index);
             let mut final_slice = &turn_accel_boost_lut.time_sorted[final_time_index];
 
             {
@@ -495,7 +563,7 @@ impl TurnInfo {
                 let turn_time = final_slice.time - start_slice.time;
 
                 if max_boost_time < turn_time {
-                    final_time_index = binary_search_turn_lut_time(&turn_accel_boost_lut, &max_boost_time);
+                    let final_time_index = binary_search_turn_lut_time(turn_accel_boost_lut, &max_boost_time);
                     final_slice = &turn_accel_boost_lut.time_sorted[final_time_index];
                     boost = 0;
                 } else {
@@ -505,43 +573,58 @@ impl TurnInfo {
             }
 
             let part_distance = final_slice.distance - start_slice.distance;
-            car_location += (final_slice.location - start_slice.location).scale(distance);
-            car_forward = final_slice.forward;
+
+            // println!("Starting slice data | index: {} | speed: {} | location: {:?} | forward: {:?} | distance: {} | time: {}", start_slice.time_sorted_index, start_slice.velocity, start_slice.location, start_slice.forward, start_slice.distance, start_slice.time);
+            // println!("Final slice data | index: {} | speed: {} | location: {:?} | forward: {:?} | distance: {} | time: {}", final_time_index, final_slice.velocity, final_slice.location, final_slice.forward, final_slice.distance, final_slice.time);
+
+            match inverted {
+                false => {
+                    car_location += (final_slice.location - start_slice.location).scale(part_distance);
+                    car_forward = rotate_2d(&car_forward, &angle_tau_2d(&start_slice.forward, &final_slice.forward));
+                }
+                true => {
+                    let location_dir = final_slice.location - start_slice.location;
+                    car_location += rotate_2d(&location_dir, &(TAU - &angle_tau_2d(&car_forward, &location_dir))).scale(part_distance);
+                    
+                    car_forward = rotate_2d(&car_forward, &(TAU - angle_tau_2d(&start_slice.forward, &final_slice.forward)));
+                }
+            }
+                
             car_speed = final_slice.velocity;
             distance += part_distance;
             time += final_slice.time - start_slice.time;
+
+            // println!("Final values | index: {} | speed: {} | location: {:?} | forward: {:?} | distance: {} | time: {} | boost: {}", final_time_index, car_speed, car_location, car_forward, distance, time, boost);
         }
 
         if !done {
-            if car_speed < 1234. {
-                let start_velocity_index = binary_search_turn_lut_velocity(&turn_accel_lut, &car_speed);
-                let start_slice = &turn_accel_lut.velocity_sorted[start_velocity_index];
-                let start_time_index = binary_search_turn_lut_time(&turn_accel_lut, &start_slice.time);
+            let turn_lut = if car_speed <= 1234. {
+                turn_accel_lut
+            } else {
+                turn_decel_lut
+            };
 
-                let final_time_index = linear_search_turn_lut_target(&turn_accel_lut, &car_location, &car_forward, target, start_time_index);
+            let start_velocity_index = binary_search_turn_lut_velocity(turn_lut, &car_speed);
+            let start_slice = turn_lut.velocity_sorted[start_velocity_index];
 
-                let final_slice = &turn_accel_lut.time_sorted[final_time_index];
+            let final_time_index = linear_search_turn_lut_target(turn_lut, &car_location, &car_forward, &target, start_slice.time_sorted_index);
+            let final_slice = turn_lut.time_sorted[final_time_index];
 
-                let part_distance = final_slice.distance - start_slice.distance;
-                car_location += (final_slice.location - start_slice.location).scale(distance);
-                car_speed = final_slice.velocity;
-                distance += part_distance;
-                time += final_slice.time - start_slice.time;
-            } else if car_speed > 1234. {
-                let start_velocity_index = binary_search_turn_lut_velocity(&turn_decel_lut, &car_speed);
-                let start_slice = &turn_decel_lut.velocity_sorted[start_velocity_index];
-                let start_time_index = binary_search_turn_lut_time(&turn_decel_lut, &start_slice.time);
+            let part_distance = final_slice.distance - start_slice.distance;
 
-                let final_time_index = linear_search_turn_lut_target(&turn_decel_lut, &car_location, &car_forward, target, start_time_index);
-
-                let final_slice = &turn_decel_lut.time_sorted[final_time_index];
-
-                let part_distance = final_slice.distance - start_slice.distance;
-                car_location += (final_slice.location - start_slice.location).scale(distance);
-                car_speed = final_slice.velocity;
-                distance += part_distance;
-                time += final_slice.time - start_slice.time;
+            match inverted {
+                false => {
+                    car_location += (final_slice.location - start_slice.location).scale(part_distance);
+                }
+                true => {
+                    let location_dir = final_slice.location - start_slice.location;
+                    car_location += rotate_2d(&location_dir, &(TAU - &angle_tau_2d(&car_forward, &location_dir))).scale(part_distance);
+                }
             }
+
+            car_speed = final_slice.velocity;
+            distance += part_distance;
+            time += final_slice.time - start_slice.time;
         }
 
         Self {
