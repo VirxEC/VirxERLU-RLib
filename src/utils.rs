@@ -1,4 +1,8 @@
-use std::{cmp::Ordering, f32::consts::{FRAC_PI_2,FRAC_PI_4, PI, TAU}, io::{Cursor, ErrorKind}};
+use std::{
+    cmp::Ordering,
+    f32::consts::{FRAC_PI_4, PI, TAU},
+    io::{Cursor, ErrorKind},
+};
 
 use byteorder::{BigEndian, ReadBytesExt};
 use cpython::{exc, ObjectProtocol, PyDict, PyErr, PyObject, PyResult, Python};
@@ -30,6 +34,7 @@ impl TurnLut {
 
         let time_sorted = entries.clone();
 
+        entries.dedup_by_key(|e| e.velocity);
         entries.sort_by(|a, b| a.velocity.partial_cmp(&b.velocity).unwrap_or(Ordering::Equal));
         entries.dedup_by_key(|e| e.velocity);
 
@@ -43,11 +48,10 @@ impl TurnLut {
 #[derive(Clone, Copy)]
 pub struct TurnLutEntry {
     pub time: f32,
-    pub velocity: f32,
-    pub distance: f32,
+    pub velocity: i16,
+    pub distance: u16,
     pub location: Vec3,
-    pub forward: Vec3,
-    pub right: Vec3,
+    pub yaw: f32,
     pub time_sorted_index: usize,
 }
 
@@ -79,24 +83,17 @@ pub fn read_turn_bin(bin_data: Vec<u8>) -> Vec<TurnLutEntry> {
         };
 
         let velocity = match cursor.read_i16::<BigEndian>() {
-            Ok(num) => num as f32 / 13.,
+            Ok(num) => num,
             Err(error) => panic!("Problem parsing file: {:?}", error),
         };
 
-        let forward = Vec3 {
-            x: match cursor.read_i16::<BigEndian>() {
-                Ok(num) => num as f32 / 32000.,
-                Err(error) => panic!("Problem parsing file: {:?}", error),
-            },
-            y: match cursor.read_i16::<BigEndian>() {
-                Ok(num) => num as f32 / 32000.,
-                Err(error) => panic!("Problem parsing file: {:?}", error),
-            },
-            z: 0.,
+        let yaw = match cursor.read_i16::<BigEndian>() {
+            Ok(num) => num as f32 / 10200.,
+            Err(error) => panic!("Problem parsing file: {:?}", error),
         };
 
         let distance = match cursor.read_u16::<BigEndian>() {
-            Ok(num) => num as f32 / 3.,
+            Ok(num) => num,
             Err(error) => panic!("Problem parsing file: {:?}", error),
         };
 
@@ -105,8 +102,7 @@ pub fn read_turn_bin(bin_data: Vec<u8>) -> Vec<TurnLutEntry> {
             velocity,
             distance,
             location,
-            forward,
-            right: rotate_2d(&forward, &FRAC_PI_2),
+            yaw,
             time_sorted_index: 0,
         });
     }
@@ -336,7 +332,7 @@ pub fn rotate_2d(vec: &Vec3, angle: &f32) -> Vec3 {
     }
 }
 
-pub fn localize(car: &Car, vec: Vec3) -> Vec3  {
+pub fn localize(car: &Car, vec: Vec3) -> Vec3 {
     let vec = vec - car.location;
 
     Vec3 {
@@ -390,7 +386,7 @@ pub fn globalize(car: &Car, vec: &Vec3) -> Vec3 {
 //     }
 // }
 
-pub fn binary_search_turn_lut_velocity(lut: &TurnLut, velocity: &f32) -> usize {
+pub fn binary_search_turn_lut_velocity(lut: &TurnLut, velocity: i16) -> usize {
     let mut left = 0;
     let mut right = lut.velocity_sorted.len() - 1;
 
@@ -398,7 +394,7 @@ pub fn binary_search_turn_lut_velocity(lut: &TurnLut, velocity: &f32) -> usize {
         let mid = (left + right) / 2;
         let slice = &lut.velocity_sorted[mid];
 
-        let cmp = slice.velocity.partial_cmp(&velocity).unwrap_or(Ordering::Equal);
+        let cmp = slice.velocity.cmp(&velocity);
 
         // The reason why we use if/else control flow rather than match
         // is because match reorders comparison operations, which is perf sensitive.
@@ -440,60 +436,23 @@ pub fn binary_search_turn_lut_time(lut: &TurnLut, time: &f32) -> usize {
     left
 }
 
-pub fn linear_search_turn_lut_target(lut: &TurnLut, car_location: &Vec3, car_forward: &Vec3, target_location: &Vec3, start_index: usize) -> usize {
+pub fn linear_search_turn_lut_target(lut: &TurnLut, required_yaw_change: f32, start_index: usize) -> usize {
     let mut index = start_index;
+    let mut current_yaw = 0.;
 
-    let target;
-    {
-        let target_local = *target_location - *car_location;
-        let target_rotate = angle_tau_2d(&car_forward, &lut.time_sorted[index].forward);
-        target = rotate_2d(&target_local, &target_rotate) + lut.time_sorted[index].location;
-    }
+    let start_yaw = lut.time_sorted[index].yaw;
 
-    let mut angle;
-    let mut is_forward;
+    let mut next_index = index + 3;
+    let mut next_yaw = lut.time_sorted[next_index].yaw - start_yaw;
 
-    {
-        let target_local = target - lut.time_sorted[index].location;
-        angle = lut.time_sorted[index].right.dot(&target_local).abs();
-        is_forward = lut.time_sorted[index].forward.dot(&target_local) > 0.;
-    }
-
-    let mut next_index = index + 2;
-    let mut next_angle;
-    let mut next_is_forward;
-
-    {
-        let target_local = target - lut.time_sorted[next_index].location;
-        next_angle = lut.time_sorted[next_index].right.dot(&target_local).abs();
-        next_is_forward = lut.time_sorted[next_index].forward.dot(&target_local) > 0.;
-    }
-    
-    while !next_is_forward || next_angle <= angle || !is_forward {
-        // println!("index: {} | angle: {} | is_forward: {} | next_angle: {} | next_is_forward: {}", index, angle, is_forward, next_angle, next_is_forward);
-        
+    // in theory, we should only ever be turning right at most 180 degrees, so this should be fine
+    while (required_yaw_change - next_yaw).abs() <= (required_yaw_change - current_yaw).abs() {
         index = next_index;
-        angle = next_angle;
-        is_forward = next_is_forward;
+        current_yaw = next_yaw;
 
-        if is_forward {
-            next_index += match angle as usize / 100 {
-                i if i >= 2 => i,
-                _ => 2,
-            };
-        } else {
-            next_index += match angle as usize / 20 {
-                i if i >= 2 => i,
-                _ => 2,
-            };
-        }
-
-        let target_local = target - lut.time_sorted[next_index].location;
-        next_angle = lut.time_sorted[next_index].right.dot(&target_local).abs();
-        next_is_forward = lut.time_sorted[next_index].forward.dot(&target_local) > 0.;
+        next_index = index + 3;
+        next_yaw = lut.time_sorted[next_index].yaw - start_yaw;
     }
-
-    // println!("index: {} | angle: {} | is_forward: {} | next_angle: {} | next_is_forward: {}", index, angle, is_forward, next_angle, next_is_forward);
 
     index
 }
@@ -508,8 +467,10 @@ pub fn is_circle_in_field(car: &Car, target: Vec3, circle_radius: f32) -> bool {
 
 pub struct TurnInfo {
     pub car_location: Vec3,
-    pub car_speed: f32,
-    pub distance: f32,
+    pub car_forward: Vec3,
+    pub car_speed: i16,
+    pub car_yaw: f32,
+    pub distance: u16,
     pub time: f32,
     pub boost: u8,
 }
@@ -518,8 +479,10 @@ impl Default for TurnInfo {
     fn default() -> Self {
         Self {
             car_location: Vec3::default(),
-            car_speed: 0.,
-            distance: 0.,
+            car_forward: Vec3::default(),
+            car_speed: 0,
+            car_yaw: 0.,
+            distance: 0,
             time: 0.,
             boost: 0,
         }
@@ -532,30 +495,33 @@ impl TurnInfo {
         let mut target = *target;
         let mut local_target = localize(car, target);
         let inverted = local_target.y < 0.;
-        // println!("inverted: {} | target: {:?}", inverted, target);
 
         if inverted {
             local_target.y = -local_target.y;
             target = globalize(car, &local_target)
         }
 
-        let mut car_speed = car.velocity.dot(&car.forward);
+        let required_yaw_change = angle_2d(&car.forward, &(target - car.location).normalize());
+        // println!("inverted: {} | target: {:?} | required yaw change: {}", inverted, target, required_yaw_change);
+
+        let mut car_speed = car.velocity.dot(&car.forward).round() as i16;
 
         let mut car_location = car.location;
         let mut car_forward = car.forward;
-        let mut distance = 0.;
+        let mut car_yaw = car.yaw;
+        let mut distance = 0;
         let mut time = 0.;
         let mut boost = car.boost;
 
         let mut done = false;
 
         if boost >= 4 {
-            let start_velocity_index = binary_search_turn_lut_velocity(turn_accel_boost_lut, &car_speed);
+            let start_velocity_index = binary_search_turn_lut_velocity(turn_accel_boost_lut, car_speed);
             let start_slice = &turn_accel_boost_lut.velocity_sorted[start_velocity_index];
 
-            // println!("Starting values | index: {} | speed: {} | location: {:?} | forward: {:?} | distance: {} | time: {} | boost: {}", start_slice.time_sorted_index, car_speed, car_location, car_forward, distance, time, boost);
+            // println!("Starting values | index: {} | speed: {} | location: {:?} | yaw: {} | distance: {} | time: {} | boost: {}", start_slice.time_sorted_index, car_speed, car_location, car_yaw, distance, time, boost);
 
-            let final_time_index = linear_search_turn_lut_target(turn_accel_boost_lut, &car_location, &car_forward, &target, start_slice.time_sorted_index);
+            let final_time_index = linear_search_turn_lut_target(turn_accel_boost_lut, required_yaw_change, start_slice.time_sorted_index);
             let mut final_slice = &turn_accel_boost_lut.time_sorted[final_time_index];
 
             {
@@ -572,53 +538,86 @@ impl TurnInfo {
                 }
             }
 
-            let part_distance = final_slice.distance - start_slice.distance;
-
-            // println!("Starting slice data | index: {} | speed: {} | location: {:?} | forward: {:?} | distance: {} | time: {}", start_slice.time_sorted_index, start_slice.velocity, start_slice.location, start_slice.forward, start_slice.distance, start_slice.time);
-            // println!("Final slice data | index: {} | speed: {} | location: {:?} | forward: {:?} | distance: {} | time: {}", final_time_index, final_slice.velocity, final_slice.location, final_slice.forward, final_slice.distance, final_slice.time);
+            // println!("Starting slice data | index: {} | speed: {} | location: {:?} | yaw: {} | distance: {} | time: {}", start_slice.time_sorted_index, start_slice.velocity, start_slice.location, start_slice.yaw, start_slice.distance, start_slice.time);
+            // println!("Final slice data | index: {} | speed: {} | location: {:?} | yaw: {} | distance: {} | time: {}", final_time_index, final_slice.velocity, final_slice.location, final_slice.yaw, final_slice.distance, final_slice.time);
+            
+            let part_distance = final_slice.distance - start_slice.distance ;
 
             match inverted {
                 false => {
-                    car_location += (final_slice.location - start_slice.location).scale(part_distance);
-                    car_forward = rotate_2d(&car_forward, &angle_tau_2d(&start_slice.forward, &final_slice.forward));
+                    let rotation = final_slice.yaw - start_slice.yaw;
+                    car_yaw += rotation;
+                    if car_yaw > PI {
+                        car_yaw -= TAU;
+                    }
+                    
+                    car_forward = rotate_2d(&car_forward, &rotation);
+
+                    car_location += (final_slice.location - start_slice.location).scale(part_distance as f32);
                 }
                 true => {
-                    let location_dir = final_slice.location - start_slice.location;
-                    car_location += rotate_2d(&location_dir, &(TAU - &angle_tau_2d(&car_forward, &location_dir))).scale(part_distance);
+                    let rotation = -1. * (final_slice.yaw - start_slice.yaw);
+
+                    car_yaw += rotation;
+                    if car_yaw > PI {
+                        car_yaw -= TAU;
+                    }
                     
-                    car_forward = rotate_2d(&car_forward, &(TAU - angle_tau_2d(&start_slice.forward, &final_slice.forward)));
+                    car_forward = rotate_2d(&car_forward, &rotation);
+                    
+                    let location_dir = (final_slice.location - start_slice.location).normalize();
+                    let location_rot = -angle_tau_2d(&car.forward, &location_dir);
+                    car_location += rotate_2d(&location_dir, &location_rot) * part_distance as f32;
                 }
             }
-                
+
             car_speed = final_slice.velocity;
             distance += part_distance;
             time += final_slice.time - start_slice.time;
 
-            // println!("Final values | index: {} | speed: {} | location: {:?} | forward: {:?} | distance: {} | time: {} | boost: {}", final_time_index, car_speed, car_location, car_forward, distance, time, boost);
+            // println!("Final values | index: {} | speed: {} | location: {:?} | yaw: {} | distance: {} | time: {} | boost: {}", final_time_index, car_speed, car_location, car_yaw, distance, time, boost);
         }
 
         if !done {
-            let turn_lut = if car_speed <= 1234. {
+            let turn_lut = if car_speed <= 1234 {
                 turn_accel_lut
             } else {
                 turn_decel_lut
             };
 
-            let start_velocity_index = binary_search_turn_lut_velocity(turn_lut, &car_speed);
+            let start_velocity_index = binary_search_turn_lut_velocity(turn_lut, car_speed);
             let start_slice = turn_lut.velocity_sorted[start_velocity_index];
 
-            let final_time_index = linear_search_turn_lut_target(turn_lut, &car_location, &car_forward, &target, start_slice.time_sorted_index);
+            let final_time_index = linear_search_turn_lut_target(turn_lut, required_yaw_change, start_slice.time_sorted_index);
             let final_slice = turn_lut.time_sorted[final_time_index];
 
             let part_distance = final_slice.distance - start_slice.distance;
 
             match inverted {
                 false => {
-                    car_location += (final_slice.location - start_slice.location).scale(part_distance);
+                    let rotation = final_slice.yaw - start_slice.yaw;
+                    car_yaw += rotation;
+                    if car_yaw > PI {
+                        car_yaw -= TAU;
+                    }
+                    
+                    car_forward = rotate_2d(&car_forward, &rotation);
+
+                    car_location += (final_slice.location - start_slice.location).scale(part_distance as f32);
                 }
                 true => {
-                    let location_dir = final_slice.location - start_slice.location;
-                    car_location += rotate_2d(&location_dir, &(TAU - &angle_tau_2d(&car_forward, &location_dir))).scale(part_distance);
+                    let rotation = -1. * (final_slice.yaw - start_slice.yaw);
+
+                    car_yaw += rotation;
+                    if car_yaw > PI {
+                        car_yaw -= TAU;
+                    }
+                    
+                    car_forward = rotate_2d(&car_forward, &rotation);
+                    
+                    let location_dir = (final_slice.location - start_slice.location).normalize();
+                    let location_rot = -angle_tau_2d(&car.forward, &location_dir);
+                    car_location += rotate_2d(&location_dir, &location_rot) * part_distance as f32;
                 }
             }
 
@@ -629,7 +628,9 @@ impl TurnInfo {
 
         Self {
             car_location,
+            car_forward,
             car_speed,
+            car_yaw,
             distance,
             time,
             boost,
