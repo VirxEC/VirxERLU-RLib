@@ -59,6 +59,11 @@ for _ in range(10000):
                 84,
                 36,
             ],
+            "hitbox_offset": [
+                0,
+                0,
+                0,
+            ],
             "pitch": 0,
             "yaw": 1,
             "roll": 0,

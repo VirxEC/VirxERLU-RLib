@@ -144,6 +144,7 @@ pub struct Car {
     pub right: Vec3,
     pub up: Vec3,
     pub hitbox: Hitbox,
+    pub hitbox_offset: Vec3,
     pub pitch: f32,
     pub yaw: f32,
     pub roll: f32,
@@ -164,6 +165,7 @@ impl Default for Car {
             right: Vec3::default(),
             up: Vec3::default(),
             hitbox: Hitbox::default(),
+            hitbox_offset: Vec3::default(),
             pitch: 0.,
             yaw: 0.,
             roll: 0.,
@@ -331,6 +333,16 @@ pub fn rotate_2d(vec: &Vec3, angle: &f32) -> Vec3 {
         z: vec.z,
     }
 }
+
+// pub fn localize_2d(car: &Car, vec: Vec3) -> Vec3 {
+//     let vec = vec - car.location;
+
+//     Vec3 {
+//         x: vec.dot(&car.forward),
+//         y: vec.dot(&car.right),
+//         z: 0.,
+//     }
+// }
 
 pub fn localize(car: &Car, vec: Vec3) -> Vec3 {
     let vec = vec - car.location;
