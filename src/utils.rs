@@ -1,19 +1,8 @@
-use std::{
-    cmp::Ordering,
-    f32::consts::{FRAC_PI_4, PI, TAU},
-    io::{Cursor, ErrorKind},
-};
+use std::{cmp::Ordering, f32::consts::{FRAC_PI_2, PI, TAU}, io::{Cursor, ErrorKind}};
 
 use byteorder::{BigEndian, ReadBytesExt};
 use cpython::{exc, ObjectProtocol, PyDict, PyErr, PyObject, PyResult, Python};
-use rl_ball_sym::linear_algebra::vector::Vec3;
-
-// pub static NO_ADJUST_RADIANS_12K: f32 = 0.001; // equates to about 12 units at a distance of 12k units
-pub static NO_ADJUST_RADIANS: f32 = 0.025;
-pub static MIN_ADJUST_RADIANS: f32 = FRAC_PI_4; // right angle (pi/4*2)
-
-// pub static VMAX: f32 = 1234.;
-// pub static TAU: f32 = 0.74704;
+use rl_ball_sym::{linear_algebra::vector::Vec3, simulation::ball::Ball};
 
 pub static MAX_TURN_RADIUS: f32 = 1. / 0.00076;
 pub static MAX_SPEED: f32 = 2300.;
@@ -334,25 +323,25 @@ pub fn rotate_2d(vec: &Vec3, angle: &f32) -> Vec3 {
     }
 }
 
-// pub fn localize_2d(car: &Car, vec: Vec3) -> Vec3 {
-//     let vec = vec - car.location;
-
-//     Vec3 {
-//         x: vec.dot(&car.forward),
-//         y: vec.dot(&car.right),
-//         z: 0.,
-//     }
-// }
-
-pub fn localize(car: &Car, vec: Vec3) -> Vec3 {
+pub fn localize_2d(car: &Car, vec: Vec3) -> Vec3 {
     let vec = vec - car.location;
 
     Vec3 {
         x: vec.dot(&car.forward),
         y: vec.dot(&car.right),
-        z: vec.dot(&car.up),
+        z: 0.,
     }
 }
+
+// pub fn localize(car: &Car, vec: Vec3) -> Vec3 {
+//     let vec = vec - car.location;
+
+//     Vec3 {
+//         x: vec.dot(&car.forward),
+//         y: vec.dot(&car.right),
+//         z: vec.dot(&car.up),
+//     }
+// }
 
 pub fn globalize(car: &Car, vec: &Vec3) -> Vec3 {
     car.forward * vec.x + car.right * vec.y + car.up * vec.z + car.location
@@ -477,6 +466,79 @@ pub fn is_circle_in_field(car: &Car, target: Vec3, circle_radius: f32) -> bool {
     target.y.abs() < 5120. - car.hitbox.length - circle_radius && target.x.abs() < 4093. - car.hitbox.length - circle_radius
 }
 
+pub fn analyze_target(ball: Box<Ball>, car: &Car, shot_vector: Vec3, turn_accel_lut: &TurnLut, turn_accel_boost_lut: &TurnLut, turn_decel_lut: &TurnLut, validate: bool) -> (bool, f32, Vec3, bool, TurnInfo) {
+    let offset_target = ball.location - (shot_vector * ball.radius);
+    
+    let mut turn_info = TurnInfo::default();
+    let mut turn = false;
+    let mut distance_remaining = -(car.hitbox_offset.x + car.hitbox.length / 2.);
+    
+    let exit_turn_point = offset_target - (flattened(&shot_vector) * 640.);
+    let local_offset = localize_2d(car, offset_target);
+
+    if car.forward.dot(&(exit_turn_point - car.location)) <= 0. && local_offset.x > 0. && local_offset.y.abs() < ball.collision_radius * 1.2 {
+        distance_remaining += dist_2d(&car.location, &offset_target);
+        return (true, distance_remaining, offset_target, turn, turn_info)
+    }
+
+    distance_remaining += dist_2d(&exit_turn_point, &offset_target);
+
+    let inv_shot_vector = -shot_vector;
+
+    let mut inv_shot_vector_perp = rotate_2d(&inv_shot_vector, &FRAC_PI_2);
+    let mut side = false;
+
+    let inv_shot_vector_perp_2 = rotate_2d(&inv_shot_vector, &-FRAC_PI_2);
+
+    if incomplete_dist_2d(&(inv_shot_vector_perp_2 + exit_turn_point), &car.location) < incomplete_dist_2d(&(inv_shot_vector_perp + exit_turn_point), &car.location) {
+        inv_shot_vector_perp = inv_shot_vector_perp_2;
+        side = true;
+    }
+
+    let circle_center = exit_turn_point + inv_shot_vector_perp * MAX_TURN_RADIUS;
+
+    if validate && !is_circle_in_field(car, circle_center, MAX_TURN_RADIUS) {
+        // shot isn't in the field, so it's not valid
+        // we could just return placeholder info
+        // but these technically ARE the default values
+        return (false, distance_remaining, offset_target, turn, turn_info)
+    }
+
+    let mut cc_to_cl = car.location - circle_center;
+
+    let tangent_angle = (MAX_TURN_RADIUS / cc_to_cl.magnitude()).clamp(-1., 1.).acos();
+    cc_to_cl.normalized();
+
+    let tangent_lines = [rotate_2d(&cc_to_cl, &-tangent_angle), rotate_2d(&cc_to_cl, &tangent_angle)];
+
+    let cc_to_etp = (exit_turn_point - circle_center).normalize();
+    let enter_turn_line;
+
+    if side {
+        enter_turn_line = tangent_lines.iter().max_by(|a, b| angle_tau_2d(&cc_to_etp, a).partial_cmp(&angle_tau_2d(&cc_to_etp, b)).unwrap_or(Ordering::Equal)).unwrap();
+    } else {
+        enter_turn_line = tangent_lines.iter().min_by(|a, b| angle_tau_2d(&cc_to_etp, a).partial_cmp(&angle_tau_2d(&cc_to_etp, b)).unwrap_or(Ordering::Equal)).unwrap();
+    }
+
+    let enter_turn_point = *enter_turn_line * MAX_TURN_RADIUS + circle_center;
+
+    let turn_angle = angle_tau_2d(&enter_turn_line, &cc_to_etp);
+    let turn_distance_remaining = turn_angle * MAX_TURN_RADIUS;
+
+    distance_remaining += turn_distance_remaining;
+
+    if dist_2d(&car.location, &enter_turn_point) > car.hitbox.width / 2. {
+        distance_remaining += turn_info.distance as f32 + dist_2d(&turn_info.car_location, &enter_turn_point);
+
+        turn_info = TurnInfo::calc_turn_info(car, &enter_turn_point, turn_accel_lut, turn_accel_boost_lut, turn_decel_lut);
+        turn = true;
+
+        return (true, distance_remaining, enter_turn_point, turn, turn_info)
+    }
+
+    (true, distance_remaining, exit_turn_point, turn, turn_info)
+}
+
 pub struct TurnInfo {
     pub car_location: Vec3,
     pub car_forward: Vec3,
@@ -505,7 +567,7 @@ impl TurnInfo {
     pub fn calc_turn_info(car: &Car, target: &Vec3, turn_accel_lut: &TurnLut, turn_accel_boost_lut: &TurnLut, turn_decel_lut: &TurnLut) -> Self {
         // println!("");
         let mut target = *target;
-        let mut local_target = localize(car, target);
+        let mut local_target = localize_2d(car, target);
         let inverted = local_target.y < 0.;
 
         if inverted {

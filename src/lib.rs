@@ -3,16 +3,8 @@ extern crate rl_ball_sym;
 
 mod utils;
 
-use std::{cmp::Ordering, f32::consts::FRAC_PI_2};
-
 use cpython::{exc, py_fn, py_module_initializer, PyDict, PyErr, PyFloat, PyList, PyObject, PyResult, Python, PythonObject};
-use rl_ball_sym::{
-    linear_algebra::vector::Vec3,
-    simulation::{
-        ball::{Ball, BallPrediction},
-        game::Game,
-    },
-};
+use rl_ball_sym::{linear_algebra::vector::Vec3, simulation::{ball::{Ball, BallPrediction}, game::Game}};
 use utils::*;
 
 static mut GAME_TIME: f32 = 0.;
@@ -276,160 +268,12 @@ fn calc_dr_and_ft(py: Python, py_target: PyList, py_slice_time: PyFloat) -> PyRe
 
     let shot_vector = (target - ball.location).normalize();
 
-    let mut offset_target = ball.location - (shot_vector * ball.radius);
-    // let local_offset_target = localize_2d(car, offset_target);
-
-    // let is_direct = local_offset_target.y.abs() < car.hitbox.width / 2. && local_offset_target.x > 0.;
-
-    let angle_to_target = angle_2d(&shot_vector, &car.forward);
-
-    let final_target: Vec3;
-    let mut distance_remaining = -(car.hitbox.length + car.hitbox_offset.x) / 2.;
-    // let section;
-
-    let car_width = car.hitbox.width / 2.;
-
-    // let mut debug_stuff = Vec::new();
-
-    // debug_stuff.push(get_vec_from_vec3(car.location));
-    // debug_stuff.push(get_vec_from_vec3(local_offset_target));
-
-    if angle_to_target < MIN_ADJUST_RADIANS + NO_ADJUST_RADIANS {//|| is_direct {
-        // section = 1;
-        // if !is_direct {
-            // section = 2;
-            //angle_to_target > NO_ADJUST_RADIANS_12K {
-            let offset_to_car = car.location - offset_target;
-            let offset_to_car_scale = offset_to_car.scale(car_width);
-
-            let offsets = [rotate_2d(&offset_to_car_scale, &FRAC_PI_2), rotate_2d(&offset_to_car_scale, &-FRAC_PI_2)];
-
-            let extended = [offsets[0] + offsets[1].scale(640.), offsets[1] + offsets[0].scale(640.)];
-
-            let index;
-
-            if (offsets[0] - car.location).dot(&car.right).abs() < car.hitbox.width / 3. {
-                index = 0;
-            } else if (offsets[1] - car.location).dot(&car.right).abs() < car.hitbox.width / 3. {
-                index = 1;
-            } else {
-                // let offset_to_ball = ball.location - offset_target;
-
-                index = if incomplete_dist_2d(&extended[0], &offset_to_car) < incomplete_dist_2d(&extended[1], &offset_to_car) {
-                    0
-                } else {
-                    1
-                };
-            }
-
-            offset_target += offsets[index];
-        // }
-
-        if angle_tau_2d(&car.forward, &(offset_target - car.location)) > NO_ADJUST_RADIANS {
-            let turn_info = TurnInfo::calc_turn_info(car, &offset_target, turn_accel_lut, turn_accel_boost_lut, turn_decel_lut);
-            // debug_stuff.push(get_vec_from_vec3(turn_info.car_location));
-            distance_remaining += turn_info.distance as f32 + dist_2d(&turn_info.car_location, &offset_target);
-        } else {
-            distance_remaining += dist_2d(&car.location, &offset_target);
-        }
-
-        final_target = offset_target;
-    } else {
-        // section = 3;
-        let inv_shot_vector;
-        let exit_turn_point = {
-            let og_inv_shot_vector = -shot_vector;
-
-            let rotation = FRAC_PI_2 - MIN_ADJUST_RADIANS;
-            let og_inv_shot_vector_adjusts = [rotate_2d(&og_inv_shot_vector, &rotation), rotate_2d(&og_inv_shot_vector, &-rotation)];
-
-            let inv_shot_vectors = [rotate_2d(&-og_inv_shot_vector_adjusts[0], &FRAC_PI_2), rotate_2d(&-og_inv_shot_vector_adjusts[1], &-FRAC_PI_2)];
-
-            let offset_targets = [offset_target + og_inv_shot_vector_adjusts[0] * car_width, offset_target + og_inv_shot_vector_adjusts[1] * car_width];
-
-            let exit_turn_points = [offset_targets[0] + (flattened(&inv_shot_vectors[0]) * 640.), offset_targets[1] + (flattened(&inv_shot_vectors[1]) * 640.)];
-
-            let index;
-
-            // yes, this is ugly
-            // but it works
-            // deal with it
-            if (offset_targets[0] - car.location).dot(&car.right).abs() < car.hitbox.width / 3. {
-                index = 0;
-            } else if (offset_targets[1] - car.location).dot(&car.right).abs() < car.hitbox.width / 3. {
-                index = 1;
-            } else {
-                index = if incomplete_dist_2d(&exit_turn_points[0], &car.location) < incomplete_dist_2d(&exit_turn_points[1], &car.location) {
-                    0
-                } else {
-                    1
-                };
-            }
-
-            inv_shot_vector = inv_shot_vectors[index];
-            offset_target = offset_targets[index];
-            exit_turn_points[index]
-        };
-
-        // debug_stuff.push(get_vec_from_vec3(exit_turn_point));
-
-        let mut inv_shot_vector_perp = rotate_2d(&inv_shot_vector, &FRAC_PI_2);
-        let mut side = false;
-
-        let inv_shot_vector_perp_2 = rotate_2d(&inv_shot_vector, &-FRAC_PI_2);
-
-        if incomplete_dist_2d(&(inv_shot_vector_perp_2 + exit_turn_point), &car.location) < incomplete_dist_2d(&(inv_shot_vector_perp + exit_turn_point), &car.location) {
-            inv_shot_vector_perp = inv_shot_vector_perp_2;
-            side = true;
-        }
-
-        let circle_center = exit_turn_point + inv_shot_vector_perp * MAX_TURN_RADIUS;
-
-        // debug_stuff.push(get_vec_from_vec3(circle_center));
-
-        let cc_to_cl = car.location - circle_center;
-
-        let tangent_angle = (MAX_TURN_RADIUS / cc_to_cl.magnitude()).clamp(-1., 1.).acos();
-        let cc_to_cl = cc_to_cl.normalize();
-
-        let tangent_lines = [rotate_2d(&cc_to_cl, &-tangent_angle), rotate_2d(&cc_to_cl, &tangent_angle)];
-
-        let cc_to_etp = (exit_turn_point - circle_center).normalize();
-        let enter_turn_line;
-
-        if side {
-            enter_turn_line = tangent_lines.iter().max_by(|a, b| angle_tau_2d(&cc_to_etp, a).partial_cmp(&angle_tau_2d(&cc_to_etp, b)).unwrap_or(Ordering::Equal)).unwrap();
-        } else {
-            enter_turn_line = tangent_lines.iter().min_by(|a, b| angle_tau_2d(&cc_to_etp, a).partial_cmp(&angle_tau_2d(&cc_to_etp, b)).unwrap_or(Ordering::Equal)).unwrap();
-        }
-
-        let enter_turn_point = *enter_turn_line * MAX_TURN_RADIUS + circle_center;
-
-        // debug_stuff.push(get_vec_from_vec3(enter_turn_point));
-
-        let turn_angle = angle_tau_2d(&enter_turn_line, &cc_to_etp);
-        let turn_distance_remaining = turn_angle * MAX_TURN_RADIUS;
-
-        distance_remaining += turn_distance_remaining + dist_2d(&exit_turn_point, &offset_target);
-
-        if dist_2d(&car.location, &enter_turn_point) > car.hitbox.width / 2. {
-            let turn_info = TurnInfo::calc_turn_info(car, &enter_turn_point, turn_accel_lut, turn_accel_boost_lut, turn_decel_lut);
-            // debug_stuff.push(get_vec_from_vec3(turn_info.car_location));
-            distance_remaining += turn_info.distance as f32 + dist_2d(&turn_info.car_location, &enter_turn_point);
-            final_target = enter_turn_point;
-        } else {
-            final_target = exit_turn_point;
-        }
-    }
-
-    // debug_stuff.push(get_vec_from_vec3(offset_target));
+    let (_, distance_remaining, final_target, _, _) = analyze_target(ball, car, shot_vector, turn_accel_lut, turn_accel_boost_lut, turn_decel_lut, false);
 
     let result = PyDict::new(py);
 
     result.set_item(py, "distance_remaining", distance_remaining)?;
     result.set_item(py, "final_target", get_vec_from_vec3(final_target))?;
-    // result.set_item(py, "debug_stuff", debug_stuff)?;
-    // result.set_item(py, "section", section)?;
 
     Ok(result.into_object())
 }
@@ -505,8 +349,6 @@ fn calculate_intercept(py: Python, py_target: PyList) -> PyResult<PyObject> {
         return Ok(result.into_object());
     }
 
-    let car_width = car.hitbox.width / 2.;
-
     for ball in ball_slices {
         if ball.location.y.abs() > 5120. + ball.collision_radius {
             break;
@@ -518,134 +360,10 @@ fn calculate_intercept(py: Python, py_target: PyList) -> PyResult<PyObject> {
 
         let shot_vector = (target - ball.location).normalize();
 
-        let mut offset_target = ball.location - (shot_vector * ball.radius);
-        // let local_offset_target = localize_2d(car, offset_target);
+        let (valid, distance_remaining, _, turn, turn_info) = analyze_target(ball.clone(), car, shot_vector, turn_accel_lut, turn_accel_boost_lut, turn_decel_lut, true);
 
-        // let is_direct = local_offset_target.y.abs() < car.hitbox.width / 2. && local_offset_target.x > 0.;
-
-        let angle_to_target = angle_2d(&(offset_target - car.location).normalize(), &car.forward);
-
-        let mut distance_remaining = -(car.hitbox.length + car.hitbox_offset.x) / 2.;
-
-        let mut turn_info = TurnInfo::default();
-        let mut turn = false;
-
-        if angle_to_target < MIN_ADJUST_RADIANS + NO_ADJUST_RADIANS {//|| is_direct {
-            // if !is_direct {
-                //angle_to_target > NO_ADJUST_RADIANS_12K {
-                let offset_to_car = car.location - offset_target;
-                let offset_to_car_scale = offset_to_car.scale(car_width);
-
-                let offsets = [rotate_2d(&offset_to_car_scale, &FRAC_PI_2), rotate_2d(&offset_to_car_scale, &-FRAC_PI_2)];
-
-                let extended = [offsets[0] + offsets[1].scale(640.), offsets[1] + offsets[0].scale(640.)];
-    
-                let index;
-    
-                if (offsets[0] - car.location).dot(&car.right).abs() < car.hitbox.width / 3. {
-                    index = 0;
-                } else if (offsets[1] - car.location).dot(&car.right).abs() < car.hitbox.width / 3. {
-                    index = 1;
-                } else {
-                    // let offset_to_ball = ball.location - offset_target;
-    
-                    index = if incomplete_dist_2d(&extended[0], &offset_to_car) < incomplete_dist_2d(&extended[1], &offset_to_car) {
-                        0
-                    } else {
-                        1
-                    };
-                }
-
-                offset_target += offsets[index];
-            // }
-
-            if angle_tau_2d(&car.forward, &(offset_target - car.location)) > NO_ADJUST_RADIANS {
-                turn_info = TurnInfo::calc_turn_info(car, &offset_target, turn_accel_lut, turn_accel_boost_lut, turn_decel_lut);
-                distance_remaining += dist_2d(&turn_info.car_location, &offset_target);
-                turn = true;
-            } else {
-                distance_remaining += dist_2d(&car.location, &offset_target);
-            }
-        } else {
-            let inv_shot_vector;
-            let exit_turn_point = {
-                let og_inv_shot_vector = -shot_vector;
-
-                let rotation = FRAC_PI_2 - MIN_ADJUST_RADIANS;
-                let og_inv_shot_vector_adjusts = [rotate_2d(&og_inv_shot_vector, &rotation), rotate_2d(&og_inv_shot_vector, &-rotation)];
-
-                let inv_shot_vectors = [rotate_2d(&-og_inv_shot_vector_adjusts[0], &FRAC_PI_2), rotate_2d(&-og_inv_shot_vector_adjusts[1], &-FRAC_PI_2)];
-
-                let offset_targets = [offset_target + og_inv_shot_vector_adjusts[0] * car_width, offset_target + og_inv_shot_vector_adjusts[1] * car_width];
-
-                let exit_turn_points = [offset_targets[0] + (flattened(&inv_shot_vectors[0]) * 640.), offset_targets[1] + (flattened(&inv_shot_vectors[1]) * 640.)];
-
-                let index;
-
-                // yes, this is ugly
-                // but it works
-                // deal with it
-                if (offset_targets[0] - car.location).dot(&car.right).abs() < car.hitbox.width / 3. {
-                    index = 0;
-                } else if (offset_targets[1] - car.location).dot(&car.right).abs() < car.hitbox.width / 3. {
-                    index = 1;
-                } else {
-                    index = if incomplete_dist_2d(&exit_turn_points[0], &car.location) < incomplete_dist_2d(&exit_turn_points[1], &car.location) {
-                        0
-                    } else {
-                        1
-                    };
-                }
-
-                inv_shot_vector = inv_shot_vectors[index];
-                offset_target = offset_targets[index];
-                exit_turn_points[index]
-            };
-
-            let mut inv_shot_vector_perp = rotate_2d(&inv_shot_vector, &FRAC_PI_2);
-            let mut side = false;
-
-            let inv_shot_vector_perp_2 = rotate_2d(&inv_shot_vector, &-FRAC_PI_2);
-
-            if incomplete_dist_2d(&(inv_shot_vector_perp_2 + exit_turn_point), &car.location) < incomplete_dist_2d(&(inv_shot_vector_perp + exit_turn_point), &car.location) {
-                inv_shot_vector_perp = inv_shot_vector_perp_2;
-                side = true;
-            }
-
-            let circle_center = exit_turn_point + inv_shot_vector_perp * MAX_TURN_RADIUS;
-
-            if !is_circle_in_field(car, circle_center, MAX_TURN_RADIUS) {
-                continue;
-            }
-
-            let cc_to_cl = car.location - circle_center;
-
-            let tangent_angle = (MAX_TURN_RADIUS / cc_to_cl.magnitude()).clamp(-1., 1.).acos();
-            let cc_to_cl = cc_to_cl.normalize();
-
-            let tangent_lines = [rotate_2d(&cc_to_cl, &-tangent_angle), rotate_2d(&cc_to_cl, &tangent_angle)];
-
-            let cc_to_etp = (exit_turn_point - circle_center).normalize();
-            let enter_turn_line;
-
-            if side {
-                enter_turn_line = tangent_lines.iter().max_by(|a, b| angle_tau_2d(&cc_to_etp, a).partial_cmp(&angle_tau_2d(&cc_to_etp, b)).unwrap_or(Ordering::Equal)).unwrap();
-            } else {
-                enter_turn_line = tangent_lines.iter().min_by(|a, b| angle_tau_2d(&cc_to_etp, a).partial_cmp(&angle_tau_2d(&cc_to_etp, b)).unwrap_or(Ordering::Equal)).unwrap();
-            }
-
-            let enter_turn_point = *enter_turn_line * MAX_TURN_RADIUS + circle_center;
-            let turn_angle = angle_tau_2d(&enter_turn_line, &cc_to_etp);
-            let turn_distance_remaining = turn_angle * MAX_TURN_RADIUS;
-
-            distance_remaining += turn_distance_remaining + dist_2d(&exit_turn_point, &offset_target);
-
-            if dist_2d(&car.location, &enter_turn_point) > car.hitbox.width / 2. {
-                turn_info = TurnInfo::calc_turn_info(car, &enter_turn_point, turn_accel_lut, turn_accel_boost_lut, turn_decel_lut);
-                turn = true;
-
-                distance_remaining += dist_2d(&turn_info.car_location, &enter_turn_point);
-            }
+        if !valid {
+            continue;
         }
 
         let mut time_remaining = ball.time - game_time;
