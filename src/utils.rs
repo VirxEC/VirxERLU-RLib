@@ -1,4 +1,8 @@
-use std::{cmp::Ordering, f32::consts::{FRAC_PI_2, PI, TAU}, io::{Cursor, ErrorKind}};
+use std::{
+    cmp::Ordering,
+    f32::consts::{FRAC_PI_2, PI, TAU},
+    io::{Cursor, ErrorKind},
+};
 
 use byteorder::{BigEndian, ReadBytesExt};
 use cpython::{exc, ObjectProtocol, PyDict, PyErr, PyObject, PyResult, Python};
@@ -468,17 +472,17 @@ pub fn is_circle_in_field(car: &Car, target: Vec3, circle_radius: f32) -> bool {
 
 pub fn analyze_target(ball: Box<Ball>, car: &Car, shot_vector: Vec3, turn_accel_lut: &TurnLut, turn_accel_boost_lut: &TurnLut, turn_decel_lut: &TurnLut, validate: bool) -> (bool, f32, Vec3, bool, TurnInfo) {
     let offset_target = ball.location - (shot_vector * ball.radius);
-    
+
     let mut turn_info = TurnInfo::default();
     let mut turn = false;
     let mut distance_remaining = -(car.hitbox_offset.x + car.hitbox.length / 2.);
-    
+
     let exit_turn_point = offset_target - (flattened(&shot_vector) * 640.);
     let local_offset = localize_2d(car, offset_target);
 
     if car.forward.dot(&(exit_turn_point - car.location)) <= 0. && local_offset.x > 0. && local_offset.y.abs() < ball.collision_radius * 1.2 {
         distance_remaining += dist_2d(&car.location, &offset_target);
-        return (true, distance_remaining, offset_target, turn, turn_info)
+        return (true, distance_remaining, offset_target, turn, turn_info);
     }
 
     distance_remaining += dist_2d(&exit_turn_point, &offset_target);
@@ -501,7 +505,7 @@ pub fn analyze_target(ball: Box<Ball>, car: &Car, shot_vector: Vec3, turn_accel_
         // shot isn't in the field, so it's not valid
         // we could just return placeholder info
         // but these technically ARE the default values
-        return (false, distance_remaining, offset_target, turn, turn_info)
+        return (false, distance_remaining, offset_target, turn, turn_info);
     }
 
     let mut cc_to_cl = car.location - circle_center;
@@ -533,7 +537,7 @@ pub fn analyze_target(ball: Box<Ball>, car: &Car, shot_vector: Vec3, turn_accel_
         turn_info = TurnInfo::calc_turn_info(car, &enter_turn_point, turn_accel_lut, turn_accel_boost_lut, turn_decel_lut);
         turn = true;
 
-        return (true, distance_remaining, enter_turn_point, turn, turn_info)
+        return (true, distance_remaining, enter_turn_point, turn, turn_info);
     }
 
     (true, distance_remaining, exit_turn_point, turn, turn_info)
@@ -614,8 +618,8 @@ impl TurnInfo {
 
             // println!("Starting slice data | index: {} | speed: {} | location: {:?} | yaw: {} | distance: {} | time: {}", start_slice.time_sorted_index, start_slice.velocity, start_slice.location, start_slice.yaw, start_slice.distance, start_slice.time);
             // println!("Final slice data | index: {} | speed: {} | location: {:?} | yaw: {} | distance: {} | time: {}", final_time_index, final_slice.velocity, final_slice.location, final_slice.yaw, final_slice.distance, final_slice.time);
-            
-            let part_distance = final_slice.distance - start_slice.distance ;
+
+            let part_distance = final_slice.distance - start_slice.distance;
 
             match inverted {
                 false => {
@@ -624,7 +628,7 @@ impl TurnInfo {
                     if car_yaw > PI {
                         car_yaw -= TAU;
                     }
-                    
+
                     car_forward = rotate_2d(&car_forward, &rotation);
 
                     car_location += (final_slice.location - start_slice.location).scale(part_distance as f32);
@@ -636,9 +640,9 @@ impl TurnInfo {
                     if car_yaw > PI {
                         car_yaw -= TAU;
                     }
-                    
+
                     car_forward = rotate_2d(&car_forward, &rotation);
-                    
+
                     let location_dir = (final_slice.location - start_slice.location).normalize();
                     let location_rot = -angle_tau_2d(&car.forward, &location_dir);
                     car_location += rotate_2d(&location_dir, &location_rot) * part_distance as f32;
@@ -674,7 +678,7 @@ impl TurnInfo {
                     if car_yaw > PI {
                         car_yaw -= TAU;
                     }
-                    
+
                     car_forward = rotate_2d(&car_forward, &rotation);
 
                     car_location += (final_slice.location - start_slice.location).scale(part_distance as f32);
@@ -686,9 +690,9 @@ impl TurnInfo {
                     if car_yaw > PI {
                         car_yaw -= TAU;
                     }
-                    
+
                     car_forward = rotate_2d(&car_forward, &rotation);
-                    
+
                     let location_dir = (final_slice.location - start_slice.location).normalize();
                     let location_rot = -angle_tau_2d(&car.forward, &location_dir);
                     car_location += rotate_2d(&location_dir, &location_rot) * part_distance as f32;

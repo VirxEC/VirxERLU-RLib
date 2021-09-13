@@ -4,7 +4,13 @@ extern crate rl_ball_sym;
 mod utils;
 
 use cpython::{exc, py_fn, py_module_initializer, PyDict, PyErr, PyFloat, PyList, PyObject, PyResult, Python, PythonObject};
-use rl_ball_sym::{linear_algebra::vector::Vec3, simulation::{ball::{Ball, BallPrediction}, game::Game}};
+use rl_ball_sym::{
+    linear_algebra::vector::Vec3,
+    simulation::{
+        ball::{Ball, BallPrediction},
+        game::Game,
+    },
+};
 use utils::*;
 
 static mut GAME_TIME: f32 = 0.;
