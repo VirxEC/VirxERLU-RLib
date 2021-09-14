@@ -81,7 +81,7 @@ for _ in range(10000):
 
     rlru.calculate_intercept([
         0, 5120, 0
-    ])
+    ], all=True)
 
     times[1].append(time_ns() - start)
 

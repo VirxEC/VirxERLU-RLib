@@ -8,9 +8,30 @@ use byteorder::{BigEndian, ReadBytesExt};
 use cpython::{exc, ObjectProtocol, PyDict, PyErr, PyObject, PyResult, Python};
 use rl_ball_sym::{linear_algebra::vector::Vec3, simulation::ball::Ball};
 
-pub static MAX_TURN_RADIUS: f32 = 1. / 0.00076;
 pub static MAX_SPEED: f32 = 2300.;
-pub static BOOST_CONSUMPTION: f32 = 33. + 1. / 3.;
+// pub static MAX_SPEED_NO_BOOST: f32 = 1410.;
+// pub static MIN_SPEED: f32 = -MAX_SPEED_NO_BOOST;
+pub static MAX_TURN_RADIUS: f32 = 1. / 0.00076;
+// pub static TPS: f32 = 120.;
+// pub static SIMULATION_DT: f32 = 1. / TPS;
+pub static BOOST_CONSUMPTION: f32 = 33.3 + 1. / 33.;
+// pub static BRAKE_ACC: f32 = 3500.;
+// pub static COAST_ACC: f32 = 525.;
+// pub static MIN_BOOST_TIME: f32 = 0.1;
+// pub static REACTION_TIME: f32 = 0.04;
+
+// pub static MIN_BOOST_CONSUMPTION: f32 = BOOST_CONSUMPTION * MIN_BOOST_TIME;
+// pub static BOOST_CONSUMPTION_DT: f32 = BOOST_CONSUMPTION * SIMULATION_DT;
+// pub static BRAKE_ACC_DT: f32 = BRAKE_ACC * SIMULATION_DT;
+
+// pub static BRAKE_COAST_TRANSITION: f32 = -(0.45 * BRAKE_ACC + 0.55 * COAST_ACC);
+// pub static COASTING_THROTTLE_TRANSITION: f32 = -0.5 * COAST_ACC;
+
+// pub static THROTTLE_ACCEL_DIVISION: f32 = 1400.;
+// pub static START_THROTTLE_ACCEL_M: f32 = -36. / 35.;
+// pub static START_THROTTLE_ACCEL_B: f32 = 1600.;
+// pub static END_THROTTLE_ACCEL_M: f32 = -16.;
+// pub static END_THROTTLE_ACCEL_B: f32 = 160.;
 
 pub struct TurnLut {
     pub time_sorted: Vec<TurnLutEntry>,
@@ -472,15 +493,16 @@ pub fn is_circle_in_field(car: &Car, target: Vec3, circle_radius: f32) -> bool {
 
 pub fn analyze_target(ball: Box<Ball>, car: &Car, shot_vector: Vec3, turn_accel_lut: &TurnLut, turn_accel_boost_lut: &TurnLut, turn_decel_lut: &TurnLut, validate: bool) -> (bool, f32, Vec3, bool, TurnInfo) {
     let offset_target = ball.location - (shot_vector * ball.radius);
+    let car_front_length = car.hitbox_offset.x + car.hitbox.length / 2.;
 
     let mut turn_info = TurnInfo::default();
     let mut turn = false;
-    let mut distance_remaining = -(car.hitbox_offset.x + car.hitbox.length / 2.);
+    let mut distance_remaining = -car_front_length;
 
     let exit_turn_point = offset_target - (flattened(&shot_vector) * 640.);
     let local_offset = localize_2d(car, offset_target);
 
-    if car.forward.dot(&(exit_turn_point - car.location)) <= 0. && local_offset.x > 0. && local_offset.y.abs() < ball.collision_radius * 1.2 {
+    if (exit_turn_point - car.location).dot(&car.forward) < car_front_length && local_offset.x > 0. && local_offset.y.abs() < 150. {
         distance_remaining += dist_2d(&car.location, &offset_target);
         return (true, distance_remaining, offset_target, turn, turn_info);
     }
@@ -519,12 +541,12 @@ pub fn analyze_target(ball: Box<Ball>, car: &Car, shot_vector: Vec3, turn_accel_
     let enter_turn_line;
 
     if side {
-        enter_turn_line = tangent_lines.iter().max_by(|a, b| angle_tau_2d(&cc_to_etp, a).partial_cmp(&angle_tau_2d(&cc_to_etp, b)).unwrap_or(Ordering::Equal)).unwrap();
+        enter_turn_line = *tangent_lines.iter().max_by(|a, b| angle_tau_2d(&cc_to_etp, a).partial_cmp(&angle_tau_2d(&cc_to_etp, b)).unwrap_or(Ordering::Equal)).unwrap();
     } else {
-        enter_turn_line = tangent_lines.iter().min_by(|a, b| angle_tau_2d(&cc_to_etp, a).partial_cmp(&angle_tau_2d(&cc_to_etp, b)).unwrap_or(Ordering::Equal)).unwrap();
+        enter_turn_line = *tangent_lines.iter().min_by(|a, b| angle_tau_2d(&cc_to_etp, a).partial_cmp(&angle_tau_2d(&cc_to_etp, b)).unwrap_or(Ordering::Equal)).unwrap();
     }
 
-    let enter_turn_point = *enter_turn_line * MAX_TURN_RADIUS + circle_center;
+    let enter_turn_point = enter_turn_line * MAX_TURN_RADIUS + circle_center;
 
     let turn_angle = angle_tau_2d(&enter_turn_line, &cc_to_etp);
     let turn_distance_remaining = turn_angle * MAX_TURN_RADIUS;
@@ -542,6 +564,95 @@ pub fn analyze_target(ball: Box<Ball>, car: &Car, shot_vector: Vec3, turn_accel_
 
     (true, distance_remaining, exit_turn_point, turn, turn_info)
 }
+
+// fn throttle_acceleration(forward_velocity: f32) -> f32 {
+//     let x = forward_velocity.abs();
+
+//     if x >= MAX_SPEED_NO_BOOST {
+//         return 0.;
+//     }
+
+//     // use y = mx + b to find the throttle acceleration
+//     if x < THROTTLE_ACCEL_DIVISION {
+//         return START_THROTTLE_ACCEL_M * x + START_THROTTLE_ACCEL_B;
+//     }
+
+//     return END_THROTTLE_ACCEL_M * (x - THROTTLE_ACCEL_DIVISION) + END_THROTTLE_ACCEL_B;
+// }
+
+// static BOOST_ACCEL: f32 = 991. + 2. / 3.;
+// static BOOST_ACCEL_DT: f32 = BOOST_ACCEL * SIMULATION_DT;
+
+// pub fn can_reach_target(car: &Car, max_time: f32, distance_remaining: f32, is_forwards: bool) -> (bool, f32) {
+//     let mut d = distance_remaining;
+//     let mut t_r = max_time;
+//     let mut b = car.boost as f32;
+//     let mut v = car.velocity.dot(&car.forward);
+
+//     let direction = is_forwards as u8 as f32;
+
+//     loop {
+//         if d <= 0. {
+//             return (true, t_r)
+//         }
+
+//         let r = d * direction / t_r;
+
+//         if MIN_SPEED > r || r > MAX_SPEED {
+//             return (false, -1.)
+//         }
+
+//         let t = r - v;
+
+//         if t.abs() < 100. {
+//             break;
+//         }
+
+//         if t_r < 0. {
+//             return (false, -1.)
+//         }
+
+//         let acceleration = t / REACTION_TIME;
+
+//         let throttle_accel = throttle_acceleration(v);
+//         let throttle_boost_transition = throttle_accel + 0.5 * BOOST_ACCEL;
+
+//         let mut throttle = 0_f32;
+//         let mut boost = false;
+
+//         if acceleration <= BRAKE_COAST_TRANSITION {
+//             throttle = -1.;
+//         } else if BRAKE_COAST_TRANSITION < acceleration && acceleration < COASTING_THROTTLE_TRANSITION {
+//         } else if b >= MIN_BOOST_CONSUMPTION && throttle_boost_transition < acceleration {
+//             throttle = 1.;
+//             if t > 0. {
+//                 boost = true
+//             }
+//         }
+
+//         if throttle.signum() == v.signum() {
+//             v += throttle_accel * throttle;
+//         } else {
+//             v += BRAKE_ACC_DT.copysign(-throttle);
+//         }
+
+//         if boost {
+//             v += BOOST_ACCEL_DT;
+//             b -= BOOST_CONSUMPTION_DT;
+//         }
+
+//         t_r -= SIMULATION_DT;
+//         d -= (v * direction) * SIMULATION_DT;
+//     }
+
+//     t_r -= distance_remaining / v;
+
+//     if t_r < 0. {
+//         return (false, -1.)
+//     }
+
+//     (true, t_r)
+// }
 
 pub struct TurnInfo {
     pub car_location: Vec3,
@@ -569,7 +680,6 @@ impl Default for TurnInfo {
 
 impl TurnInfo {
     pub fn calc_turn_info(car: &Car, target: &Vec3, turn_accel_lut: &TurnLut, turn_accel_boost_lut: &TurnLut, turn_decel_lut: &TurnLut) -> Self {
-        // println!("");
         let mut target = *target;
         let mut local_target = localize_2d(car, target);
         let inverted = local_target.y < 0.;
@@ -580,7 +690,6 @@ impl TurnInfo {
         }
 
         let required_yaw_change = angle_2d(&car.forward, &(target - car.location).normalize());
-        // println!("inverted: {} | target: {:?} | required yaw change: {}", inverted, target, required_yaw_change);
 
         let mut car_speed = car.velocity.dot(&car.forward).round() as i16;
 
@@ -596,8 +705,6 @@ impl TurnInfo {
         if boost >= 4 {
             let start_velocity_index = binary_search_turn_lut_velocity(turn_accel_boost_lut, car_speed);
             let start_slice = &turn_accel_boost_lut.velocity_sorted[start_velocity_index];
-
-            // println!("Starting values | index: {} | speed: {} | location: {:?} | yaw: {} | distance: {} | time: {} | boost: {}", start_slice.time_sorted_index, car_speed, car_location, car_yaw, distance, time, boost);
 
             let final_time_index = linear_search_turn_lut_target(turn_accel_boost_lut, required_yaw_change, start_slice.time_sorted_index);
             let mut final_slice = &turn_accel_boost_lut.time_sorted[final_time_index];
@@ -615,9 +722,6 @@ impl TurnInfo {
                     boost -= (turn_time * BOOST_CONSUMPTION) as u8;
                 }
             }
-
-            // println!("Starting slice data | index: {} | speed: {} | location: {:?} | yaw: {} | distance: {} | time: {}", start_slice.time_sorted_index, start_slice.velocity, start_slice.location, start_slice.yaw, start_slice.distance, start_slice.time);
-            // println!("Final slice data | index: {} | speed: {} | location: {:?} | yaw: {} | distance: {} | time: {}", final_time_index, final_slice.velocity, final_slice.location, final_slice.yaw, final_slice.distance, final_slice.time);
 
             let part_distance = final_slice.distance - start_slice.distance;
 
@@ -652,8 +756,6 @@ impl TurnInfo {
             car_speed = final_slice.velocity;
             distance += part_distance;
             time += final_slice.time - start_slice.time;
-
-            // println!("Final values | index: {} | speed: {} | location: {:?} | yaw: {} | distance: {} | time: {} | boost: {}", final_time_index, car_speed, car_location, car_yaw, distance, time, boost);
         }
 
         if !done {

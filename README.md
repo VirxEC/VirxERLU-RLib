@@ -25,6 +25,16 @@ I made VirxERLU because it forces me to keep innovating on my bot in order to st
 
 VirxERLU will be updated after every tournament with the latest, *stable* features of VirxEB.
 
+## Features
+
+Currently, VirxERLU-RLib has:
+
++ Variable ball prediction time (default 8 seconds)
++ 120tps ball prediction analysis
++ Turn LUTs for accurate and quick turn simulations
++ Very accurate shots and distance calculations
++ Accurate 120tps acceleration simulation (coming soon)
+
 ## Wiki
 
 The wiki is the best way to get general information about VirxERLU.

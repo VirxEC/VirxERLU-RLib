@@ -3,7 +3,7 @@ extern crate rl_ball_sym;
 
 mod utils;
 
-use cpython::{exc, py_fn, py_module_initializer, PyDict, PyErr, PyFloat, PyList, PyObject, PyResult, Python, PythonObject};
+use cpython::{exc, py_fn, py_module_initializer, PyBool, PyDict, PyErr, PyFloat, PyList, PyObject, PyResult, Python, PythonObject};
 use rl_ball_sym::{
     linear_algebra::vector::Vec3,
     simulation::{
@@ -42,7 +42,7 @@ py_module_initializer!(virxrlru, |py, m| {
     m.add(py, "tick", py_fn!(py, tick(time: PyFloat, ball: PyDict, car: PyDict)))?;
     m.add(py, "get_slice", py_fn!(py, get_slice(time: PyFloat)))?;
     m.add(py, "calc_dr_and_ft", py_fn!(py, calc_dr_and_ft(target: PyList, time: PyFloat)))?;
-    m.add(py, "calculate_intercept", py_fn!(py, calculate_intercept(target: PyList)))?;
+    m.add(py, "calculate_intercept", py_fn!(py, calculate_intercept(target: PyList, all: PyBool)))?;
     Ok(())
 });
 
@@ -139,6 +139,7 @@ fn tick(py: Python, py_time: PyFloat, py_ball: PyDict, py_car: PyDict) -> PyResu
     // simulate max double jump height
     // add options to individual shots like min/max time
     // add option to tick for max path time
+    // add option to change the TPS of the simulation
 
     game.ball.time = py_time.value(py) as f32;
 
@@ -284,7 +285,7 @@ fn calc_dr_and_ft(py: Python, py_target: PyList, py_slice_time: PyFloat) -> PyRe
     Ok(result.into_object())
 }
 
-fn calculate_intercept(py: Python, py_target: PyList) -> PyResult<PyObject> {
+fn calculate_intercept(py: Python, py_target: PyList, py_all: PyBool) -> PyResult<PyObject> {
     let game_time: &f32;
     let _gravity: &Vec3;
     let radius: &f32;
@@ -345,6 +346,8 @@ fn calculate_intercept(py: Python, py_target: PyList) -> PyResult<PyObject> {
 
     let target = get_vec3(py, py_target.as_object(), "Key 'target' needs to be a list of exactly 3 numbers")?;
 
+    let all = py_all.is_true();
+
     let dist_from_side = radius + car.hitbox.height + 17.;
 
     let mut found_ball = None;
@@ -382,18 +385,21 @@ fn calculate_intercept(py: Python, py_target: PyList) -> PyResult<PyObject> {
             }
         }
 
+        // let (found, _) = can_reach_target(car, time_remaining, distance_remaining, true);
         let found = distance_remaining / time_remaining < MAX_SPEED;
 
-        if found {
-            found_ball = Some(ball.clone());
-            break;
+        if all {
+            // for worst-case benchmarking only
+            // returns accurate numbers, but analyzes all slices
+            if found && found_ball.is_none() {
+                found_ball = Some(ball.clone());
+            }
+        } else {
+            if found {
+                found_ball = Some(ball.clone());
+                break;
+            }
         }
-
-        // for worst-case benchmarking only
-        // returns accurate numbers, but analyzes all slices
-        // if found && found_ball.is_none() {
-        //     found_ball = Some(ball.clone());
-        // }
     }
 
     let result = PyDict::new(py);
