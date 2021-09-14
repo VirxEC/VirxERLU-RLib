@@ -8,30 +8,30 @@ use byteorder::{BigEndian, ReadBytesExt};
 use cpython::{exc, ObjectProtocol, PyDict, PyErr, PyObject, PyResult, Python};
 use rl_ball_sym::{linear_algebra::vector::Vec3, simulation::ball::Ball};
 
-pub static MAX_SPEED: f32 = 2300.;
-// pub static MAX_SPEED_NO_BOOST: f32 = 1410.;
-// pub static MIN_SPEED: f32 = -MAX_SPEED_NO_BOOST;
-pub static MAX_TURN_RADIUS: f32 = 1. / 0.00076;
-// pub static TPS: f32 = 120.;
-// pub static SIMULATION_DT: f32 = 1. / TPS;
-pub static BOOST_CONSUMPTION: f32 = 33.3 + 1. / 33.;
-// pub static BRAKE_ACC: f32 = 3500.;
-// pub static COAST_ACC: f32 = 525.;
-// pub static MIN_BOOST_TIME: f32 = 0.1;
-// pub static REACTION_TIME: f32 = 0.04;
+pub const MAX_SPEED: f32 = 2300.;
+pub const MAX_SPEED_NO_BOOST: f32 = 1410.;
+pub const MIN_SPEED: f32 = -MAX_SPEED_NO_BOOST;
+pub const MAX_TURN_RADIUS: f32 = 1. / 0.00076;
+pub const TPS: f32 = 120.;
+pub const SIMULATION_DT: f32 = 1. / TPS;
+pub const BOOST_CONSUMPTION: f32 = 33.3 + 1. / 33.;
+pub const BRAKE_ACC: f32 = 3500.;
+pub const COAST_ACC: f32 = 525.;
+pub const MIN_BOOST_TIME: f32 = 0.1;
+pub const REACTION_TIME: f32 = 0.04;
 
-// pub static MIN_BOOST_CONSUMPTION: f32 = BOOST_CONSUMPTION * MIN_BOOST_TIME;
-// pub static BOOST_CONSUMPTION_DT: f32 = BOOST_CONSUMPTION * SIMULATION_DT;
-// pub static BRAKE_ACC_DT: f32 = BRAKE_ACC * SIMULATION_DT;
+pub const MIN_BOOST_CONSUMPTION: f32 = BOOST_CONSUMPTION * MIN_BOOST_TIME;
+pub const BOOST_CONSUMPTION_DT: f32 = BOOST_CONSUMPTION * SIMULATION_DT;
+pub const BRAKE_ACC_DT: f32 = BRAKE_ACC * SIMULATION_DT;
 
-// pub static BRAKE_COAST_TRANSITION: f32 = -(0.45 * BRAKE_ACC + 0.55 * COAST_ACC);
-// pub static COASTING_THROTTLE_TRANSITION: f32 = -0.5 * COAST_ACC;
+pub const BRAKE_COAST_TRANSITION: f32 = -(0.45 * BRAKE_ACC + 0.55 * COAST_ACC);
+pub const COASTING_THROTTLE_TRANSITION: f32 = -0.5 * COAST_ACC;
 
-// pub static THROTTLE_ACCEL_DIVISION: f32 = 1400.;
-// pub static START_THROTTLE_ACCEL_M: f32 = -36. / 35.;
-// pub static START_THROTTLE_ACCEL_B: f32 = 1600.;
-// pub static END_THROTTLE_ACCEL_M: f32 = -16.;
-// pub static END_THROTTLE_ACCEL_B: f32 = 160.;
+pub const THROTTLE_ACCEL_DIVISION: f32 = 1400.;
+pub const START_THROTTLE_ACCEL_M: f32 = -36. / 35.;
+pub const START_THROTTLE_ACCEL_B: f32 = 1600.;
+pub const END_THROTTLE_ACCEL_M: f32 = -16.;
+pub const END_THROTTLE_ACCEL_B: f32 = 160.;
 
 pub struct TurnLut {
     pub time_sorted: Vec<TurnLutEntry>,
@@ -565,94 +565,94 @@ pub fn analyze_target(ball: Box<Ball>, car: &Car, shot_vector: Vec3, turn_accel_
     (true, distance_remaining, exit_turn_point, turn, turn_info)
 }
 
-// fn throttle_acceleration(forward_velocity: f32) -> f32 {
-//     let x = forward_velocity.abs();
+fn throttle_acceleration(forward_velocity: f32) -> f32 {
+    let x = forward_velocity.abs();
 
-//     if x >= MAX_SPEED_NO_BOOST {
-//         return 0.;
-//     }
+    if x >= MAX_SPEED_NO_BOOST {
+        return 0.;
+    }
 
-//     // use y = mx + b to find the throttle acceleration
-//     if x < THROTTLE_ACCEL_DIVISION {
-//         return START_THROTTLE_ACCEL_M * x + START_THROTTLE_ACCEL_B;
-//     }
+    // use y = mx + b to find the throttle acceleration
+    if x < THROTTLE_ACCEL_DIVISION {
+        return START_THROTTLE_ACCEL_M * x + START_THROTTLE_ACCEL_B;
+    }
 
-//     return END_THROTTLE_ACCEL_M * (x - THROTTLE_ACCEL_DIVISION) + END_THROTTLE_ACCEL_B;
-// }
+    return END_THROTTLE_ACCEL_M * (x - THROTTLE_ACCEL_DIVISION) + END_THROTTLE_ACCEL_B;
+}
 
-// static BOOST_ACCEL: f32 = 991. + 2. / 3.;
-// static BOOST_ACCEL_DT: f32 = BOOST_ACCEL * SIMULATION_DT;
+const BOOST_ACCEL: f32 = 991. + 2. / 3.;
+const BOOST_ACCEL_DT: f32 = BOOST_ACCEL * SIMULATION_DT;
 
-// pub fn can_reach_target(car: &Car, max_time: f32, distance_remaining: f32, is_forwards: bool) -> (bool, f32) {
-//     let mut d = distance_remaining;
-//     let mut t_r = max_time;
-//     let mut b = car.boost as f32;
-//     let mut v = car.velocity.dot(&car.forward);
+pub fn can_reach_target(car: &Car, max_time: f32, distance_remaining: f32, is_forwards: bool) -> (bool, f32) {
+    let mut d = distance_remaining;
+    let mut t_r = max_time;
+    let mut b = car.boost as f32;
+    let mut v = car.velocity.dot(&car.forward);
 
-//     let direction = is_forwards as u8 as f32;
+    let direction = is_forwards as u8 as f32;
 
-//     loop {
-//         if d <= 0. {
-//             return (true, t_r)
-//         }
+    loop {
+        if d <= 0. {
+            return (true, t_r);
+        }
 
-//         let r = d * direction / t_r;
+        let r = d * direction / t_r;
 
-//         if MIN_SPEED > r || r > MAX_SPEED {
-//             return (false, -1.)
-//         }
+        if MIN_SPEED > r || r > MAX_SPEED {
+            return (false, -1.);
+        }
 
-//         let t = r - v;
+        let t = r - v;
 
-//         if t.abs() < 100. {
-//             break;
-//         }
+        if t.abs() < 100. {
+            break;
+        }
 
-//         if t_r < 0. {
-//             return (false, -1.)
-//         }
+        if t_r < 0. {
+            return (false, -1.);
+        }
 
-//         let acceleration = t / REACTION_TIME;
+        let acceleration = t / REACTION_TIME;
 
-//         let throttle_accel = throttle_acceleration(v);
-//         let throttle_boost_transition = throttle_accel + 0.5 * BOOST_ACCEL;
+        let throttle_accel = throttle_acceleration(v);
+        let throttle_boost_transition = throttle_accel + 0.5 * BOOST_ACCEL;
 
-//         let mut throttle = 0_f32;
-//         let mut boost = false;
+        let mut throttle = 0_f32;
+        let mut boost = false;
 
-//         if acceleration <= BRAKE_COAST_TRANSITION {
-//             throttle = -1.;
-//         } else if BRAKE_COAST_TRANSITION < acceleration && acceleration < COASTING_THROTTLE_TRANSITION {
-//         } else if b >= MIN_BOOST_CONSUMPTION && throttle_boost_transition < acceleration {
-//             throttle = 1.;
-//             if t > 0. {
-//                 boost = true
-//             }
-//         }
+        if acceleration <= BRAKE_COAST_TRANSITION {
+            throttle = -1.;
+        } else if BRAKE_COAST_TRANSITION < acceleration && acceleration < COASTING_THROTTLE_TRANSITION {
+        } else if b >= MIN_BOOST_CONSUMPTION && throttle_boost_transition < acceleration {
+            throttle = 1.;
+            if t > 0. {
+                boost = true
+            }
+        }
 
-//         if throttle.signum() == v.signum() {
-//             v += throttle_accel * throttle;
-//         } else {
-//             v += BRAKE_ACC_DT.copysign(-throttle);
-//         }
+        if throttle.signum() == v.signum() {
+            v += throttle_accel * throttle;
+        } else {
+            v += BRAKE_ACC_DT.copysign(-throttle);
+        }
 
-//         if boost {
-//             v += BOOST_ACCEL_DT;
-//             b -= BOOST_CONSUMPTION_DT;
-//         }
+        if boost {
+            v += BOOST_ACCEL_DT;
+            b -= BOOST_CONSUMPTION_DT;
+        }
 
-//         t_r -= SIMULATION_DT;
-//         d -= (v * direction) * SIMULATION_DT;
-//     }
+        t_r -= SIMULATION_DT;
+        d -= (v * direction) * SIMULATION_DT;
+    }
 
-//     t_r -= distance_remaining / v;
+    t_r -= distance_remaining / v;
 
-//     if t_r < 0. {
-//         return (false, -1.)
-//     }
+    if t_r < 0. {
+        return (false, -1.);
+    }
 
-//     (true, t_r)
-// }
+    (true, t_r)
+}
 
 pub struct TurnInfo {
     pub car_location: Vec3,

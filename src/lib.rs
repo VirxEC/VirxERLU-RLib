@@ -16,22 +16,22 @@ use utils::*;
 static mut GAME_TIME: f32 = 0.;
 
 static mut GAME: Option<Game> = None;
-static NO_GAME_ERR: &str = "GAME is unset. Call a function like load_soccar first.";
+const NO_GAME_ERR: &str = "GAME is unset. Call a function like load_soccar first.";
 
 static mut CAR: Option<Car> = None;
-static NO_CAR_ERR: &str = "CAR is unset. Call a function like load_soccar first.";
+const NO_CAR_ERR: &str = "CAR is unset. Call a function like load_soccar first.";
 
 static mut BALL_STRUCT: Option<BallPrediction> = None;
-static NO_BALL_STRUCT_ERR: &str = "BALL_STRUCT is unset. Call the function tick and pass in game information first.";
+const NO_BALL_STRUCT_ERR: &str = "BALL_STRUCT is unset. Call the function tick and pass in game information first.";
 
 static mut TURN_ACCEL_LUT: Option<TurnLut> = None;
-static NO_TURN_ACCEL_LUT_ERR: &str = "TURN_ACCEL_LUT is unset. Call a function like load_soccar first.";
+const NO_TURN_ACCEL_LUT_ERR: &str = "TURN_ACCEL_LUT is unset. Call a function like load_soccar first.";
 
 static mut TURN_ACCEL_BOOST_LUT: Option<TurnLut> = None;
-static NO_TURN_ACCEL_BOOST_LUT_ERR: &str = "TURN_ACCEL_BOOST_LUT is unset. Call a function like load_soccar first.";
+const NO_TURN_ACCEL_BOOST_LUT_ERR: &str = "TURN_ACCEL_BOOST_LUT is unset. Call a function like load_soccar first.";
 
 static mut TURN_DECEL_LUT: Option<TurnLut> = None;
-static NO_TURN_DECEL_LUT_ERR: &str = "TURN_DECEL_LUT is unset. Call a function like load_soccar first.";
+const NO_TURN_DECEL_LUT_ERR: &str = "TURN_DECEL_LUT is unset. Call a function like load_soccar first.";
 
 py_module_initializer!(virxrlru, |py, m| {
     m.add(py, "__doc__", "VirxERLU-RLib is written in Rust with Python bindings to make analyzing the ball prediction struct much faster.")?;
@@ -385,8 +385,8 @@ fn calculate_intercept(py: Python, py_target: PyList, py_all: PyBool) -> PyResul
             }
         }
 
-        // let (found, _) = can_reach_target(car, time_remaining, distance_remaining, true);
-        let found = distance_remaining / time_remaining < MAX_SPEED;
+        let (found, _) = can_reach_target(car, time_remaining, distance_remaining, true);
+        // let found = distance_remaining / time_remaining < MAX_SPEED;
 
         if all {
             // for worst-case benchmarking only
