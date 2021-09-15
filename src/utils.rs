@@ -598,7 +598,7 @@ pub fn can_reach_target(car: &Car, max_time: f32, distance_remaining: f32, is_fo
 
         let r = d * direction / t_r;
 
-        if MIN_SPEED > r || r > MAX_SPEED {
+        if MIN_SPEED > r || r > MAX_SPEED || t_r < -SIMULATION_DT {
             return (false, -1.);
         }
 
@@ -606,10 +606,6 @@ pub fn can_reach_target(car: &Car, max_time: f32, distance_remaining: f32, is_fo
 
         if t.abs() < 100. {
             break;
-        }
-
-        if t_r < 0. {
-            return (false, -1.);
         }
 
         let acceleration = t / REACTION_TIME;
@@ -643,12 +639,6 @@ pub fn can_reach_target(car: &Car, max_time: f32, distance_remaining: f32, is_fo
 
         t_r -= SIMULATION_DT;
         d -= (v * direction) * SIMULATION_DT;
-    }
-
-    t_r -= distance_remaining / v;
-
-    if t_r < 0. {
-        return (false, -1.);
     }
 
     (true, t_r)
