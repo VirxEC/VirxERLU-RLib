@@ -6,7 +6,7 @@ use std::{
 
 use byteorder::{BigEndian, ReadBytesExt};
 use cpython::{exc, ObjectProtocol, PyDict, PyErr, PyObject, PyResult, Python};
-use rl_ball_sym::{linear_algebra::vector::Vec3, simulation::ball::Ball};
+use rl_ball_sym::{linear_algebra::vector::Vec3, simulation::{self, ball::Ball}};
 
 pub const MAX_SPEED: f32 = 2300.;
 pub const MAX_SPEED_NO_BOOST: f32 = 1410.;
@@ -412,6 +412,35 @@ pub fn globalize(car: &Car, vec: &Vec3) -> Vec3 {
 //     }
 // }
 
+pub fn turn_radius(v: f32) -> f32 {
+    1. / curvature(v)
+}
+
+
+pub fn curvature(v: f32) -> f32 {
+    if 0. <= v && v < 500. {
+        return 0.0069 - 5.84e-6 * v
+    }
+
+    if 500. <= v && v < 1000. {
+        return 0.00561 - 3.26e-6 * v
+    }
+
+    if 1000. <= v && v < 1500. {
+        return 0.0043 - 1.95e-6 * v
+    }
+
+    if 1500. <= v && v < 1750. {
+        return 0.003025 - 1.1e-6 * v
+    }
+
+    if 1750. <= v && v < 2500. {
+        return 0.0018 - 4e-7 * v
+    }
+
+    0.
+}
+
 pub fn binary_search_turn_lut_velocity(lut: &TurnLut, velocity: i16) -> usize {
     let mut left = 0;
     let mut right = lut.velocity_sorted.len() - 1;
@@ -669,6 +698,56 @@ impl Default for TurnInfo {
 }
 
 impl TurnInfo {
+    // pub fn simulate_turn(car: &Car, target: &Vec3) -> Self {
+    //     let mut target = *target;
+    //     let mut local_target = localize_2d(car, target);
+    //     let inverted = local_target.y < 0.;
+
+    //     if inverted {
+    //         local_target.y = -local_target.y;
+    //         target = globalize(car, &local_target)
+    //     }
+
+    //     let required_yaw = car.yaw + angle_2d(&car.forward, &(target - car.location).normalize());
+
+    //     let mut car_speed = car.velocity.dot(&car.forward);
+
+    //     let mut car_location = car.location;
+    //     let mut car_forward = car.forward;
+    //     let mut car_yaw = car.yaw;
+    //     let mut distance = 0;
+    //     let mut time = 0.;
+
+    //     while car_yaw < required_yaw {
+    //         let car_to_target = target - car_location;
+    //         let local_x = car_forward.dot(&car_to_target);
+    //         let car_right = rotate_2d(&car_forward, &FRAC_PI_2);
+    //         let local_y = car_right.dot(&car_to_target);
+
+    //         let speed_dt = car_speed * SIMULATION_DT;
+
+    //         let turn_radius = turn_radius(car_speed.abs());
+    //         let circle_center = Vec3 {
+    //             x: 0.,
+    //             y: turn_radius  * local_y.signum(),
+    //             z: 0.,
+    //         };
+    //         car_location += car_forward * local_location + car_right * local_location;
+
+    //         time += SIMULATION_DT;
+    //     }
+
+    //     Self {
+    //         car_location,
+    //         car_forward,
+    //         car_speed: car_speed as i16,
+    //         car_yaw,
+    //         distance,
+    //         time,
+    //         boost: car.boost,
+    //     }
+    // }
+
     pub fn calc_turn_info(car: &Car, target: &Vec3, turn_accel_lut: &TurnLut, turn_accel_boost_lut: &TurnLut, turn_decel_lut: &TurnLut) -> Self {
         let mut target = *target;
         let mut local_target = localize_2d(car, target);
