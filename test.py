@@ -15,59 +15,59 @@ print("")
 
 print("Benchmarking...")
 time = 0.
-times = [[], []]
+times = [[], [], []]
 
 for _ in range(10000):
     start = time_ns()
     rlru.tick(
         time=time,
         ball={
-            "location": [
+            "location": (
                 0,
                 0,
                 100,
-            ],
-            "velocity": [
+            ),
+            "velocity": (
                 0,
                 0,
                 0,
-            ],
-            "angular_velocity": [
+            ),
+            "angular_velocity": (
                 0,
                 0,
                 0,
-            ],
+            ),
         },
         car={
-            "location": [
+            "location": (
                 -1000,
                 4000,
                 100,
-            ],
-            "velocity": [
+            ),
+            "velocity": (
                 0,
                 0,
                 0,
-            ],
-            "angular_velocity": [
+            ),
+            "angular_velocity": (
                 0,
                 0,
                 0,
-            ],
-            "hitbox": [
+            ),
+            "hitbox": (
                 118,
                 84,
                 36,
-            ],
-            "hitbox_offset": [
+            ),
+            "hitbox_offset": (
                 0,
                 0,
                 0,
-            ],
+            ),
             "pitch": 0,
             "yaw": 1,
             "roll": 0,
-            "boost": 100,
+            "boost": 12,
             "demolished": False,
             "airborne": False,
             "jumped": False,
@@ -79,11 +79,23 @@ for _ in range(10000):
 
     start = time_ns()
 
-    rlru.calculate_intercept([
-        0, 5120, 0
-    ], all=True)
+    rlru.calculate_intercept((
+        800, 5120, 0,
+    ), (
+        -800, 5120, 0,
+    ), all=True)
 
     times[1].append(time_ns() - start)
+
+    start = time_ns()
+
+    rlru.calculate_intercept((
+        800, 5120, 0,
+    ), (
+        -800, 5120, 0,
+    ), all=True)
+
+    times[2].append(time_ns() - start)
 
     time += 1/120
 
@@ -95,8 +107,14 @@ print(f"Avg. time of execution: {round(sum(times[0]) / len(times[0]) / 1000000, 
 
 print("")
 
-print("calculate_intercept():")
+print("calculate_intercept() worst-case:")
 print(f"Total test time: {round(sum(times[1]) / 1000000000, 4)}s")
 print(f"Avg. time of execution: {round(sum(times[1]) / len(times[1]) / 1000000, 3)}ms")
+
+print("")
+
+print("calculate_intercept():")
+print(f"Total test time: {round(sum(times[2]) / 1000000000, 4)}s")
+print(f"Avg. time of execution: {round(sum(times[2]) / len(times[2]) / 1000000, 3)}ms")
 
 print("")

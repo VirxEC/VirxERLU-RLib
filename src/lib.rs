@@ -3,7 +3,8 @@ extern crate rl_ball_sym;
 
 mod utils;
 
-use cpython::{exc, py_fn, py_module_initializer, PyBool, PyDict, PyErr, PyFloat, PyList, PyObject, PyResult, Python, PythonObject};
+use cpython::{exc, py_fn, py_module_initializer, PyBool, PyDict, PyErr, PyFloat, PyObject, PyResult, PyTuple, Python, PythonObject};
+use dubins_paths::path_sample_many;
 use rl_ball_sym::{
     linear_algebra::vector::Vec3,
     simulation::{
@@ -24,14 +25,14 @@ const NO_CAR_ERR: &str = "CAR is unset. Call a function like load_soccar first."
 static mut BALL_STRUCT: Option<BallPrediction> = None;
 const NO_BALL_STRUCT_ERR: &str = "BALL_STRUCT is unset. Call the function tick and pass in game information first.";
 
-static mut TURN_ACCEL_LUT: Option<TurnLut> = None;
-const NO_TURN_ACCEL_LUT_ERR: &str = "TURN_ACCEL_LUT is unset. Call a function like load_soccar first.";
+// static mut TURN_ACCEL_LUT: Option<TurnLut> = None;
+// const NO_TURN_ACCEL_LUT_ERR: &str = "TURN_ACCEL_LUT is unset. Call a function like load_soccar first.";
 
-static mut TURN_ACCEL_BOOST_LUT: Option<TurnLut> = None;
-const NO_TURN_ACCEL_BOOST_LUT_ERR: &str = "TURN_ACCEL_BOOST_LUT is unset. Call a function like load_soccar first.";
+// static mut TURN_ACCEL_BOOST_LUT: Option<TurnLut> = None;
+// const NO_TURN_ACCEL_BOOST_LUT_ERR: &str = "TURN_ACCEL_BOOST_LUT is unset. Call a function like load_soccar first.";
 
-static mut TURN_DECEL_LUT: Option<TurnLut> = None;
-const NO_TURN_DECEL_LUT_ERR: &str = "TURN_DECEL_LUT is unset. Call a function like load_soccar first.";
+// static mut TURN_DECEL_LUT: Option<TurnLut> = None;
+// const NO_TURN_DECEL_LUT_ERR: &str = "TURN_DECEL_LUT is unset. Call a function like load_soccar first.";
 
 py_module_initializer!(virxrlru, |py, m| {
     m.add(py, "__doc__", "VirxERLU-RLib is written in Rust with Python bindings to make analyzing the ball prediction struct much faster.")?;
@@ -41,22 +42,22 @@ py_module_initializer!(virxrlru, |py, m| {
     m.add(py, "set_gravity", py_fn!(py, set_gravity(gravity: PyDict)))?;
     m.add(py, "tick", py_fn!(py, tick(time: PyFloat, ball: PyDict, car: PyDict)))?;
     m.add(py, "get_slice", py_fn!(py, get_slice(time: PyFloat)))?;
-    m.add(py, "calc_dr_and_ft", py_fn!(py, calc_dr_and_ft(target: PyList, time: PyFloat)))?;
-    m.add(py, "calculate_intercept", py_fn!(py, calculate_intercept(target: PyList, all: PyBool)))?;
+    m.add(py, "calc_dr_and_ft", py_fn!(py, calc_dr_and_ft(target_left: PyTuple, target_right: PyTuple, time: PyFloat)))?;
+    m.add(py, "calculate_intercept", py_fn!(py, calculate_intercept(target_left: PyTuple, target_right: PyTuple, all: PyBool)))?;
     Ok(())
 });
 
-fn load_luts() {
-    let turn_accel_lut = TurnLut::from(read_turn_bin(include_bytes!("../turn_data/turn_data_accel.bin").to_vec()));
-    let turn_accel_boost_lut = TurnLut::from(read_turn_bin(include_bytes!("../turn_data/turn_data_accel_boost.bin").to_vec()));
-    let turn_decel_lut = TurnLut::from(read_turn_bin(include_bytes!("../turn_data/turn_data_decel.bin").to_vec()));
+// fn load_luts() {
+//     let turn_accel_lut = TurnLut::from(read_turn_bin(include_bytes!("../turn_data/turn_data_accel.bin").to_vec()));
+//     // let turn_accel_boost_lut = TurnLut::from(read_turn_bin(include_bytes!("../turn_data/turn_data_accel_boost.bin").to_vec()));
+//     let turn_decel_lut = TurnLut::from(read_turn_bin(include_bytes!("../turn_data/turn_data_decel.bin").to_vec()));
 
-    unsafe {
-        TURN_ACCEL_LUT = Some(turn_accel_lut);
-        TURN_ACCEL_BOOST_LUT = Some(turn_accel_boost_lut);
-        TURN_DECEL_LUT = Some(turn_decel_lut);
-    }
-}
+//     unsafe {
+//         TURN_ACCEL_LUT = Some(turn_accel_lut);
+//         // TURN_ACCEL_BOOST_LUT = Some(turn_accel_boost_lut);
+//         TURN_DECEL_LUT = Some(turn_decel_lut);
+//     }
+// }
 
 fn load_soccar(py: Python) -> PyResult<PyObject> {
     unsafe {
@@ -65,7 +66,7 @@ fn load_soccar(py: Python) -> PyResult<PyObject> {
         BALL_STRUCT = Some(BallPrediction::default());
     }
 
-    load_luts();
+    // load_luts();
 
     Ok(py.None())
 }
@@ -77,7 +78,7 @@ fn load_dropshot(py: Python) -> PyResult<PyObject> {
         BALL_STRUCT = Some(BallPrediction::default());
     }
 
-    load_luts();
+    // load_luts();
 
     Ok(py.None())
 }
@@ -89,7 +90,7 @@ fn load_hoops(py: Python) -> PyResult<PyObject> {
         BALL_STRUCT = Some(BallPrediction::default());
     }
 
-    load_luts();
+    // load_luts();
 
     Ok(py.None())
 }
@@ -210,14 +211,11 @@ fn get_slice(py: Python, py_slice_time: PyFloat) -> PyResult<PyObject> {
     Ok(py_slice.into_object())
 }
 
-fn calc_dr_and_ft(py: Python, py_target: PyList, py_slice_time: PyFloat) -> PyResult<PyObject> {
+fn calc_dr_and_ft(py: Python, py_target_left: PyTuple, py_target_right: PyTuple, py_slice_time: PyFloat) -> PyResult<PyObject> {
     let game_time: &f32;
     let _gravity: &Vec3;
     let car: &Car;
-    let ball: Box<Ball>;
-    let turn_accel_lut: &TurnLut;
-    let turn_accel_boost_lut: &TurnLut;
-    let turn_decel_lut: &TurnLut;
+    let ball: &Box<Ball>;
 
     unsafe {
         game_time = &GAME_TIME;
@@ -243,57 +241,69 @@ fn calc_dr_and_ft(py: Python, py_target: PyList, py_slice_time: PyFloat) -> PyRe
         };
 
         ball = match BALL_STRUCT.as_ref() {
-            Some(ball_struct) => ball_struct.slices[slice_num.clamp(1, ball_struct.num_slices) - 1].clone(),
+            Some(ball_struct) => &ball_struct.slices[slice_num.clamp(1, ball_struct.num_slices) - 1],
             None => {
                 return Err(PyErr::new::<exc::NameError, _>(py, NO_BALL_STRUCT_ERR));
             }
         };
-
-        turn_accel_lut = match TURN_ACCEL_LUT.as_ref() {
-            Some(lut) => lut,
-            None => {
-                return Err(PyErr::new::<exc::NameError, _>(py, NO_TURN_ACCEL_LUT_ERR));
-            }
-        };
-
-        turn_accel_boost_lut = match TURN_ACCEL_BOOST_LUT.as_ref() {
-            Some(lut) => lut,
-            None => {
-                return Err(PyErr::new::<exc::NameError, _>(py, NO_TURN_ACCEL_BOOST_LUT_ERR));
-            }
-        };
-
-        turn_decel_lut = match TURN_DECEL_LUT.as_ref() {
-            Some(lut) => lut,
-            None => {
-                return Err(PyErr::new::<exc::NameError, _>(py, NO_TURN_DECEL_LUT_ERR));
-            }
-        };
     }
 
-    let target = get_vec3(py, py_target.as_object(), "Key 'target' needs to be a list of exactly 3 numbers")?;
+    let target_left = get_vec3(py, py_target_left.as_object(), "Key 'target_left' needs to be a list of exactly 3 numbers")?;
+    let target_right = get_vec3(py, py_target_right.as_object(), "Key 'target_right' needs to be a list of exactly 3 numbers")?;
+
+    let car_to_ball = ball.location - car.location;
+    let target = get_shot_vector_2d(car_to_ball.normalize(), ball.location, target_left, target_right);
 
     let shot_vector = (target - ball.location).normalize();
 
-    let (_, distance_remaining, final_target, _, _) = analyze_target(ball, car, shot_vector, turn_accel_lut, turn_accel_boost_lut, turn_decel_lut, false);
+    let (distance_parts, final_target, path) = match analyze_target(ball, car, shot_vector, 2., false) {
+        Ok(result) => result,
+        Err(duberr) => {
+            return Err(PyErr::new::<exc::Exception, _>(py, format!("{:?} - Couldn't calculate path", duberr)));
+        }
+    };
 
     let result = PyDict::new(py);
+
+    // dbg!(distance_parts);
+
+    let distance_remaining: f32 = distance_parts.iter().sum();
 
     result.set_item(py, "distance_remaining", distance_remaining)?;
     result.set_item(py, "final_target", get_vec_from_vec3(final_target))?;
 
+    match path {
+        Some(path_) => {
+            let path_samples = match path_sample_many(&path_, 100.) {
+                Ok(raw_samples) => {
+                    let mut samples = Vec::with_capacity(raw_samples.len());
+                    for sample in raw_samples {
+                        samples.push(vec![sample[0], sample[1]]);
+                    }
+                    samples
+                }
+                Err(duberr) => {
+                    return Err(PyErr::new::<exc::Exception, _>(py, format!("{:?} - Couldn't calculate samples", duberr)));
+                }
+            };
+            result.set_item(py, "path_samples", path_samples)?;
+        }
+        None => {
+            result.set_item(py, "path_samples", vec![get_vec_from_vec3(car.location), get_vec_from_vec3(ball.location)])?;
+        }
+    }
+
     Ok(result.into_object())
 }
 
-fn calculate_intercept(py: Python, py_target: PyList, py_all: PyBool) -> PyResult<PyObject> {
+fn calculate_intercept(py: Python, py_target_left: PyTuple, py_target_right: PyTuple, py_all: PyBool) -> PyResult<PyObject> {
     let game_time: &f32;
     let _gravity: &Vec3;
     let radius: &f32;
     let car: &Car;
-    let ball_slices: Vec<Box<Ball>>;
-    let turn_accel_lut: &TurnLut;
-    let turn_accel_boost_lut: &TurnLut;
-    let turn_decel_lut: &TurnLut;
+    let ball_prediction: &BallPrediction;
+    // let turn_accel_lut: &TurnLut;
+    // let turn_decel_lut: &TurnLut;
 
     unsafe {
         match GAME.as_ref() {
@@ -313,52 +323,46 @@ fn calculate_intercept(py: Python, py_target: PyList, py_all: PyBool) -> PyResul
             }
         };
 
-        ball_slices = match BALL_STRUCT.as_ref() {
-            Some(ball_struct) => ball_struct.slices.clone(),
+        ball_prediction = match BALL_STRUCT.as_ref() {
+            Some(ball_struct) => ball_struct,
             None => {
                 return Err(PyErr::new::<exc::NameError, _>(py, NO_BALL_STRUCT_ERR));
             }
         };
 
-        turn_accel_lut = match TURN_ACCEL_LUT.as_ref() {
-            Some(lut) => lut,
-            None => {
-                return Err(PyErr::new::<exc::NameError, _>(py, NO_TURN_ACCEL_LUT_ERR));
-            }
-        };
+        // turn_accel_lut = match TURN_ACCEL_LUT.as_ref() {
+        //     Some(lut) => lut,
+        //     None => {
+        //         return Err(PyErr::new::<exc::NameError, _>(py, NO_TURN_ACCEL_LUT_ERR));
+        //     }
+        // };
 
-        turn_accel_boost_lut = match TURN_ACCEL_BOOST_LUT.as_ref() {
-            Some(lut) => lut,
-            None => {
-                return Err(PyErr::new::<exc::NameError, _>(py, NO_TURN_ACCEL_BOOST_LUT_ERR));
-            }
-        };
-
-        turn_decel_lut = match TURN_DECEL_LUT.as_ref() {
-            Some(lut) => lut,
-            None => {
-                return Err(PyErr::new::<exc::NameError, _>(py, NO_TURN_DECEL_LUT_ERR));
-            }
-        };
+        // turn_decel_lut = match TURN_DECEL_LUT.as_ref() {
+        //     Some(lut) => lut,
+        //     None => {
+        //         return Err(PyErr::new::<exc::NameError, _>(py, NO_TURN_DECEL_LUT_ERR));
+        //     }
+        // };
 
         game_time = &GAME_TIME;
     }
 
-    let target = get_vec3(py, py_target.as_object(), "Key 'target' needs to be a list of exactly 3 numbers")?;
+    let target_left = get_vec3(py, py_target_left.as_object(), "Key 'target_left' needs to be a list of exactly 3 numbers")?;
+    let target_right = get_vec3(py, py_target_right.as_object(), "Key 'target_right' needs to be a list of exactly 3 numbers")?;
 
     let all = py_all.is_true();
 
-    let dist_from_side = radius + car.hitbox.height + 17.;
+    let dist_from_side = radius + car.hitbox.height;
 
     let mut found_ball = None;
 
-    if ball_slices.len() == 0 || car.demolished {
+    if ball_prediction.num_slices == 0 || car.demolished || car.airborne {
         let result = PyDict::new(py);
         result.set_item(py, "found", false)?;
         return Ok(result.into_object());
     }
 
-    for ball in ball_slices {
+    for ball in &ball_prediction.slices {
         if ball.location.y.abs() > 5120. + ball.collision_radius {
             break;
         }
@@ -367,25 +371,40 @@ fn calculate_intercept(py: Python, py_target: PyList, py_all: PyBool) -> PyResul
             continue;
         }
 
-        let shot_vector = (target - ball.location).normalize();
+        let car_to_ball = ball.location - car.location;
 
-        let (valid, distance_remaining, _, turn, turn_info) = analyze_target(ball.clone(), car, shot_vector, turn_accel_lut, turn_accel_boost_lut, turn_decel_lut, true);
+        let post_info = correct_for_posts(ball.location, ball.collision_radius, target_left, target_right);
 
-        if !valid {
+        if !post_info.fits {
             continue;
         }
 
-        let mut time_remaining = ball.time - game_time;
+        let target = get_shot_vector_2d(car_to_ball.normalize(), ball.location, post_info.target_left, post_info.target_right);
 
-        if turn {
-            time_remaining -= turn_info.time;
+        let shot_vector = (target - ball.location).normalize();
 
-            if time_remaining <= 0. {
-                continue;
-            }
-        }
+        let distance_parts = match analyze_target(ball, car, shot_vector, 1., true) {
+            Ok(result) => result.0,
+            Err(_) => continue,
+        };
 
-        let (found, _) = can_reach_target(car, time_remaining, distance_remaining, true);
+        // dbg!(distance_parts.iter().sum::<f32>());
+
+        // if !valid {
+        //     continue;
+        // }
+
+        // let mut time_remaining = ball.time - game_time;
+
+        // if turn {
+        //     time_remaining -= turn_info.time;
+
+        //     if time_remaining <= 0. {
+        //         continue;
+        //     }
+        // }
+
+        let (found, _) = can_reach_target(car, ball.time - game_time, distance_parts.iter().sum(), true);
         // let found = distance_remaining / time_remaining < MAX_SPEED;
 
         if all {
@@ -394,11 +413,9 @@ fn calculate_intercept(py: Python, py_target: PyList, py_all: PyBool) -> PyResul
             if found && found_ball.is_none() {
                 found_ball = Some(ball.clone());
             }
-        } else {
-            if found {
-                found_ball = Some(ball.clone());
-                break;
-            }
+        } else if found {
+            found_ball = Some(ball.clone());
+            break;
         }
     }
 

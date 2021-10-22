@@ -29,7 +29,7 @@ VirxERLU will be updated after every tournament with the latest, *stable* featur
 
 Currently, VirxERLU-RLib has:
 
-+ Variable ball prediction time (default 8 seconds)
++ Variable ball prediction time (default 6 seconds)
 + 120tps ball prediction analysis
 + Turn LUTs for accurate and quick turn simulations
 + Very accurate shots and distance calculations
