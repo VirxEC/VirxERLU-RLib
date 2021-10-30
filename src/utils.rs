@@ -1,13 +1,3 @@
-// use std::{
-//     cmp::Ordering,
-//     f32::{
-//         consts::{PI, TAU},
-//         EPSILON,
-//     },
-//     io::{Cursor, ErrorKind},
-// };
-
-// use byteorder::{BigEndian, ReadBytesExt};
 use cpython::{exc, ObjectProtocol, PyDict, PyErr, PyObject, PyResult, Python};
 use dubins_paths::{path_sample, shortest_path, DubinsError, DubinsPath};
 use rl_ball_sym::simulation::ball::Ball;
@@ -17,7 +7,7 @@ use vvec3::Vec3;
 pub const MAX_SPEED: f32 = 2300.;
 pub const MAX_SPEED_NO_BOOST: f32 = 1410.;
 pub const MIN_SPEED: f32 = -MAX_SPEED_NO_BOOST;
-pub const MAX_SPEED_MIN_TURN_RADIUS: f32 = 1. / 0.00088;
+// pub const MAX_SPEED_MIN_TURN_RADIUS: f32 = 1. / 0.00088;
 pub const TPS: f32 = 120.;
 pub const SIMULATION_DT: f32 = 1. / TPS;
 pub const BOOST_CONSUMPTION: f32 = 33.3 + 1. / 33.;
@@ -41,97 +31,6 @@ pub const END_THROTTLE_ACCEL_B: f32 = 160.;
 
 const BOOST_ACCEL: f32 = 991. + 2. / 3.;
 const BOOST_ACCEL_DT: f32 = BOOST_ACCEL * SIMULATION_DT;
-
-// pub struct TurnLut {
-//     pub time_sorted: Vec<TurnLutEntry>,
-//     pub velocity_sorted: Vec<TurnLutEntry>,
-// }
-
-// impl TurnLut {
-//     pub fn from(mut entries: Vec<TurnLutEntry>) -> Self {
-//         entries.sort_unstable_by(|a, b| a.time.partial_cmp(&b.time).unwrap_or(Ordering::Equal));
-
-//         for (time_index, entry) in entries.iter_mut().enumerate() {
-//             entry.time_sorted_index = time_index;
-//         }
-
-//         let time_sorted = entries.clone();
-
-//         entries.dedup_by_key(|e| e.velocity);
-//         entries.sort_by(|a, b| a.velocity.partial_cmp(&b.velocity).unwrap_or(Ordering::Equal));
-//         entries.dedup_by_key(|e| e.velocity);
-
-//         Self {
-//             time_sorted,
-//             velocity_sorted: entries,
-//         }
-//     }
-// }
-
-// #[derive(Clone, Copy)]
-// pub struct TurnLutEntry {
-//     pub time: f32,
-//     pub velocity: i16,
-//     pub distance: u16,
-//     pub location: Vec3,
-//     pub yaw: f32,
-//     pub time_sorted_index: usize,
-// }
-
-// pub fn read_turn_bin(bin_data: Vec<u8>) -> Vec<TurnLutEntry> {
-//     let mut cursor = Cursor::new(bin_data);
-//     let mut lut: Vec<TurnLutEntry> = Vec::new();
-
-//     loop {
-//         let time = match cursor.read_u16::<BigEndian>() {
-//             Ok(num) => num as f32 / 7222.,
-//             Err(error) => match error.kind() {
-//                 ErrorKind::UnexpectedEof => break,
-//                 other_error => {
-//                     panic!("Problem parsing file: {:?}", other_error)
-//                 }
-//             },
-//         };
-
-//         let location = Vec3 {
-//             x: match cursor.read_i16::<BigEndian>() {
-//                 Ok(num) => num as f32 / 6.,
-//                 Err(error) => panic!("Problem parsing file: {:?}", error),
-//             },
-//             y: match cursor.read_i16::<BigEndian>() {
-//                 Ok(num) => num as f32 / 6.,
-//                 Err(error) => panic!("Problem parsing file: {:?}", error),
-//             },
-//             z: 0.,
-//         };
-
-//         let velocity = match cursor.read_i16::<BigEndian>() {
-//             Ok(num) => num,
-//             Err(error) => panic!("Problem parsing file: {:?}", error),
-//         };
-
-//         let yaw = match cursor.read_i16::<BigEndian>() {
-//             Ok(num) => num as f32 / 10200.,
-//             Err(error) => panic!("Problem parsing file: {:?}", error),
-//         };
-
-//         let distance = match cursor.read_u16::<BigEndian>() {
-//             Ok(num) => num,
-//             Err(error) => panic!("Problem parsing file: {:?}", error),
-//         };
-
-//         lut.push(TurnLutEntry {
-//             time,
-//             velocity,
-//             distance,
-//             location,
-//             yaw,
-//             time_sorted_index: 0,
-//         });
-//     }
-
-//     lut
-// }
 
 pub struct Hitbox {
     pub length: f32,
@@ -374,32 +273,6 @@ pub fn localize_2d(car: &Car, vec: Vec3) -> Vec3 {
 //     (v - a) / (b - a)
 // }
 
-// pub fn get_turn_time_from_speed(speed: f32) -> f32 {
-//     let speed_adj = -speed / VMAX - 1.;
-//     -speed_adj.ln() * TAU
-// }
-
-// pub fn get_speed_from_time_turning(time: f32) -> f32 {
-//     VMAX * (1. - (-(time / TAU)).exp())
-// }
-
-// pub fn get_turn_time_from_speed_with_boost(speed: f32) -> f32 {
-//     match speed {
-//         y if y < 1410. => (y + 26.11) / 1535.948,
-//         y if y < 2295. => (y - 829.316) / 621.05,
-//         _ => 2.36,
-//     }
-// }
-
-// pub fn get_speed_from_time_turning_with_boost(time: f32) -> f32 {
-//     match time {
-//         x if x < 0.017 => 0.,
-//         x if x <= 0.935 => 1535.948 * x - 26.111,
-//         x if x <= 2.36 => 621.05 * x + 829.316,
-//         _ => 2295.,
-//     }
-// }
-
 pub fn turn_radius(v: f32) -> f32 {
     1. / curvature(v)
 }
@@ -503,85 +376,6 @@ pub fn correct_for_posts(ball_location: Vec3, ball_radius: f32, target_left: Vec
     }
 }
 
-// pub fn binary_search_turn_lut_velocity(lut: &TurnLut, velocity: i16) -> usize {
-//     let mut left = 0;
-//     let mut right = lut.velocity_sorted.len() - 1;
-
-//     while right - left > 0 {
-//         let mid = (left + right) / 2;
-//         let slice = &lut.velocity_sorted[mid];
-
-//         let cmp = slice.velocity.cmp(&velocity);
-
-//         // The reason why we use if/else control flow rather than match
-//         // is because match reorders comparison operations, which is perf sensitive.
-//         // This is x86 asm for u8: https://rust.godbolt.org/z/8Y8Pra.
-//         if cmp == Ordering::Less {
-//             left = mid + 1;
-//         } else if cmp == Ordering::Greater {
-//             right = mid;
-//         } else {
-//             return mid;
-//         }
-//     }
-
-//     left
-// }
-
-// pub fn binary_search_turn_lut_time(lut: &TurnLut, time: &f32) -> usize {
-//     let mut left = 0;
-//     let mut right = lut.time_sorted.len();
-
-//     while right - left > 0 {
-//         let mid = (left + right) / 2;
-//         let slice = &lut.time_sorted[mid];
-
-//         let cmp = slice.time.partial_cmp(&time).unwrap_or(Ordering::Equal);
-
-//         // The reason why we use if/else control flow rather than match
-//         // is because match reorders comparison operations, which is perf sensitive.
-//         // This is x86 asm for u8: https://rust.godbolt.org/z/8Y8Pra.
-//         if cmp == Ordering::Less {
-//             left = mid + 1;
-//         } else if cmp == Ordering::Greater {
-//             right = mid;
-//         } else {
-//             return mid;
-//         }
-//     }
-
-//     left
-// }
-
-// pub fn linear_search_turn_lut_target(lut: &TurnLut, required_yaw_change: f32, start_index: usize) -> usize {
-//     let mut index = start_index;
-//     let mut current_yaw = 0.;
-
-//     let start_yaw = lut.time_sorted[index].yaw;
-
-//     let mut next_index = index + 3;
-//     let mut next_yaw = lut.time_sorted[next_index].yaw - start_yaw;
-
-//     // in theory, we should only ever be turning right at most 180 degrees, so this should be fine
-//     while (required_yaw_change - next_yaw).abs() <= (required_yaw_change - current_yaw).abs() {
-//         index = next_index;
-//         current_yaw = next_yaw;
-
-//         next_index = index + 3;
-//         next_yaw = lut.time_sorted[next_index].yaw - start_yaw;
-//     }
-
-//     index
-// }
-
-// fn is_point_in_field(car: &Car, target: Vec3) -> bool {
-//     target.y.abs() < 5120. - car.hitbox.length && target.x.abs() < 4093. - car.hitbox.length
-// }
-
-// pub fn is_circle_in_field(car_hitbox: &Hitbox, target: Vec3, circle_radius: f32) -> bool {
-//     target.y.abs() < 5120. - car_hitbox.length - circle_radius && target.x.abs() < 4093. - car_hitbox.length - circle_radius
-// }
-
 pub struct CarFieldRect {
     u_1: f32,
     u_2: f32,
@@ -637,17 +431,6 @@ impl CarFieldRect {
 
         self.a_1 < p_1 && p_1 < self.b_1 && self.a_2 < p_2 && p_2 < self.b_2
     }
-
-    // pub fn is_triangle_in(&self, p_1: Vec3, p_2: Vec3, p_3: Vec3) -> bool {
-    //     self.is_point_in(p_1) && self.is_point_in(p_2) && self.is_point_in(p_3)
-    // }
-
-    // fn is_point_in(&self, p: Vec3) -> bool {
-    //     let p_1 = p.x * self.u_1 + p.y * self.v_1;
-    //     let p_2 = p.x * self.u_2 + p.y * self.v_2;
-
-    //     self.a_1 < p_1 && p_1 < self.b_1 && self.a_2 < p_2 && p_2 < self.b_2
-    // }
 }
 
 fn path_section_endpoints(path: &DubinsPath) -> Result<[[f32; 3]; 3], DubinsError> {
@@ -825,164 +608,3 @@ pub fn can_reach_target(car: &Car, max_time: f32, distance_remaining: f32, is_fo
 
     Ok(t_r)
 }
-
-// pub struct TurnInfo {
-//     pub car_location: Vec3,
-//     pub car_forward: Vec3,
-//     pub car_speed: i16,
-//     pub car_yaw: f32,
-//     pub distance: u16,
-//     pub time: f32,
-// }
-
-// impl Default for TurnInfo {
-//     fn default() -> Self {
-//         Self {
-//             car_location: Vec3::default(),
-//             car_forward: Vec3::default(),
-//             car_speed: 0,
-//             car_yaw: 0.,
-//             distance: 0,
-//             time: 0.,
-//         }
-//     }
-// }
-
-// impl TurnInfo {
-//     pub fn calc_turn_info(car: &Car, target: &Vec3, turn_accel_lut: &TurnLut, /*turn_accel_boost_lut: &TurnLut, */ turn_decel_lut: &TurnLut) -> Self {
-//         let mut target = *target;
-//         let mut local_target = localize_2d(car, target);
-//         let inverted = local_target.y < 0.;
-
-//         if inverted {
-//             local_target.y = -local_target.y;
-//             target = globalize(car, local_target)
-//         }
-
-//         let required_yaw_change = angle_2d(&car.forward, &(target - car.location).normalize());
-
-//         let mut car_speed = car.velocity.dot(&car.forward).round() as i16;
-
-//         let mut car_location = car.location;
-//         let mut car_forward = car.forward;
-//         let mut car_yaw = car.yaw;
-//         let mut distance = 0;
-//         let mut time = 0.;
-//         // let mut boost = car.boost;
-
-//         // let mut done = false;
-
-//         // if boost >= 4 {
-//         //     let start_velocity_index = binary_search_turn_lut_velocity(turn_accel_boost_lut, car_speed);
-//         //     let start_slice = &turn_accel_boost_lut.velocity_sorted[start_velocity_index];
-
-//         //     let final_time_index = linear_search_turn_lut_target(turn_accel_boost_lut, required_yaw_change, start_slice.time_sorted_index);
-//         //     let mut final_slice = &turn_accel_boost_lut.time_sorted[final_time_index];
-
-//         //     {
-//         //         let max_boost_time = boost as f32 / BOOST_CONSUMPTION;
-//         //         let turn_time = final_slice.time - start_slice.time;
-
-//         //         if max_boost_time < turn_time {
-//         //             let final_time_index = binary_search_turn_lut_time(turn_accel_boost_lut, &max_boost_time);
-//         //             final_slice = &turn_accel_boost_lut.time_sorted[final_time_index];
-//         //             boost = 0;
-//         //         } else {
-//         //             done = true;
-//         //             boost -= (turn_time * BOOST_CONSUMPTION) as u8;
-//         //         }
-//         //     }
-
-//         //     let part_distance = final_slice.distance - start_slice.distance;
-
-//         //     match inverted {
-//         //         false => {
-//         //             let rotation = final_slice.yaw - start_slice.yaw;
-//         //             car_yaw += rotation;
-//         //             if car_yaw > PI {
-//         //                 car_yaw -= TAU;
-//         //             }
-
-//         //             car_forward = rotate_2d(&car_forward, &rotation);
-
-//         //             car_location += (final_slice.location - start_slice.location).scale(part_distance as f32);
-//         //         }
-//         //         true => {
-//         //             let rotation = -1. * (final_slice.yaw - start_slice.yaw);
-
-//         //             car_yaw += rotation;
-//         //             if car_yaw > PI {
-//         //                 car_yaw -= TAU;
-//         //             }
-
-//         //             car_forward = rotate_2d(&car_forward, &rotation);
-
-//         //             let location_dir = (final_slice.location - start_slice.location).normalize();
-//         //             let location_rot = -angle_tau_2d(&car.forward, &location_dir);
-//         //             car_location += rotate_2d(&location_dir, &location_rot) * part_distance as f32;
-//         //         }
-//         //     }
-
-//         //     car_speed = final_slice.velocity;
-//         //     distance += part_distance;
-//         //     time += final_slice.time - start_slice.time;
-//         // }
-
-//         // if !done {
-//         let turn_lut = if car_speed <= 1234 {
-//             turn_accel_lut
-//         } else {
-//             turn_decel_lut
-//         };
-
-//         let start_velocity_index = binary_search_turn_lut_velocity(turn_lut, car_speed);
-//         let start_slice = turn_lut.velocity_sorted[start_velocity_index];
-
-//         let final_time_index = linear_search_turn_lut_target(turn_lut, required_yaw_change, start_slice.time_sorted_index);
-//         let final_slice = turn_lut.time_sorted[final_time_index];
-
-//         let part_distance = final_slice.distance - start_slice.distance;
-
-//         match inverted {
-//             false => {
-//                 let rotation = final_slice.yaw - start_slice.yaw;
-//                 car_yaw += rotation;
-//                 if car_yaw > PI {
-//                     car_yaw -= TAU;
-//                 }
-
-//                 car_forward = rotate_2d(&car_forward, &rotation);
-
-//                 car_location += (final_slice.location - start_slice.location).scale(part_distance as f32);
-//             }
-//             true => {
-//                 let rotation = -1. * (final_slice.yaw - start_slice.yaw);
-
-//                 car_yaw += rotation;
-//                 if car_yaw > PI {
-//                     car_yaw -= TAU;
-//                 }
-
-//                 car_forward = rotate_2d(&car_forward, &rotation);
-
-//                 let location_dir = (final_slice.location - start_slice.location).normalize();
-//                 let location_rot = -angle_tau_2d(&car.forward, &location_dir);
-//                 car_location += rotate_2d(&location_dir, &location_rot) * part_distance as f32;
-//             }
-//         }
-
-//         car_speed = final_slice.velocity;
-//         distance += part_distance;
-//         time += final_slice.time - start_slice.time;
-//         // }
-
-//         Self {
-//             car_location,
-//             car_forward,
-//             car_speed,
-//             car_yaw,
-//             distance,
-//             time,
-//         }
-//     }
-// }

@@ -23,15 +23,6 @@ const NO_CAR_ERR: &str = "CAR is unset. Call a function like load_soccar first."
 static mut BALL_STRUCT: Option<BallPrediction> = None;
 const NO_BALL_STRUCT_ERR: &str = "BALL_STRUCT is unset. Call the function tick and pass in game information first.";
 
-// static mut TURN_ACCEL_LUT: Option<TurnLut> = None;
-// const NO_TURN_ACCEL_LUT_ERR: &str = "TURN_ACCEL_LUT is unset. Call a function like load_soccar first.";
-
-// static mut TURN_ACCEL_BOOST_LUT: Option<TurnLut> = None;
-// const NO_TURN_ACCEL_BOOST_LUT_ERR: &str = "TURN_ACCEL_BOOST_LUT is unset. Call a function like load_soccar first.";
-
-// static mut TURN_DECEL_LUT: Option<TurnLut> = None;
-// const NO_TURN_DECEL_LUT_ERR: &str = "TURN_DECEL_LUT is unset. Call a function like load_soccar first.";
-
 py_module_initializer!(virxrlru, |py, m| {
     m.add(py, "__doc__", "VirxERLU-RLib is written in Rust with Python bindings to make analyzing the ball prediction struct much faster.")?;
     m.add(py, "load_soccar", py_fn!(py, load_soccar()))?;
@@ -45,26 +36,12 @@ py_module_initializer!(virxrlru, |py, m| {
     Ok(())
 });
 
-// fn load_luts() {
-//     let turn_accel_lut = TurnLut::from(read_turn_bin(include_bytes!("../turn_data/turn_data_accel.bin").to_vec()));
-//     // let turn_accel_boost_lut = TurnLut::from(read_turn_bin(include_bytes!("../turn_data/turn_data_accel_boost.bin").to_vec()));
-//     let turn_decel_lut = TurnLut::from(read_turn_bin(include_bytes!("../turn_data/turn_data_decel.bin").to_vec()));
-
-//     unsafe {
-//         TURN_ACCEL_LUT = Some(turn_accel_lut);
-//         // TURN_ACCEL_BOOST_LUT = Some(turn_accel_boost_lut);
-//         TURN_DECEL_LUT = Some(turn_decel_lut);
-//     }
-// }
-
 fn load_soccar(py: Python) -> PyResult<PyObject> {
     unsafe {
         GAME = Some(rl_ball_sym::load_soccar());
         CAR = Some(Car::default());
         BALL_STRUCT = Some(BallPrediction::default());
     }
-
-    // load_luts();
 
     Ok(py.None())
 }
@@ -76,8 +53,6 @@ fn load_dropshot(py: Python) -> PyResult<PyObject> {
         BALL_STRUCT = Some(BallPrediction::default());
     }
 
-    // load_luts();
-
     Ok(py.None())
 }
 
@@ -87,8 +62,6 @@ fn load_hoops(py: Python) -> PyResult<PyObject> {
         CAR = Some(Car::default());
         BALL_STRUCT = Some(BallPrediction::default());
     }
-
-    // load_luts();
 
     Ok(py.None())
 }
@@ -255,8 +228,6 @@ fn calc_dr_and_ft(py: Python, py_target_left: PyTuple, py_target_right: PyTuple,
     let car_to_ball = ball.location - car.location;
     let post_info = correct_for_posts(ball.location, ball.collision_radius, target_left, target_right);
     let shot_vector = get_shot_vector_2d(car_to_ball.flatten().normalize(), ball.location.flatten(), post_info.target_left.flatten(), post_info.target_right.flatten());
-    // let target = get_shot_vector_2d(car_to_ball.normalize(), ball.location, target_left, target_right);
-    // let shot_vector = flattened(target - ball.location).normalize();
 
     let (distance_parts, final_target, path) = match analyze_target(ball, car, shot_vector, true, false) {
         Ok(result) => (result.0, result.1.unwrap(), result.2),
@@ -332,20 +303,6 @@ fn calculate_intercept(py: Python, py_target_left: PyTuple, py_target_right: PyT
                 return Err(PyErr::new::<exc::NameError, _>(py, NO_BALL_STRUCT_ERR));
             }
         };
-
-        // turn_accel_lut = match TURN_ACCEL_LUT.as_ref() {
-        //     Some(lut) => lut,
-        //     None => {
-        //         return Err(PyErr::new::<exc::NameError, _>(py, NO_TURN_ACCEL_LUT_ERR));
-        //     }
-        // };
-
-        // turn_decel_lut = match TURN_DECEL_LUT.as_ref() {
-        //     Some(lut) => lut,
-        //     None => {
-        //         return Err(PyErr::new::<exc::NameError, _>(py, NO_TURN_DECEL_LUT_ERR));
-        //     }
-        // };
 
         game_time = &GAME_TIME;
     }

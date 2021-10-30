@@ -109,7 +109,6 @@ dependencies = [
 name = "virx_erlu_rlib"
 version = "0.1.0"
 dependencies = [
- "byteorder",
  "cpython",
  "dubins_paths",
  "rl_ball_sym",
