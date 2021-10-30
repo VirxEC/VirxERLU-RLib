@@ -148,8 +148,6 @@ fn tick(py: Python, py_time: PyFloat, py_ball: PyDict, py_car: PyDict) -> PyResu
     car.calculate_orientation_matrix();
     car.calculate_max_values();
 
-    // dbg!(car.current_max_speed);
-
     unsafe {
         BALL_STRUCT = Some(Ball::get_ball_prediction_struct_for_time(game, &6.));
     }
@@ -276,8 +274,6 @@ fn calculate_intercept(py: Python, py_target_left: PyTuple, py_target_right: PyT
     let radius: &f32;
     let car: &Car;
     let ball_prediction: &BallPrediction;
-    // let turn_accel_lut: &TurnLut;
-    // let turn_decel_lut: &TurnLut;
 
     unsafe {
         match GAME.as_ref() {
