@@ -702,9 +702,9 @@ pub fn analyze_target(ball: &Box<Ball>, car: &Car, shot_vector: Vec3, get_target
 
     end_distance += offset_distance;
 
-    if get_target {
-        println!("{} | {} | {} | {} ", local_offset.x, car.location.dist_2d(exit_turn_point), radius_from_local_point(exit_turn_point), angle_to_shot);
-    }
+    // if get_target {
+    //     println!("{} | {} | {} | {} ", local_offset.x, car.location.dist_2d(exit_turn_point), radius_from_local_point(exit_turn_point), angle_to_shot);
+    // }
 
     if local_offset.x > 0. && angle_to_shot < 1.3 && car.location.dist_2d(exit_turn_point) < MAX_TURN_RADIUS * 2. && radius_from_local_point(localize_2d(car, exit_turn_point)) < MAX_TURN_RADIUS * 1.05 {
         let final_target = if get_target {
