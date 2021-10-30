@@ -17,7 +17,7 @@ use vvec3::Vec3;
 pub const MAX_SPEED: f32 = 2300.;
 pub const MAX_SPEED_NO_BOOST: f32 = 1410.;
 pub const MIN_SPEED: f32 = -MAX_SPEED_NO_BOOST;
-pub const MAX_TURN_RADIUS: f32 = 1. / 0.00088;
+pub const MAX_SPEED_MIN_TURN_RADIUS: f32 = 1. / 0.00088;
 pub const TPS: f32 = 120.;
 pub const SIMULATION_DT: f32 = 1. / TPS;
 pub const BOOST_CONSUMPTION: f32 = 33.3 + 1. / 33.;
@@ -177,7 +177,8 @@ pub struct Car {
     pub jumped: bool,
     pub doublejumped: bool,
     pub max_speed: f32,
-    pub max_turn_radius: f32,
+    /// min turn radius at max_speed
+    pub msmtr: f32,
 }
 
 impl Default for Car {
@@ -200,7 +201,7 @@ impl Default for Car {
             jumped: false,
             doublejumped: false,
             max_speed: 0.,
-            max_turn_radius: 0.,
+            msmtr: 0.,
         }
     }
 }
@@ -229,7 +230,7 @@ impl Car {
 
     pub fn calculate_max_values(&mut self) {
         self.max_speed = self.get_max_speed();
-        self.max_turn_radius = turn_radius(self.max_speed);
+        self.msmtr = turn_radius(self.max_speed);
     }
 
     fn get_max_speed(&mut self) -> f32 {
@@ -595,7 +596,7 @@ pub struct CarFieldRect {
 // https://math.stackexchange.com/a/1938581/689600
 impl CarFieldRect {
     pub fn from(car_hitbox: &Hitbox, car_y: f32) -> Self {
-        let margin = car_hitbox.length / 2.;
+        let margin = car_hitbox.length + car_hitbox.width / 2.;
 
         let mut length = 5120. - margin;
         let extend = car_y.abs() >= length;
@@ -675,52 +676,48 @@ fn radius_from_local_point(a: Vec3) -> f32 {
 }
 
 pub fn analyze_target(ball: &Box<Ball>, car: &Car, shot_vector: Vec3, get_target: bool, validate: bool) -> Result<([f32; 4], Option<Vec3>, Option<DubinsPath>), DubinsError> {
-    let offset_target = ball.location - (shot_vector * ball.collision_radius);
-    let car_front_length = car.hitbox_offset.x + car.hitbox.length / 2.;
-    let local_offset = localize_2d(car, offset_target);
+    let offset_target = ball.location - (shot_vector * ball.radius);
+    let car_front_length = (car.hitbox_offset.x + car.hitbox.length) / 2.;
 
     let mut end_distance = -car_front_length;
-    let angle_to_shot = car.forward.angle_2d(&shot_vector);
+
+    let offset_distance = 640.;
+    let exit_turn_point = offset_target - (shot_vector * offset_distance);
 
     // lock onto the offset target if we're facing it
-    if angle_to_shot < 0.1 {
-        if local_offset.x > 0. && local_offset.y.abs() < 100. {
-            end_distance += car.location.dist_2d(offset_target);
+    let local_offset = localize_2d(car, offset_target);
+    if local_offset.x > 0. {
+        let angle_to_shot = (ball.location - car.location).normalize().angle_2d(&shot_vector);
+        if angle_to_shot < 0.25 {
+            let final_target = if local_offset.y.abs() < ball.radius + car.hitbox.width / 2. {
+                end_distance += local_offset.x;
 
-            let final_target = if get_target {
-                Some(offset_target)
+                if get_target {
+                    Some(car.location + shot_vector * local_offset.x)
+                } else {
+                    None
+                }
             } else {
-                None
+                // if radius_from_local_point(localize_2d(car, exit_turn_point)) < car.msmtr * 1.2 {
+                end_distance += offset_distance + radius_from_local_point(localize_2d(car, exit_turn_point)) * angle_to_shot;
+
+                if get_target {
+                    Some(exit_turn_point)
+                } else {
+                    None
+                }
             };
 
             return Ok(([0., 0., 0., end_distance], final_target, None));
         }
     }
 
-    let offset_distance = 640.;
-    let exit_turn_point = offset_target - (shot_vector * offset_distance);
-
     end_distance += offset_distance;
-
-    // if get_target {
-    //     println!("{} | {} | {} | {} ", local_offset.x, car.location.dist_2d(exit_turn_point), radius_from_local_point(exit_turn_point), angle_to_shot);
-    // }
-
-    if local_offset.x > 0. && angle_to_shot < 1.3 && car.location.dist_2d(exit_turn_point) < MAX_TURN_RADIUS * 2. && radius_from_local_point(localize_2d(car, exit_turn_point)) < MAX_TURN_RADIUS * 1.05 {
-        let final_target = if get_target {
-            Some(exit_turn_point)
-        } else {
-            None
-        };
-        let turn_distance = angle_to_shot * car.max_turn_radius;
-
-        return Ok(([0., 0., turn_distance, end_distance], final_target, None));
-    }
 
     let q0 = [car.location.x, car.location.y, car.yaw];
     let q1 = [exit_turn_point.x, exit_turn_point.y, shot_vector.y.atan2(shot_vector.x)];
 
-    let path = shortest_path(q0, q1, car.max_turn_radius * 1.02)?;
+    let path = shortest_path(q0, q1, car.msmtr * 1.1)?;
     let end_parts = path_section_endpoints(&path)?;
 
     if validate {
@@ -735,15 +732,17 @@ pub fn analyze_target(ball: &Box<Ball>, car: &Car, shot_vector: Vec3, get_target
     let distances = [path.param[0] * path.rho, path.param[1] * path.rho, path.param[2] * path.rho];
 
     let final_target = if get_target {
-        let end_part = if distances[0] > 25. {
-            0
-        } else if distances[1] > 25. {
-            1
-        } else {
-            2
-        };
-
-        Some(path_endpoint_to_vec3(end_parts[end_part]))
+        Some(path_endpoint_to_vec3(
+            end_parts[{
+                if distances[0] + distances[1] < car_front_length {
+                    2
+                } else if distances[0] < car_front_length {
+                    1
+                } else {
+                    0
+                }
+            }],
+        ))
     } else {
         None
     };

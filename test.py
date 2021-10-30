@@ -17,7 +17,7 @@ print("Benchmarking...")
 time = 0.
 times = [[], [], []]
 
-for _ in range(10000):
+for _ in range(5000):
     start = time_ns()
     rlru.tick(
         time=time,
