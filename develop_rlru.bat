@@ -1,6 +1,6 @@
 @echo off
 set rlpy="%localappdata%\RLBotGUIX\Python37\python.exe"
 cargo fmt
-%rlpy% setup.py install
+%rlpy% -m pip install .
 %rlpy% test.py
 pause

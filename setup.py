@@ -13,7 +13,7 @@ with open(os.path.join(os.path.abspath(os.path.dirname(__file__)), 'README.md'),
 
 setup(
     name="VirxERLU-RLib",
-    version="0.4.0",
+    version="0.4.1",
     description='Rust modules for VirxERLU',
     long_description=long_description,
     rust_extensions=[RustExtension("virxrlru", binding=Binding.RustCPython)],
@@ -22,7 +22,6 @@ setup(
     author_email='virx@virxcase.dev',
     url="https://github.com/VirxEC/VirxERLU-RLib",
     python_requires='>=3.7',
-    setup_requires=["setuptools", "setuptools_rust"],
     # Rust extensions are not zip safe
-    zip_safe=False
+    zip_safe=False,
 )
