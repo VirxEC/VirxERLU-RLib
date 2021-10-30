@@ -9,13 +9,15 @@
 
 // use byteorder::{BigEndian, ReadBytesExt};
 use cpython::{exc, ObjectProtocol, PyDict, PyErr, PyObject, PyResult, Python};
-use dubins_paths::{/*path_length, */ path_sample, shortest_path_in, DubinsError, DubinsPath, DubinsPathType};
-use rl_ball_sym::{linear_algebra::vector::Vec3, simulation::ball::Ball};
+use dubins_paths::{path_sample, shortest_path, DubinsError, DubinsPath};
+use rl_ball_sym::simulation::ball::Ball;
+
+use vvec3::Vec3;
 
 pub const MAX_SPEED: f32 = 2300.;
 pub const MAX_SPEED_NO_BOOST: f32 = 1410.;
 pub const MIN_SPEED: f32 = -MAX_SPEED_NO_BOOST;
-pub const MAX_TURN_RADIUS: f32 = 1. / 0.00076;
+pub const MAX_TURN_RADIUS: f32 = 1. / 0.00088;
 pub const TPS: f32 = 120.;
 pub const SIMULATION_DT: f32 = 1. / TPS;
 pub const BOOST_CONSUMPTION: f32 = 33.3 + 1. / 33.;
@@ -36,6 +38,9 @@ pub const START_THROTTLE_ACCEL_M: f32 = -36. / 35.;
 pub const START_THROTTLE_ACCEL_B: f32 = 1600.;
 pub const END_THROTTLE_ACCEL_M: f32 = -16.;
 pub const END_THROTTLE_ACCEL_B: f32 = 160.;
+
+const BOOST_ACCEL: f32 = 991. + 2. / 3.;
+const BOOST_ACCEL_DT: f32 = BOOST_ACCEL * SIMULATION_DT;
 
 // pub struct TurnLut {
 //     pub time_sorted: Vec<TurnLutEntry>,
@@ -171,6 +176,8 @@ pub struct Car {
     pub airborne: bool,
     pub jumped: bool,
     pub doublejumped: bool,
+    pub max_speed: f32,
+    pub max_turn_radius: f32,
 }
 
 impl Default for Car {
@@ -192,6 +199,8 @@ impl Default for Car {
             airborne: false,
             jumped: false,
             doublejumped: false,
+            max_speed: 0.,
+            max_turn_radius: 0.,
         }
     }
 }
@@ -216,6 +225,41 @@ impl Car {
         self.up.x = -c_r * c_y * s_p - s_r * s_y;
         self.up.y = -c_r * s_y * s_p + s_r * c_y;
         self.up.z = c_p * c_r;
+    }
+
+    pub fn calculate_max_values(&mut self) {
+        self.max_speed = self.get_max_speed();
+        self.max_turn_radius = turn_radius(self.max_speed);
+    }
+
+    fn get_max_speed(&mut self) -> f32 {
+        let mut b = self.boost as f32;
+        let mut v = self.velocity.dot(&self.forward);
+
+        loop {
+            // dbg!(v);
+            if v >= MAX_SPEED {
+                return MAX_SPEED;
+            }
+
+            if b < BOOST_CONSUMPTION_DT {
+                if v < MAX_SPEED_NO_BOOST {
+                    return MAX_SPEED_NO_BOOST;
+                } else {
+                    return v;
+                }
+            }
+
+            if v.signum() == 1. {
+                // println!("ta: {}", throttle_acceleration(v));
+                v += throttle_acceleration(v) * SIMULATION_DT;
+            } else {
+                v += -BRAKE_ACC_DT;
+            }
+
+            v += BOOST_ACCEL_DT;
+            b -= BOOST_CONSUMPTION_DT;
+        }
     }
 }
 
@@ -291,67 +335,6 @@ pub fn get_vec_from_vec3(vec: Vec3) -> Vec<f32> {
     vec![vec.x, vec.y, vec.z]
 }
 
-pub fn dot_2d(vec1: &Vec3, vec2: &Vec3) -> f32 {
-    vec1.x * vec2.x + vec1.y * vec2.y
-}
-
-pub fn flattened(vec: &Vec3) -> Vec3 {
-    Vec3 {
-        x: vec.x,
-        y: vec.y,
-        z: 0.,
-    }
-}
-
-// pub fn angle(vec1: &Vec3, vec2: &Vec3) -> f32 {
-//     vec1.dot(vec2).clamp(-1., 1.).acos()
-// }
-
-// pub fn angle_2d(vec1: &Vec3, vec2: &Vec3) -> f32 {
-//     dot_2d(vec1, vec2).clamp(-1., 1.).acos()
-// }
-
-// pub fn angle_tau_2d(vec1: &Vec3, vec2: &Vec3) -> f32 {
-//     let angle = vec2.y.atan2(vec2.x) - vec1.y.atan2(vec1.x);
-
-//     if angle < 0. {
-//         return angle + 2. * PI;
-//     }
-
-//     angle
-// }
-
-// pub fn angle_tau_2d_cache(vec1_atan2: &f32, vec2: &Vec3) -> f32 {
-//     let angle = vec2.y.atan2(vec2.x) - vec1_atan2;
-
-//     if angle < 0. {
-//         return angle + 2. * PI;
-//     }
-
-//     angle
-// }
-
-// pub fn dist(vec1: &Vec3, vec2: &Vec3) -> f32 {
-//     (*vec2 - *vec1).magnitude()
-// }
-
-pub fn dist_2d(vec1: Vec3, vec2: Vec3) -> f32 {
-    incomplete_dist_2d(vec1, vec2).sqrt()
-}
-
-pub fn incomplete_dist_2d(vec1: Vec3, vec2: Vec3) -> f32 {
-    let vec = vec2 - vec1;
-    dot_2d(&vec, &vec)
-}
-
-// pub fn rotate_2d(vec: &Vec3, angle: &f32) -> Vec3 {
-//     Vec3 {
-//         x: angle.cos() * vec.x - angle.sin() * vec.y,
-//         y: angle.sin() * vec.x + angle.cos() * vec.y,
-//         z: vec.z,
-//     }
-// }
-
 pub fn localize_2d(car: &Car, vec: Vec3) -> Vec3 {
     let vec = vec - car.location;
 
@@ -416,33 +399,33 @@ pub fn localize_2d(car: &Car, vec: Vec3) -> Vec3 {
 //     }
 // }
 
-// pub fn turn_radius(v: f32) -> f32 {
-//     1. / curvature(v)
-// }
+pub fn turn_radius(v: f32) -> f32 {
+    1. / curvature(v)
+}
 
-// pub fn curvature(v: f32) -> f32 {
-//     if 0. <= v && v < 500. {
-//         return 0.0069 - 5.84e-6 * v;
-//     }
+pub fn curvature(v: f32) -> f32 {
+    if 0. <= v && v < 500. {
+        return 0.0069 - 5.84e-6 * v;
+    }
 
-//     if 500. <= v && v < 1000. {
-//         return 0.00561 - 3.26e-6 * v;
-//     }
+    if 500. <= v && v < 1000. {
+        return 0.00561 - 3.26e-6 * v;
+    }
 
-//     if 1000. <= v && v < 1500. {
-//         return 0.0043 - 1.95e-6 * v;
-//     }
+    if 1000. <= v && v < 1500. {
+        return 0.0043 - 1.95e-6 * v;
+    }
 
-//     if 1500. <= v && v < 1750. {
-//         return 0.003025 - 1.1e-6 * v;
-//     }
+    if 1500. <= v && v < 1750. {
+        return 0.003025 - 1.1e-6 * v;
+    }
 
-//     if 1750. <= v && v < 2500. {
-//         return 0.0018 - 4e-7 * v;
-//     }
+    if 1750. <= v && v < 2500. {
+        return 0.0018 - 4e-7 * v;
+    }
 
-//     0.
-// }
+    0.
+}
 
 const VEC3_DOWN: Vec3 = Vec3 {
     x: 0.,
@@ -489,22 +472,8 @@ pub struct PostCorrection {
 pub fn correct_for_posts(ball_location: Vec3, ball_radius: f32, target_left: Vec3, target_right: Vec3) -> PostCorrection {
     let goal_line_perp = (target_right - target_left).cross(&VEC3_UP);
 
-    let left_adjusted = target_left
-        + (target_left - ball_location).normalize().cross(
-            &(Vec3 {
-                x: 0.,
-                y: 0.,
-                z: -ball_radius,
-            }),
-        );
-    let right_adjusted = target_right
-        + (target_right - ball_location).normalize().cross(
-            &(Vec3 {
-                x: 0.,
-                y: 0.,
-                z: ball_radius,
-            }),
-        );
+    let left_adjusted = target_left + (target_left - ball_location).normalize().cross(&VEC3_DOWN) * ball_radius;
+    let right_adjusted = target_right + (target_right - ball_location).normalize().cross(&VEC3_UP) * ball_radius;
 
     let left_corrected = if (left_adjusted - target_left).dot(&goal_line_perp) > 0. {
         target_left
@@ -625,27 +594,20 @@ pub struct CarFieldRect {
 
 // https://math.stackexchange.com/a/1938581/689600
 impl CarFieldRect {
-    pub fn from(car_hitbox: &Hitbox) -> Self {
-        let length = 5120. - car_hitbox.length;
-        let width = 4093. - car_hitbox.length;
+    pub fn from(car_hitbox: &Hitbox, car_y: f32) -> Self {
+        let margin = car_hitbox.length / 2.;
 
-        let field_1 = Vec3 {
-            x: length,
-            y: width,
-            z: 0.,
-        };
+        let mut length = 5120. - margin;
+        let extend = car_y.abs() >= length;
+        if extend {
+            length = 6000. - margin;
+        }
 
-        let field_2 = Vec3 {
-            x: -length,
-            y: width,
-            z: 0.,
-        };
+        let width = 4093. - margin;
 
-        let field_4 = Vec3 {
-            x: length,
-            y: -width,
-            z: 0.,
-        };
+        let field_1 = Vec3::new(length, width, 0.);
+        let field_2 = Vec3::new(-length, width, 0.);
+        let field_4 = Vec3::new(length, -width, 0.);
 
         let u_1 = field_2.x - field_1.x;
         let v_1 = field_2.y - field_1.y;
@@ -688,7 +650,15 @@ impl CarFieldRect {
 }
 
 fn path_section_endpoints(path: &DubinsPath) -> Result<[[f32; 3]; 3], DubinsError> {
-    Ok([path_sample(path, path.param[0] * path.rho - f32::EPSILON)?, path_sample(path, (path.param[0] + path.param[1]) * path.rho - f32::EPSILON)?, path_sample(path, (path.param[0] + path.param[1] + path.param[2]) * path.rho - f32::EPSILON)?])
+    let dists = [path.param[0] * path.rho, (path.param[0] + path.param[1]) * path.rho, (path.param[0] + path.param[1] + path.param[2]) * path.rho];
+
+    Ok([path_sample(path, dists[0])?, path_sample(path, dists[1])?, path_sample(path, dists[2] - f32::EPSILON)?])
+}
+
+fn path_section_midpoints(path: &DubinsPath) -> Result<[[f32; 3]; 3], DubinsError> {
+    let dists = [path.param[0] * path.rho, (path.param[0] + path.param[1]) * path.rho, (path.param[0] + path.param[1] + path.param[2]) * path.rho];
+
+    Ok([path_sample(path, dists[0] / 2.)?, path_sample(path, dists[1] / 2.)?, path_sample(path, dists[2] / 2.)?])
 }
 
 fn path_endpoint_to_vec3(endpoint: [f32; 3]) -> Vec3 {
@@ -699,44 +669,86 @@ fn path_endpoint_to_vec3(endpoint: [f32; 3]) -> Vec3 {
     }
 }
 
-/// returns (distance_remaining_parts, facing_target)
-pub fn analyze_target(ball: &Box<Ball>, car: &Car, shot_vector: Vec3, margin: f32, validate: bool) -> Result<([f32; 4], Vec3, Option<DubinsPath>), DubinsError> {
-    let offset_target = ball.location - (shot_vector * ball.radius);
+fn radius_from_local_point(a: Vec3) -> f32 {
+    let b = a.flatten();
+    1. / (2. * b.y / a.dot(&b)).abs()
+}
+
+pub fn analyze_target(ball: &Box<Ball>, car: &Car, shot_vector: Vec3, get_target: bool, validate: bool) -> Result<([f32; 4], Option<Vec3>, Option<DubinsPath>), DubinsError> {
+    let offset_target = ball.location - (shot_vector * ball.collision_radius);
     let car_front_length = car.hitbox_offset.x + car.hitbox.length / 2.;
     let local_offset = localize_2d(car, offset_target);
-    let offset_distance = ball.collision_radius + 640.;
-    let exit_turn_point = offset_target - (flattened(&shot_vector) * offset_distance);
 
     let mut end_distance = -car_front_length;
-    if (exit_turn_point - car.location).dot(&car.forward) < car_front_length && local_offset.x > 0. && local_offset.y.abs() < 150. {
-        end_distance += dist_2d(car.location, offset_target);
-        return Ok(([0., 0., 0., end_distance], offset_target, None));
+    let angle_to_shot = car.forward.angle_2d(&shot_vector);
+
+    // lock onto the offset target if we're facing it
+    if angle_to_shot < 0.1 {
+        if local_offset.x > 0. && local_offset.y.abs() < 100. {
+            end_distance += car.location.dist_2d(offset_target);
+
+            let final_target = if get_target {
+                Some(offset_target)
+            } else {
+                None
+            };
+
+            return Ok(([0., 0., 0., end_distance], final_target, None));
+        }
     }
 
+    let offset_distance = 640.;
+    let exit_turn_point = offset_target - (shot_vector * offset_distance);
+
     end_distance += offset_distance;
+
+    if get_target {
+        println!("{} | {} | {} | {} ", local_offset.x, car.location.dist_2d(exit_turn_point), radius_from_local_point(exit_turn_point), angle_to_shot);
+    }
+
+    if local_offset.x > 0. && angle_to_shot < 1.3 && car.location.dist_2d(exit_turn_point) < MAX_TURN_RADIUS * 2. && radius_from_local_point(localize_2d(car, exit_turn_point)) < MAX_TURN_RADIUS * 1.05 {
+        let final_target = if get_target {
+            Some(exit_turn_point)
+        } else {
+            None
+        };
+        let turn_distance = angle_to_shot * car.max_turn_radius;
+
+        return Ok(([0., 0., turn_distance, end_distance], final_target, None));
+    }
 
     let q0 = [car.location.x, car.location.y, car.yaw];
     let q1 = [exit_turn_point.x, exit_turn_point.y, shot_vector.y.atan2(shot_vector.x)];
 
-    let path = shortest_path_in(q0, q1, MAX_TURN_RADIUS, &DubinsPathType::ALL)?;
-    // dbg!(path);
+    let path = shortest_path(q0, q1, car.max_turn_radius * 1.02)?;
     let end_parts = path_section_endpoints(&path)?;
 
-    if validate && !CarFieldRect::from(&car.hitbox).is_triangle_in(end_parts) {
-        return Err(DubinsError::NoPath);
+    if validate {
+        let car_field = CarFieldRect::from(&car.hitbox, car.location.y);
+        let midpoints = path_section_midpoints(&path)?;
+
+        if !car_field.is_triangle_in([path.qi, midpoints[0], end_parts[0]]) || !car_field.is_triangle_in([end_parts[1], midpoints[2], end_parts[2]]) {
+            return Err(DubinsError::NoPath);
+        }
     }
 
     let distances = [path.param[0] * path.rho, path.param[1] * path.rho, path.param[2] * path.rho];
 
-    let end_part = if distances[0] > car_front_length * margin {
-        0
-    } else if distances[1] > car_front_length * margin {
-        1
+    let final_target = if get_target {
+        let end_part = if distances[0] > 25. {
+            0
+        } else if distances[1] > 25. {
+            1
+        } else {
+            2
+        };
+
+        Some(path_endpoint_to_vec3(end_parts[end_part]))
     } else {
-        2
+        None
     };
 
-    Ok(([distances[0], distances[1], distances[2], end_distance], path_endpoint_to_vec3(end_parts[end_part]), Some(path)))
+    Ok(([distances[0], distances[1], distances[2], end_distance], final_target, Some(path)))
 }
 
 fn throttle_acceleration(forward_velocity: f32) -> f32 {
@@ -754,10 +766,7 @@ fn throttle_acceleration(forward_velocity: f32) -> f32 {
     return END_THROTTLE_ACCEL_M * (x - THROTTLE_ACCEL_DIVISION) + END_THROTTLE_ACCEL_B;
 }
 
-const BOOST_ACCEL: f32 = 991. + 2. / 3.;
-const BOOST_ACCEL_DT: f32 = BOOST_ACCEL * SIMULATION_DT;
-
-pub fn can_reach_target(car: &Car, max_time: f32, distance_remaining: f32, is_forwards: bool) -> (bool, f32) {
+pub fn can_reach_target(car: &Car, max_time: f32, distance_remaining: f32, is_forwards: bool) -> Result<f32, ()> {
     let mut d = distance_remaining;
     let mut t_r = max_time;
     let mut b = car.boost as f32;
@@ -767,13 +776,13 @@ pub fn can_reach_target(car: &Car, max_time: f32, distance_remaining: f32, is_fo
 
     loop {
         if d <= 0. {
-            return (true, t_r);
+            return Ok(t_r);
         }
 
         let r = d * direction / t_r;
 
-        if MIN_SPEED > r || r > MAX_SPEED || t_r < -SIMULATION_DT {
-            return (false, -1.);
+        if MIN_SPEED > r || r > car.max_speed || t_r < -SIMULATION_DT {
+            return Err(());
         }
 
         let t = r - v;
@@ -796,12 +805,12 @@ pub fn can_reach_target(car: &Car, max_time: f32, distance_remaining: f32, is_fo
         } else if b >= MIN_BOOST_CONSUMPTION && throttle_boost_transition < acceleration {
             throttle = 1.;
             if t > 0. {
-                boost = true
+                boost = true;
             }
         }
 
         if throttle.signum() == v.signum() {
-            v += throttle_accel * throttle;
+            v += throttle_accel * SIMULATION_DT * throttle;
         } else {
             v += BRAKE_ACC_DT.copysign(-throttle);
         }
@@ -815,7 +824,7 @@ pub fn can_reach_target(car: &Car, max_time: f32, distance_remaining: f32, is_fo
         d -= (v * direction) * SIMULATION_DT;
     }
 
-    (true, t_r)
+    Ok(t_r)
 }
 
 // pub struct TurnInfo {

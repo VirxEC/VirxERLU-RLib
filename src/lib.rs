@@ -5,14 +5,12 @@ mod utils;
 
 use cpython::{exc, py_fn, py_module_initializer, PyBool, PyDict, PyErr, PyFloat, PyObject, PyResult, PyTuple, Python, PythonObject};
 use dubins_paths::path_sample_many;
-use rl_ball_sym::{
-    linear_algebra::vector::Vec3,
-    simulation::{
-        ball::{Ball, BallPrediction},
-        game::Game,
-    },
+use rl_ball_sym::simulation::{
+    ball::{Ball, BallPrediction},
+    game::Game,
 };
 use utils::*;
+use vvec3::Vec3;
 
 static mut GAME_TIME: f32 = 0.;
 
@@ -175,6 +173,9 @@ fn tick(py: Python, py_time: PyFloat, py_ball: PyDict, py_car: PyDict) -> PyResu
     car.jumped = get_bool_from_dict(py, &py_car, "jumped", "car")?;
     car.doublejumped = get_bool_from_dict(py, &py_car, "doublejumped", "car")?;
     car.calculate_orientation_matrix();
+    car.calculate_max_values();
+
+    // dbg!(car.current_max_speed);
 
     unsafe {
         BALL_STRUCT = Some(Ball::get_ball_prediction_struct_for_time(game, &6.));
@@ -252,12 +253,13 @@ fn calc_dr_and_ft(py: Python, py_target_left: PyTuple, py_target_right: PyTuple,
     let target_right = get_vec3(py, py_target_right.as_object(), "Key 'target_right' needs to be a list of exactly 3 numbers")?;
 
     let car_to_ball = ball.location - car.location;
-    let target = get_shot_vector_2d(car_to_ball.normalize(), ball.location, target_left, target_right);
+    let post_info = correct_for_posts(ball.location, ball.collision_radius, target_left, target_right);
+    let shot_vector = get_shot_vector_2d(car_to_ball.flatten().normalize(), ball.location.flatten(), post_info.target_left.flatten(), post_info.target_right.flatten());
+    // let target = get_shot_vector_2d(car_to_ball.normalize(), ball.location, target_left, target_right);
+    // let shot_vector = flattened(target - ball.location).normalize();
 
-    let shot_vector = (target - ball.location).normalize();
-
-    let (distance_parts, final_target, path) = match analyze_target(ball, car, shot_vector, 2., false) {
-        Ok(result) => result,
+    let (distance_parts, final_target, path) = match analyze_target(ball, car, shot_vector, true, false) {
+        Ok(result) => (result.0, result.1.unwrap(), result.2),
         Err(duberr) => {
             return Err(PyErr::new::<exc::Exception, _>(py, format!("{:?} - Couldn't calculate path", duberr)));
         }
@@ -271,10 +273,11 @@ fn calc_dr_and_ft(py: Python, py_target_left: PyTuple, py_target_right: PyTuple,
 
     result.set_item(py, "distance_remaining", distance_remaining)?;
     result.set_item(py, "final_target", get_vec_from_vec3(final_target))?;
+    result.set_item(py, "short_vector", get_vec_from_vec3(shot_vector.flatten().normalize() * 640. + ball.location))?;
 
     match path {
         Some(path_) => {
-            let path_samples = match path_sample_many(&path_, 100.) {
+            let path_samples = match path_sample_many(&path_, 50.) {
                 Ok(raw_samples) => {
                     let mut samples = Vec::with_capacity(raw_samples.len());
                     for sample in raw_samples {
@@ -379,43 +382,28 @@ fn calculate_intercept(py: Python, py_target_left: PyTuple, py_target_right: PyT
             continue;
         }
 
-        let target = get_shot_vector_2d(car_to_ball.normalize(), ball.location, post_info.target_left, post_info.target_right);
+        let shot_vector = get_shot_vector_2d(car_to_ball.flatten().normalize(), ball.location.flatten(), post_info.target_left.flatten(), post_info.target_right.flatten());
+        // let shot_vector = get_shot_vector_2d(car_to_ball.normalize(), ball.location, target_left, target_right);
+        // dbg!(shot_vector);
 
-        let shot_vector = (target - ball.location).normalize();
-
-        let distance_parts = match analyze_target(ball, car, shot_vector, 1., true) {
+        let distance_parts = match analyze_target(ball, car, shot_vector, false, true) {
             Ok(result) => result.0,
             Err(_) => continue,
         };
 
-        // dbg!(distance_parts.iter().sum::<f32>());
+        // will be used to calculate if there's enough time left to jump after accelerating
+        let _time_remaining = match can_reach_target(car, ball.time - game_time, distance_parts.iter().sum(), true) {
+            Ok(t_r) => t_r,
+            Err(_) => continue,
+        };
 
-        // if !valid {
-        //     continue;
-        // }
-
-        // let mut time_remaining = ball.time - game_time;
-
-        // if turn {
-        //     time_remaining -= turn_info.time;
-
-        //     if time_remaining <= 0. {
-        //         continue;
-        //     }
-        // }
-
-        let (found, _) = can_reach_target(car, ball.time - game_time, distance_parts.iter().sum(), true);
-        // let found = distance_remaining / time_remaining < MAX_SPEED;
-
-        if all {
-            // for worst-case benchmarking only
-            // returns accurate numbers, but analyzes all slices
-            if found && found_ball.is_none() {
-                found_ball = Some(ball.clone());
-            }
-        } else if found {
+        if !all {
             found_ball = Some(ball.clone());
             break;
+        } else if found_ball.is_none() {
+            // for worst-case benchmarking only
+            // returns accurate numbers, but analyzes all slices
+            found_ball = Some(ball.clone());
         }
     }
 

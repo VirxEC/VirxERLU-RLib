@@ -40,8 +40,8 @@ for _ in range(10000):
         },
         car={
             "location": (
-                -1000,
-                4000,
+                -3000,
+                1500,
                 100,
             ),
             "velocity": (
@@ -67,7 +67,7 @@ for _ in range(10000):
             "pitch": 0,
             "yaw": 1,
             "roll": 0,
-            "boost": 12,
+            "boost": 48,
             "demolished": False,
             "airborne": False,
             "jumped": False,
@@ -93,7 +93,7 @@ for _ in range(10000):
         800, 5120, 0,
     ), (
         -800, 5120, 0,
-    ), all=True)
+    ), all=False)
 
     times[2].append(time_ns() - start)
 

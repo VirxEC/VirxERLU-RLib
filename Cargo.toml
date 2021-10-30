@@ -10,7 +10,8 @@ crate-type = ["cdylib"]
 path = "src/lib.rs"
 
 [dependencies]
-rl_ball_sym = "0.4"
+vvec3 = "0.1.*"
+rl_ball_sym = "0.5.*"
 dubins_paths = "^0.2.4"
 byteorder = "1.*"
 
