@@ -130,6 +130,8 @@ impl Car {
     pub fn calculate_max_values(&mut self) {
         self.max_speed = self.get_max_speed();
         self.msmtr = turn_radius(self.max_speed);
+        // self.max_speed = MAX_SPEED;
+        // self.msmtr = MAX_SPEED_MIN_TURN_RADIUS;
     }
 
     fn get_max_speed(&mut self) -> f32 {
@@ -137,7 +139,6 @@ impl Car {
         let mut v = self.velocity.dot(&self.forward);
 
         loop {
-            // dbg!(v);
             if v >= MAX_SPEED {
                 return MAX_SPEED;
             }
@@ -151,7 +152,6 @@ impl Car {
             }
 
             if v.signum() == 1. {
-                // println!("ta: {}", throttle_acceleration(v));
                 v += throttle_acceleration(v) * SIMULATION_DT;
             } else {
                 v += -BRAKE_ACC_DT;
@@ -458,7 +458,7 @@ fn radius_from_local_point(a: Vec3) -> f32 {
     1. / (2. * b.y / a.dot(&b)).abs()
 }
 
-pub fn analyze_target(ball: &Box<Ball>, car: &Car, shot_vector: Vec3, get_target: bool, validate: bool) -> Result<([f32; 4], Option<Vec3>, Option<DubinsPath>), DubinsError> {
+pub fn analyze_target(ball: &Box<Ball>, car: &Car, shot_vector: Vec3, time_remaining: f32, get_target: bool, validate: bool) -> Result<([f32; 4], Option<Vec3>, Option<DubinsPath>), DubinsError> {
     let offset_target = ball.location - (shot_vector * ball.radius);
     let car_front_length = (car.hitbox_offset.x + car.hitbox.length) / 2.;
 
@@ -472,23 +472,16 @@ pub fn analyze_target(ball: &Box<Ball>, car: &Car, shot_vector: Vec3, get_target
     if local_offset.x > 0. {
         let angle_to_shot = (ball.location - car.location).normalize().angle_2d(&shot_vector);
         if angle_to_shot < 0.25 {
+            if !get_target {
+                return Ok(([0., 0., 0., end_distance], None, None));
+            }
+
             let final_target = if local_offset.y.abs() < ball.radius + car.hitbox.width / 2. {
                 end_distance += local_offset.x;
-
-                if get_target {
-                    Some(car.location + shot_vector * local_offset.x)
-                } else {
-                    None
-                }
+                Some(car.location + shot_vector * local_offset.x)
             } else {
-                // if radius_from_local_point(localize_2d(car, exit_turn_point)) < car.msmtr * 1.2 {
                 end_distance += offset_distance + radius_from_local_point(localize_2d(car, exit_turn_point)) * angle_to_shot;
-
-                if get_target {
-                    Some(exit_turn_point)
-                } else {
-                    None
-                }
+                Some(exit_turn_point)
             };
 
             return Ok(([0., 0., 0., end_distance], final_target, None));
@@ -496,6 +489,10 @@ pub fn analyze_target(ball: &Box<Ball>, car: &Car, shot_vector: Vec3, get_target
     }
 
     end_distance += offset_distance;
+
+    if validate && end_distance + car.location.dist_2d(exit_turn_point) / time_remaining > car.max_speed {
+        return Err(DubinsError::NoPath);
+    }
 
     let q0 = [car.location.x, car.location.y, car.yaw];
     let q1 = [exit_turn_point.x, exit_turn_point.y, shot_vector.y.atan2(shot_vector.x)];
@@ -514,21 +511,21 @@ pub fn analyze_target(ball: &Box<Ball>, car: &Car, shot_vector: Vec3, get_target
 
     let distances = [path.param[0] * path.rho, path.param[1] * path.rho, path.param[2] * path.rho];
 
-    let final_target = if get_target {
-        Some(path_endpoint_to_vec3(
-            end_parts[{
-                if distances[0] + distances[1] < car_front_length {
-                    2
-                } else if distances[0] < car_front_length {
-                    1
-                } else {
-                    0
-                }
-            }],
-        ))
-    } else {
-        None
-    };
+    if !get_target {
+        return Ok(([distances[0], distances[1], distances[2], end_distance], None, Some(path)));
+    }
+
+    let final_target = Some(path_endpoint_to_vec3(
+        end_parts[{
+            if distances[0] + distances[1] < car_front_length {
+                2
+            } else if distances[0] < car_front_length {
+                1
+            } else {
+                0
+            }
+        }],
+    ));
 
     Ok(([distances[0], distances[1], distances[2], end_distance], final_target, Some(path)))
 }

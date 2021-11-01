@@ -227,7 +227,7 @@ fn calc_dr_and_ft(py: Python, py_target_left: PyTuple, py_target_right: PyTuple,
     let post_info = correct_for_posts(ball.location, ball.collision_radius, target_left, target_right);
     let shot_vector = get_shot_vector_2d(car_to_ball.flatten().normalize(), ball.location.flatten(), post_info.target_left.flatten(), post_info.target_right.flatten());
 
-    let (distance_parts, final_target, path) = match analyze_target(ball, car, shot_vector, true, false) {
+    let (distance_parts, final_target, path) = match analyze_target(ball, car, shot_vector, 0., true, false) {
         Ok(result) => (result.0, result.1.unwrap(), result.2),
         Err(duberr) => {
             return Err(PyErr::new::<exc::Exception, _>(py, format!("{:?} - Couldn't calculate path", duberr)));
@@ -339,13 +339,15 @@ fn calculate_intercept(py: Python, py_target_left: PyTuple, py_target_right: PyT
         // let shot_vector = get_shot_vector_2d(car_to_ball.normalize(), ball.location, target_left, target_right);
         // dbg!(shot_vector);
 
-        let distance_parts = match analyze_target(ball, car, shot_vector, false, true) {
+        let time_remaining = ball.time - game_time;
+
+        let distance_parts = match analyze_target(ball, car, shot_vector, time_remaining, false, true) {
             Ok(result) => result.0,
             Err(_) => continue,
         };
 
         // will be used to calculate if there's enough time left to jump after accelerating
-        let _time_remaining = match can_reach_target(car, ball.time - game_time, distance_parts.iter().sum(), true) {
+        let _time_remaining = match can_reach_target(car, time_remaining, distance_parts.iter().sum(), true) {
             Ok(t_r) => t_r,
             Err(_) => continue,
         };
