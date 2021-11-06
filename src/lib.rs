@@ -3,7 +3,7 @@ extern crate rl_ball_sym;
 
 mod utils;
 
-use cpython::{exc, py_fn, py_module_initializer, PyBool, PyDict, PyErr, PyFloat, PyObject, PyResult, PyTuple, Python, PythonObject};
+use cpython::{exc, py_fn, py_module_initializer, PyBool, PyDict, PyErr, PyFloat, PyInt, PyObject, PyResult, PyTuple, Python, PythonObject};
 use dubins_paths::path_sample_many;
 use rl_ball_sym::simulation::{
     ball::{Ball, BallPrediction},
@@ -17,8 +17,8 @@ static mut GAME_TIME: f32 = 0.;
 static mut GAME: Option<Game> = None;
 const NO_GAME_ERR: &str = "GAME is unset. Call a function like load_soccar first.";
 
-static mut CAR: Option<Car> = None;
-const NO_CAR_ERR: &str = "CAR is unset. Call a function like load_soccar first.";
+static mut CARS: Option<Vec<Car>> = None;
+const NO_CARS_ERR: &str = "CAR is unset. Call a function like load_soccar first.";
 
 static mut BALL_STRUCT: Option<BallPrediction> = None;
 const NO_BALL_STRUCT_ERR: &str = "BALL_STRUCT is unset. Call the function tick and pass in game information first.";
@@ -31,15 +31,15 @@ py_module_initializer!(virxrlru, |py, m| {
     m.add(py, "set_gravity", py_fn!(py, set_gravity(gravity: PyDict)))?;
     m.add(py, "tick", py_fn!(py, tick(time: PyFloat, ball: PyDict, car: PyDict)))?;
     m.add(py, "get_slice", py_fn!(py, get_slice(time: PyFloat)))?;
-    m.add(py, "calc_dr_and_ft", py_fn!(py, calc_dr_and_ft(target_left: PyTuple, target_right: PyTuple, time: PyFloat)))?;
-    m.add(py, "calculate_intercept", py_fn!(py, calculate_intercept(target_left: PyTuple, target_right: PyTuple, all: PyBool)))?;
+    m.add(py, "get_data_for_shot_with_target", py_fn!(py, get_data_for_shot_with_target(target_left: PyTuple, target_right: PyTuple, time: PyFloat, py_index: PyInt)))?;
+    m.add(py, "get_shot_with_target", py_fn!(py, get_shot_with_target(target_left: PyTuple, target_right: PyTuple, py_index: PyInt, all: PyBool)))?;
     Ok(())
 });
 
 fn load_soccar(py: Python) -> PyResult<PyObject> {
     unsafe {
         GAME = Some(rl_ball_sym::load_soccar());
-        CAR = Some(Car::default());
+        CARS = Some(vec![Car::default(); 64]);
         BALL_STRUCT = Some(BallPrediction::default());
     }
 
@@ -49,7 +49,7 @@ fn load_soccar(py: Python) -> PyResult<PyObject> {
 fn load_dropshot(py: Python) -> PyResult<PyObject> {
     unsafe {
         GAME = Some(rl_ball_sym::load_dropshot());
-        CAR = Some(Car::default());
+        CARS = Some(vec![Car::default(); 64]);
         BALL_STRUCT = Some(BallPrediction::default());
     }
 
@@ -59,7 +59,7 @@ fn load_dropshot(py: Python) -> PyResult<PyObject> {
 fn load_hoops(py: Python) -> PyResult<PyObject> {
     unsafe {
         GAME = Some(rl_ball_sym::load_hoops());
-        CAR = Some(Car::default());
+        CARS = Some(vec![Car::default(); 64]);
         BALL_STRUCT = Some(BallPrediction::default());
     }
 
@@ -85,7 +85,7 @@ fn set_gravity(py: Python, py_gravity: PyDict) -> PyResult<PyObject> {
 
 fn tick(py: Python, py_time: PyFloat, py_ball: PyDict, py_car: PyDict) -> PyResult<PyObject> {
     let mut game: &mut Game;
-    let mut car: &mut Car;
+    let cars: &mut Vec<Car>;
 
     unsafe {
         game = match GAME.as_mut() {
@@ -95,10 +95,10 @@ fn tick(py: Python, py_time: PyFloat, py_ball: PyDict, py_car: PyDict) -> PyResu
             }
         };
 
-        car = match CAR.as_mut() {
-            Some(car) => car,
+        cars = match &mut CARS {
+            Some(cars) => cars,
             None => {
-                return Err(PyErr::new::<exc::NameError, _>(py, NO_CAR_ERR));
+                return Err(PyErr::new::<exc::NameError, _>(py, NO_CARS_ERR));
             }
         };
     }
@@ -132,21 +132,23 @@ fn tick(py: Python, py_time: PyFloat, py_ball: PyDict, py_car: PyDict) -> PyResu
         game.ball.collision_radius = collision_radius.extract(py)?;
     }
 
-    car.location = get_vec3_from_dict(py, &py_car, "location", "car")?;
-    car.velocity = get_vec3_from_dict(py, &py_car, "velocity", "car")?;
-    car.angular_velocity = get_vec3_from_dict(py, &py_car, "angular_velocity", "car")?;
-    car.hitbox = Hitbox::from_vec3(get_vec3_from_dict(py, &py_car, "hitbox", "car")?);
-    car.hitbox_offset = get_vec3_from_dict(py, &py_car, "hitbox_offset", "car")?;
-    car.pitch = get_f32_from_dict(py, &py_car, "pitch", "car")?;
-    car.yaw = get_f32_from_dict(py, &py_car, "yaw", "car")?;
-    car.roll = get_f32_from_dict(py, &py_car, "roll", "car")?;
-    car.boost = get_u8_from_dict(py, &py_car, "boost", "car")?;
-    car.demolished = get_bool_from_dict(py, &py_car, "demolished", "car")?;
-    car.airborne = get_bool_from_dict(py, &py_car, "airborne", "car")?;
-    car.jumped = get_bool_from_dict(py, &py_car, "jumped", "car")?;
-    car.doublejumped = get_bool_from_dict(py, &py_car, "doublejumped", "car")?;
-    car.calculate_orientation_matrix();
-    car.calculate_max_values();
+    let index = get_usize_from_dict(py, &py_car, "index", "car")?;
+
+    cars[index].location = get_vec3_from_dict(py, &py_car, "location", "car")?;
+    cars[index].velocity = get_vec3_from_dict(py, &py_car, "velocity", "car")?;
+    cars[index].angular_velocity = get_vec3_from_dict(py, &py_car, "angular_velocity", "car")?;
+    cars[index].hitbox = Hitbox::from_vec3(get_vec3_from_dict(py, &py_car, "hitbox", "car")?);
+    cars[index].hitbox_offset = get_vec3_from_dict(py, &py_car, "hitbox_offset", "car")?;
+    cars[index].pitch = get_f32_from_dict(py, &py_car, "pitch", "car")?;
+    cars[index].yaw = get_f32_from_dict(py, &py_car, "yaw", "car")?;
+    cars[index].roll = get_f32_from_dict(py, &py_car, "roll", "car")?;
+    cars[index].boost = get_u8_from_dict(py, &py_car, "boost", "car")?;
+    cars[index].demolished = get_bool_from_dict(py, &py_car, "demolished", "car")?;
+    cars[index].airborne = get_bool_from_dict(py, &py_car, "airborne", "car")?;
+    cars[index].jumped = get_bool_from_dict(py, &py_car, "jumped", "car")?;
+    cars[index].doublejumped = get_bool_from_dict(py, &py_car, "doublejumped", "car")?;
+    cars[index].calculate_orientation_matrix();
+    cars[index].calculate_max_values();
 
     unsafe {
         BALL_STRUCT = Some(Ball::get_ball_prediction_struct_for_time(game, &6.));
@@ -183,7 +185,7 @@ fn get_slice(py: Python, py_slice_time: PyFloat) -> PyResult<PyObject> {
     Ok(py_slice.into_object())
 }
 
-fn calc_dr_and_ft(py: Python, py_target_left: PyTuple, py_target_right: PyTuple, py_slice_time: PyFloat) -> PyResult<PyObject> {
+fn get_data_for_shot_with_target(py: Python, py_target_left: PyTuple, py_target_right: PyTuple, py_slice_time: PyFloat, py_index: PyInt) -> PyResult<PyObject> {
     let game_time: &f32;
     let _gravity: &Vec3;
     let car: &Car;
@@ -205,10 +207,10 @@ fn calc_dr_and_ft(py: Python, py_target_left: PyTuple, py_target_right: PyTuple,
             }
         }
 
-        car = match CAR.as_ref() {
-            Some(car) => car,
+        car = match &mut CARS {
+            Some(cars) => cars.get_mut(py_index.into_object().extract::<usize>(py).unwrap()).unwrap(),
             None => {
-                return Err(PyErr::new::<exc::NameError, _>(py, NO_CAR_ERR));
+                return Err(PyErr::new::<exc::NameError, _>(py, NO_CARS_ERR));
             }
         };
 
@@ -268,7 +270,7 @@ fn calc_dr_and_ft(py: Python, py_target_left: PyTuple, py_target_right: PyTuple,
     Ok(result.into_object())
 }
 
-fn calculate_intercept(py: Python, py_target_left: PyTuple, py_target_right: PyTuple, py_all: PyBool) -> PyResult<PyObject> {
+fn get_shot_with_target(py: Python, py_target_left: PyTuple, py_target_right: PyTuple, py_index: PyInt, py_all: PyBool) -> PyResult<PyObject> {
     let game_time: &f32;
     let _gravity: &Vec3;
     let radius: &f32;
@@ -286,10 +288,10 @@ fn calculate_intercept(py: Python, py_target_left: PyTuple, py_target_right: PyT
             }
         }
 
-        car = match CAR.as_ref() {
-            Some(car) => car,
+        car = match &mut CARS {
+            Some(cars) => cars.get_mut(py_index.into_object().extract::<usize>(py).unwrap()).unwrap(),
             None => {
-                return Err(PyErr::new::<exc::NameError, _>(py, NO_CAR_ERR));
+                return Err(PyErr::new::<exc::NameError, _>(py, NO_CARS_ERR));
             }
         };
 
@@ -336,8 +338,6 @@ fn calculate_intercept(py: Python, py_target_left: PyTuple, py_target_right: PyT
         }
 
         let shot_vector = get_shot_vector_2d(car_to_ball.flatten().normalize(), ball.location.flatten(), post_info.target_left.flatten(), post_info.target_right.flatten());
-        // let shot_vector = get_shot_vector_2d(car_to_ball.normalize(), ball.location, target_left, target_right);
-        // dbg!(shot_vector);
 
         let time_remaining = ball.time - game_time;
 

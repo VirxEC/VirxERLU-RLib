@@ -32,6 +32,7 @@ pub const END_THROTTLE_ACCEL_B: f32 = 160.;
 const BOOST_ACCEL: f32 = 991. + 2. / 3.;
 const BOOST_ACCEL_DT: f32 = BOOST_ACCEL * SIMULATION_DT;
 
+#[derive(Clone)]
 pub struct Hitbox {
     pub length: f32,
     pub width: f32,
@@ -58,6 +59,7 @@ impl Hitbox {
     }
 }
 
+#[derive(Clone)]
 pub struct Car {
     pub location: Vec3,
     pub velocity: Vec3,
@@ -199,6 +201,17 @@ pub fn get_vec3_from_dict(py: Python, py_dict: &PyDict, key: &str, name: &str) -
 }
 
 pub fn get_f32_from_dict(py: Python, py_dict: &PyDict, key: &str, name: &str) -> PyResult<f32> {
+    match py_dict.get_item(py, key) {
+        Some(py_num) => {
+            return Ok(py_num.extract(py)?);
+        }
+        None => {
+            return Err(PyErr::new::<exc::AttributeError, _>(py, format!("No key called '{}' in '{}'.", key, name)));
+        }
+    }
+}
+
+pub fn get_usize_from_dict(py: Python, py_dict: &PyDict, key: &str, name: &str) -> PyResult<usize> {
     match py_dict.get_item(py, key) {
         Some(py_num) => {
             return Ok(py_num.extract(py)?);
@@ -490,7 +503,7 @@ pub fn analyze_target(ball: &Box<Ball>, car: &Car, shot_vector: Vec3, time_remai
 
     end_distance += offset_distance;
 
-    if validate && end_distance + car.location.dist_2d(exit_turn_point) / time_remaining > car.max_speed {
+    if validate && (end_distance + car.location.dist_2d(exit_turn_point)) / time_remaining > car.max_speed {
         return Err(DubinsError::NoPath);
     }
 

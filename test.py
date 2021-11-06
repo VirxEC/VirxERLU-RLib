@@ -15,7 +15,7 @@ print("")
 
 print("Benchmarking...")
 time = 0.
-times = [[], [], []]
+times = [[], [], [], []]
 
 for _ in range(5000):
     start = time_ns()
@@ -72,30 +72,41 @@ for _ in range(5000):
             "airborne": False,
             "jumped": False,
             "doublejumped": False,
-        }
+            "index": 0,
+        },
     )
 
     times[0].append(time_ns() - start)
 
     start = time_ns()
 
-    rlru.calculate_intercept((
+    rlru.get_shot_with_target((
         800, 5120, 0,
     ), (
         -800, 5120, 0,
-    ), all=True)
+    ), 0, all=True)
 
     times[1].append(time_ns() - start)
 
     start = time_ns()
 
-    rlru.calculate_intercept((
+    rlru.get_shot_with_target((
         800, 5120, 0,
     ), (
         -800, 5120, 0,
-    ), all=False)
+    ), 0, all=False)
 
     times[2].append(time_ns() - start)
+
+    start = time_ns()
+
+    rlru.get_data_for_shot_with_target((
+        800, 5120, 0,
+    ), (
+        -800, 5120, 0,
+    ), 5.9, 0)
+
+    times[3].append(time_ns() - start)
 
     time += 1/120
 
@@ -107,14 +118,20 @@ print(f"Avg. time of execution: {round(sum(times[0]) / len(times[0]) / 1000000, 
 
 print("")
 
-print("calculate_intercept() worst-case:")
+print("get_shot_with_target() worst-case:")
 print(f"Total test time: {round(sum(times[1]) / 1000000000, 4)}s")
 print(f"Avg. time of execution: {round(sum(times[1]) / len(times[1]) / 1000000, 3)}ms")
 
 print("")
 
-print("calculate_intercept():")
+print("get_shot_with_target():")
 print(f"Total test time: {round(sum(times[2]) / 1000000000, 4)}s")
 print(f"Avg. time of execution: {round(sum(times[2]) / len(times[2]) / 1000000, 3)}ms")
+
+print("")
+
+print("get_data_for_shot_with_target():")
+print(f"Total test time: {round(sum(times[3]) / 1000000000, 4)}s")
+print(f"Avg. time of execution: {round(sum(times[3]) / len(times[3]) / 1000000, 3)}ms")
 
 print("")
