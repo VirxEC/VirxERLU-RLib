@@ -149,6 +149,8 @@ fn tick(py: Python, py_time: PyFloat, py_ball: PyDict, py_car: PyDict) -> PyResu
     cars[index].doublejumped = get_bool_from_dict(py, &py_car, "doublejumped", "car")?;
     cars[index].calculate_orientation_matrix();
     cars[index].calculate_max_values();
+    cars[index].calculate_local_values();
+    cars[index].calculate_field();
 
     unsafe {
         BALL_STRUCT = Some(Ball::get_ball_prediction_struct_for_time(game, &6.));
@@ -244,7 +246,7 @@ fn get_data_for_shot_with_target(py: Python, py_target_left: PyTuple, py_target_
 
     result.set_item(py, "distance_remaining", distance_remaining)?;
     result.set_item(py, "final_target", get_vec_from_vec3(final_target))?;
-    result.set_item(py, "short_vector", get_vec_from_vec3(shot_vector.flatten().normalize() * 640. + ball.location))?;
+    result.set_item(py, "short_vector", get_vec_from_vec3(shot_vector * 640. + ball.location))?;
 
     match path {
         Some(path_) => {
@@ -338,6 +340,7 @@ fn get_shot_with_target(py: Python, py_target_left: PyTuple, py_target_right: Py
         }
 
         let shot_vector = get_shot_vector_2d(car_to_ball.flatten().normalize(), ball.location.flatten(), post_info.target_left.flatten(), post_info.target_right.flatten());
+        // dbg!(shot_vector);
 
         let time_remaining = ball.time - game_time;
 
