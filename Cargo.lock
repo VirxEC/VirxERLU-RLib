@@ -37,9 +37,9 @@ dependencies = [
 
 [[package]]
 name = "dubins_paths"
-version = "1.0.0"
+version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "deccda632ec7719c6ce2df080a8be4df84c3fcdf48494cb9455f3dd84cbb2cfc"
+checksum = "c8c30c55cae826cac3925c6441709934c904cf2de63760d336e210b544a3c406"
 
 [[package]]
 name = "libc"
@@ -97,9 +97,9 @@ checksum = "f497285884f3fcff424ffc933e56d7cbca511def0c9831a7f9b5f6153e3cc89b"
 
 [[package]]
 name = "rl_ball_sym"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "98d8db51e182cfde36cf7f9c631cce93d46dcb6015536dd0e3f7a413272cfdf6"
+checksum = "c2f32200ab3cb7c04240b0da66bed0b97a1bfdde3db2333d8f72ff786f06a6bb"
 dependencies = [
  "byteorder",
  "vvec3",

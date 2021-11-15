@@ -191,7 +191,7 @@ fn get_data_for_shot_with_target(py: Python, py_target_left: PyTuple, py_target_
     let game_time: &f32;
     let _gravity: &Vec3;
     let car: &Car;
-    let ball: &Box<Ball>;
+    let ball: &Ball;
 
     unsafe {
         game_time = &GAME_TIME;
@@ -231,8 +231,8 @@ fn get_data_for_shot_with_target(py: Python, py_target_left: PyTuple, py_target_
     let post_info = correct_for_posts(ball.location, ball.collision_radius, target_left, target_right);
     let shot_vector = get_shot_vector_2d(car_to_ball.flatten().normalize(), ball.location.flatten(), post_info.target_left.flatten(), post_info.target_right.flatten());
 
-    let (distance_parts, final_target, path) = match analyze_target(ball, car, shot_vector, 0., true, false) {
-        Ok(result) => (result.0, result.1.unwrap(), result.2),
+    let (distance_parts, final_target, face_shot_vector, path) = match analyze_target(ball, car, shot_vector, 0., true, false) {
+        Ok(result) => (result.0, result.1.unwrap(), result.2, result.3),
         Err(duberr) => {
             return Err(PyErr::new::<exc::Exception, _>(py, format!("{:?} - Couldn't calculate path", duberr)));
         }
@@ -246,7 +246,8 @@ fn get_data_for_shot_with_target(py: Python, py_target_left: PyTuple, py_target_
 
     result.set_item(py, "distance_remaining", distance_remaining)?;
     result.set_item(py, "final_target", get_vec_from_vec3(final_target))?;
-    result.set_item(py, "short_vector", get_vec_from_vec3(shot_vector * 640. + ball.location))?;
+    result.set_item(py, "shot_vector", get_vec_from_vec3(shot_vector))?;
+    result.set_item(py, "face_shot_vector", face_shot_vector)?;
 
     match path {
         Some(path_) => {

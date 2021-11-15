@@ -1,5 +1,7 @@
+use std::f32::INFINITY;
+
 use cpython::{exc, ObjectProtocol, PyDict, PyErr, PyObject, PyResult, Python};
-use dubins_paths::{path_sample, shortest_path, DubinsError, DubinsPath};
+use dubins_paths::{intermediate_results, path_sample, word, DubinsError, DubinsPath, DubinsPathType};
 use rl_ball_sym::simulation::ball::Ball;
 
 use vvec3::Vec3;
@@ -442,15 +444,15 @@ impl CarFieldRect {
         }
     }
 
-    pub fn are_points_in(&self, s: &[[f32; 3]]) -> bool {
-        for p in s {
-            if !self.is_point_in(p) {
-                return false;
-            }
-        }
+    // pub fn are_points_in(&self, s: &[[f32; 3]]) -> bool {
+    //     for p in s {
+    //         if !self.is_point_in(p) {
+    //             return false;
+    //         }
+    //     }
 
-        return true;
-    }
+    //     return true;
+    // }
 
     pub fn is_point_in(&self, p: &[f32; 3]) -> bool {
         if p[0].abs() > self.goal_x {
@@ -459,18 +461,6 @@ impl CarFieldRect {
 
         return p[1].abs() < self.goal_y;
     }
-}
-
-fn path_section_endpoints(path: &DubinsPath) -> Result<[[f32; 3]; 3], DubinsError> {
-    let dists = [path.param[0] * path.rho, (path.param[0] + path.param[1]) * path.rho, (path.param[0] + path.param[1] + path.param[2]) * path.rho];
-
-    Ok([path_sample(path, dists[0])?, path_sample(path, dists[1])?, path_sample(path, dists[2] - f32::EPSILON)?])
-}
-
-fn path_section_midpoints(path: &DubinsPath) -> Result<[[f32; 3]; 3], DubinsError> {
-    let dists = [path.param[0] * path.rho, (path.param[0] + path.param[1]) * path.rho, (path.param[0] + path.param[1] + path.param[2]) * path.rho];
-
-    Ok([path_sample(path, dists[0] / 2.)?, path_sample(path, dists[1] / 2.)?, path_sample(path, dists[2] / 2.)?])
 }
 
 fn path_endpoint_to_vec3(endpoint: [f32; 3]) -> Vec3 {
@@ -486,7 +476,64 @@ fn radius_from_local_point(a: Vec3) -> f32 {
     1. / (2. * b.y / a.dot(&b)).abs()
 }
 
-pub fn analyze_target(ball: &Box<Ball>, car: &Car, shot_vector: Vec3, time_remaining: f32, get_target: bool, validate: bool) -> Result<([f32; 4], Option<Vec3>, Option<DubinsPath>), DubinsError> {
+fn shortest_path_in_validate(q0: [f32; 3], q1: [f32; 3], rho: f32, car_field: &CarFieldRect) -> Result<(DubinsPath, [[f32; 3]; 3]), DubinsError> {
+    let mut best_cost = INFINITY;
+    let mut best_path = None;
+    let mut best_parts = None;
+
+    let intermediate_results = intermediate_results(q0, q1, rho)?;
+
+    for path_type in DubinsPathType::ALL {
+        if let Ok(param) = word(&intermediate_results, path_type) {
+            let cost = param[0] + param[1] + param[2];
+            if cost < best_cost {
+                let path = DubinsPath {
+                    qi: q0,
+                    rho,
+                    param,
+                    type_: path_type,
+                };
+
+                let mut valid = true;
+
+                for dist in [path.param[0] * path.rho / 2., (path.param[0] + path.param[1]) * path.rho / 2., (path.param[0] + path.param[1] + path.param[2]) * path.rho / 2.] {
+                    if !car_field.is_point_in(&path_sample(&path, dist)?) {
+                        valid = false;
+                        break;
+                    }
+                }
+
+                if !valid {
+                    continue;
+                }
+
+                let mut end_parts = [[0.; 3]; 3];
+
+                for (i, dist) in [path.param[0] * path.rho, (path.param[0] + path.param[1]) * path.rho, (path.param[0] + path.param[1] + path.param[2]) * path.rho].iter().enumerate() {
+                    end_parts[i] = path_sample(&path, *dist)?;
+
+                    if !car_field.is_point_in(&end_parts[i]) {
+                        valid = false;
+                        break;
+                    }
+                }
+
+                if valid {
+                    best_cost = cost;
+                    best_path = Some(path);
+                    best_parts = Some(end_parts);
+                }
+            }
+        }
+    }
+
+    match best_path {
+        Some(path) => Ok((path, best_parts.unwrap())),
+        None => Err(DubinsError::NoPath),
+    }
+}
+
+pub fn analyze_target(ball: &Ball, car: &Car, shot_vector: Vec3, time_remaining: f32, get_target: bool, validate: bool) -> Result<([f32; 4], Option<Vec3>, bool, Option<DubinsPath>), DubinsError> {
     let offset_target = ball.location - (shot_vector * ball.radius);
     let car_front_length = (car.hitbox_offset.x + car.hitbox.length) / 2.;
 
@@ -506,16 +553,16 @@ pub fn analyze_target(ball: &Box<Ball>, car: &Car, shot_vector: Vec3, time_remai
             } else {
                 None
             };
-            return Ok(([0., 0., 0., end_distance], final_target, None));
+            return Ok(([0., 0., 0., end_distance], final_target, false, None));
         } else {
             let angle_to_shot = (ball.location - car.location).normalize().angle_2d(&shot_vector);
 
             if angle_to_shot < 0.75 {
                 if car.forward.dot(&(exit_turn_point - car.location)) > 0. {
-                    let turn_rad = radius_from_local_point(localize_2d_location(car, exit_turn_point));
+                    // Use circle tangents and trig to calculate the turn radius
+                    let half_angle = shot_vector.angle_2d(&-car.forward) / 2.;
+                    let turn_rad = (car.location.dist_2d(exit_turn_point) / 2.) / half_angle.sin() * half_angle.tan();
 
-                    // TODO
-                    // turn radius with direction
                     if turn_radius(car.local_velocity.x.abs()) < turn_rad && turn_rad < car.msmtr * 1.3 {
                         end_distance += offset_distance + turn_rad * angle_to_shot;
 
@@ -525,7 +572,7 @@ pub fn analyze_target(ball: &Box<Ball>, car: &Car, shot_vector: Vec3, time_remai
                             None
                         };
 
-                        return Ok(([0., 0., 0., end_distance], final_target, None));
+                        return Ok(([0., 0., 0., end_distance], final_target, true, None));
                     }
                 } else if angle_to_shot < 0.25 && car.forward.angle_2d(&shot_vector) < 0.5 {
                     end_distance += offset_distance + radius_from_local_point(local_offset) * angle_to_shot;
@@ -536,7 +583,7 @@ pub fn analyze_target(ball: &Box<Ball>, car: &Car, shot_vector: Vec3, time_remai
                         None
                     };
 
-                    return Ok(([0., 0., 0., end_distance], final_target, None));
+                    return Ok(([0., 0., 0., end_distance], final_target, false, None));
                 }
             }
         }
@@ -551,22 +598,12 @@ pub fn analyze_target(ball: &Box<Ball>, car: &Car, shot_vector: Vec3, time_remai
     let q0 = [car.location.x, car.location.y, car.yaw];
     let q1 = [exit_turn_point.x, exit_turn_point.y, shot_vector.y.atan2(shot_vector.x)];
 
-    let path = shortest_path(q0, q1, car.msmtr * 1.05)?;
-    let end_parts = path_section_endpoints(&path)?;
-
-    if validate {
-        let midpoints = path_section_midpoints(&path)?;
-        let all_points = [midpoints[0], end_parts[0], end_parts[1], midpoints[2], end_parts[2]];
-
-        if !car.field.are_points_in(&all_points) {
-            return Err(DubinsError::NoPath);
-        }
-    }
+    let (path, end_parts) = shortest_path_in_validate(q0, q1, car.msmtr * 1.05, &car.field)?;
 
     let distances = [path.param[0] * path.rho, path.param[1] * path.rho, path.param[2] * path.rho];
 
     if !get_target {
-        return Ok(([distances[0], distances[1], distances[2], end_distance], None, Some(path)));
+        return Ok(([distances[0], distances[1], distances[2], end_distance], None, false, Some(path)));
     }
 
     let final_target = Some(path_endpoint_to_vec3(
@@ -580,7 +617,8 @@ pub fn analyze_target(ball: &Box<Ball>, car: &Car, shot_vector: Vec3, time_remai
             }
         }],
     ));
-    Ok(([distances[0], distances[1], distances[2], end_distance], final_target, Some(path)))
+
+    Ok(([distances[0], distances[1], distances[2], end_distance], final_target, false, Some(path)))
 }
 
 fn throttle_acceleration(forward_velocity: f32) -> f32 {

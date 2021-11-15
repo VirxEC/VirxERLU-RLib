@@ -11,8 +11,8 @@ path = "src/lib.rs"
 
 [dependencies]
 vvec3 = "0.1.*"
-rl_ball_sym = "0.5.*"
-dubins_paths = "^1.0.0"
+rl_ball_sym = "0.6.*"
+dubins_paths = "^1.0.3"
 
 [dependencies.cpython]
 version = "0.6"

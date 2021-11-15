@@ -27,7 +27,8 @@ Currently, VirxERLU-RLib has:
 + 120tps ball prediction analysis
 + Near on-point shots and distance calculations (always WIP but fairly good)
 + 120tps acceleration simulation using modified RLU speed controller
-+ Pathing using Dubin's Paths that says in the field with semi-variable turn radius calculations
++ Pathing using Dubin's Paths that says in the field
 + Semi-variable turn radius calculations for pathing
++ 6 paths, 6 ways to stay in the field per slice
 + Shoots between two goal posts, not at a single point
 + Goal post correction
