@@ -122,23 +122,14 @@ impl Car {
         let c_r = self.roll.cos();
         let s_r = self.roll.sin();
 
-        // CP * CY
-        // CP * SY
-        // SP
         self.forward.x = c_p * c_y;
         self.forward.y = c_p * s_y;
         self.forward.z = s_p;
 
-        // CY * SP * SR - CR * SY
-        // SY * SP * SR + CR * CY
-        // -CP * SR
         self.right.x = c_y * s_p * s_r - c_r * s_y;
         self.right.y = s_y * s_p * s_r + c_r * c_y;
         self.right.z = -c_p * s_r;
 
-        // -CR * CY * SP - SR * SY
-        // -CR * SY * SP + SR * CY
-        // CP * CR
         self.up.x = -c_r * c_y * s_p - s_r * s_y;
         self.up.y = -c_r * s_y * s_p + s_r * c_y;
         self.up.z = c_p * c_r;
@@ -452,16 +443,6 @@ impl CarFieldRect {
         }
     }
 
-    // pub fn are_points_in(&self, s: &[[f32; 3]]) -> bool {
-    //     for p in s {
-    //         if !self.is_point_in(p) {
-    //             return false;
-    //         }
-    //     }
-
-    //     return true;
-    // }
-
     pub fn is_point_in(&self, p: &[f32; 3]) -> bool {
         if p[0].abs() > self.goal_x {
             return p[0].abs() < self.field_x && p[1].abs() < self.field_y;
@@ -479,9 +460,8 @@ fn path_endpoint_to_vec3(endpoint: [f32; 3]) -> Vec3 {
     }
 }
 
-fn radius_from_local_point(a: Vec3) -> f32 {
-    let b = a.flatten();
-    1. / (2. * b.y / a.dot(&b)).abs()
+fn radius_from_points_with_directions(car_location: Vec3, car_forward: Vec3, p: Vec3, d: Vec3) -> f32 {
+    (car_location.dist_2d(p) / 2.) * (d.angle_2d(&-car_forward) / 2.).cos()
 }
 
 fn shortest_path_in_validate(q0: [f32; 3], q1: [f32; 3], rho: f32, car_field: &CarFieldRect) -> Result<(DubinsPath, [[f32; 3]; 3]), DubinsError> {
@@ -561,18 +541,19 @@ pub fn analyze_target(ball: &Ball, car: &Car, shot_vector: Vec3, time_remaining:
             } else {
                 None
             };
+
             return Ok(([0., 0., 0., end_distance], final_target, false, None));
         } else {
             let angle_to_shot = (ball.location - car.location).normalize().angle_2d(&shot_vector);
 
             if angle_to_shot < 0.75 {
                 if car.forward.dot(&(exit_turn_point - car.location)) > 0. {
-                    // Use circle tangents and trig to calculate the turn radius
-                    let half_angle = shot_vector.angle_2d(&-car.forward) / 2.;
-                    let turn_rad = (car.location.dist_2d(exit_turn_point) / 2.) / half_angle.sin() * half_angle.tan();
+                    // // Use circle tangents and trig to calculate the turn radius
+                    let turn_rad = radius_from_points_with_directions(car.location, car.forward, exit_turn_point, shot_vector);
 
                     if turn_radius(car.local_velocity.x.abs()) < turn_rad && turn_rad < car.msmtr * 1.3 {
-                        end_distance += offset_distance + turn_rad * angle_to_shot;
+                        end_distance += offset_distance;
+                        let turn_distance = turn_rad * angle_to_shot;
 
                         let final_target = if get_target {
                             Some(exit_turn_point)
@@ -580,10 +561,10 @@ pub fn analyze_target(ball: &Ball, car: &Car, shot_vector: Vec3, time_remaining:
                             None
                         };
 
-                        return Ok(([0., 0., 0., end_distance], final_target, true, None));
+                        return Ok(([0., 0., turn_distance, end_distance], final_target, true, None));
                     }
                 } else if angle_to_shot < 0.25 && car.forward.angle_2d(&shot_vector) < 0.5 {
-                    end_distance += offset_distance + radius_from_local_point(local_offset) * angle_to_shot;
+                    end_distance += local_offset.x;
 
                     let final_target = if get_target {
                         Some(offset_target)
@@ -591,7 +572,7 @@ pub fn analyze_target(ball: &Ball, car: &Car, shot_vector: Vec3, time_remaining:
                         None
                     };
 
-                    return Ok(([0., 0., 0., end_distance], final_target, false, None));
+                    return Ok(([0., 0., 0., end_distance], final_target, true, None));
                 }
             }
         }
