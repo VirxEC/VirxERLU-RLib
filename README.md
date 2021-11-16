@@ -32,3 +32,5 @@ Currently, VirxERLU-RLib has:
 + 6 paths, 6 ways to stay in the field per slice
 + Shoots between two goal posts, not at a single point
 + Goal post correction
++ GameTickPacket parsing
++ Support for any car on the field

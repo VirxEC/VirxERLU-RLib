@@ -19,7 +19,7 @@ times = [[], [], [], []]
 
 for _ in range(5000):
     start = time_ns()
-    rlru.tick(
+    rlru.tick_dict(
         time=time,
         ball={
             "location": (

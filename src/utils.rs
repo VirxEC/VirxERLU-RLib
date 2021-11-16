@@ -34,7 +34,7 @@ pub const END_THROTTLE_ACCEL_B: f32 = 160.;
 const BOOST_ACCEL: f32 = 991. + 2. / 3.;
 const BOOST_ACCEL_DT: f32 = BOOST_ACCEL * SIMULATION_DT;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Hitbox {
     pub length: f32,
     pub width: f32,
@@ -61,7 +61,7 @@ impl Hitbox {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Car {
     pub location: Vec3,
     pub velocity: Vec3,
@@ -207,6 +207,14 @@ pub fn get_vec3(py: Python, py_vec: &PyObject, too_few_vals_err_msg: &str) -> Py
     }
 
     Ok(vec)
+}
+
+pub fn get_vec3_named(py: Python, py_vec: PyObject) -> PyResult<Vec3> {
+    Ok(Vec3 {
+        x: py_vec.getattr(py, "x")?.extract(py)?,
+        y: py_vec.getattr(py, "y")?.extract(py)?,
+        z: py_vec.getattr(py, "z")?.extract(py)?,
+    })
 }
 
 pub fn get_vec3_from_dict(py: Python, py_dict: &PyDict, key: &str, name: &str) -> PyResult<Vec3> {
@@ -413,7 +421,7 @@ pub fn correct_for_posts(ball_location: Vec3, ball_radius: f32, target_left: Vec
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CarFieldRect {
     goal_x: f32,
     goal_y: f32,
