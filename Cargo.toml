@@ -10,8 +10,8 @@ crate-type = ["cdylib"]
 path = "src/lib.rs"
 
 [dependencies]
-vvec3 = "0.1.*"
-rl_ball_sym = "0.6.*"
+glam = "0.20.1"
+rl_ball_sym = "0.7"
 dubins_paths = "^1.0.3"
 
 [dependencies.cpython]
@@ -19,6 +19,6 @@ version = "0.6"
 features = ["extension-module"]
 
 [profile.release]
-codegen-units = 1
+codegen-units = 2
 lto = "fat"
 panic = "abort"

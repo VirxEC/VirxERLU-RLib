@@ -4,7 +4,7 @@ use cpython::{exc, ObjectProtocol, PyDict, PyErr, PyObject, PyResult, Python};
 use dubins_paths::{intermediate_results, path_sample, word, DubinsError, DubinsPath, DubinsPathType};
 use rl_ball_sym::simulation::ball::Ball;
 
-use vvec3::Vec3;
+use glam::Vec3A;
 
 pub const MAX_SPEED: f32 = 2300.;
 pub const MAX_SPEED_NO_BOOST: f32 = 1410.;
@@ -52,7 +52,7 @@ impl Default for Hitbox {
 }
 
 impl Hitbox {
-    pub fn from_vec3(vec: Vec3) -> Self {
+    pub fn from_vec3(vec: Vec3A) -> Self {
         Self {
             length: vec.x,
             width: vec.y,
@@ -63,15 +63,15 @@ impl Hitbox {
 
 #[derive(Clone, Debug)]
 pub struct Car {
-    pub location: Vec3,
-    pub velocity: Vec3,
-    pub local_velocity: Vec3,
-    pub angular_velocity: Vec3,
-    pub forward: Vec3,
-    pub right: Vec3,
-    pub up: Vec3,
+    pub location: Vec3A,
+    pub velocity: Vec3A,
+    pub local_velocity: Vec3A,
+    pub angular_velocity: Vec3A,
+    pub forward: Vec3A,
+    pub right: Vec3A,
+    pub up: Vec3A,
     pub hitbox: Hitbox,
-    pub hitbox_offset: Vec3,
+    pub hitbox_offset: Vec3A,
     pub field: CarFieldRect,
     pub pitch: f32,
     pub yaw: f32,
@@ -89,15 +89,15 @@ pub struct Car {
 impl Default for Car {
     fn default() -> Self {
         Self {
-            location: Vec3::default(),
-            velocity: Vec3::default(),
-            local_velocity: Vec3::default(),
-            angular_velocity: Vec3::default(),
-            forward: Vec3::default(),
-            right: Vec3::default(),
-            up: Vec3::default(),
+            location: Vec3A::ZERO,
+            velocity: Vec3A::ZERO,
+            local_velocity: Vec3A::ZERO,
+            angular_velocity: Vec3A::ZERO,
+            forward: Vec3A::ZERO,
+            right: Vec3A::ZERO,
+            up: Vec3A::ZERO,
             hitbox: Hitbox::default(),
-            hitbox_offset: Vec3::default(),
+            hitbox_offset: Vec3A::ZERO,
             field: CarFieldRect::default(),
             pitch: 0.,
             yaw: 0.,
@@ -150,7 +150,7 @@ impl Car {
 
     fn get_max_speed(&mut self) -> f32 {
         let mut b = self.boost as f32;
-        let mut v = self.velocity.dot(&self.forward);
+        let mut v = self.velocity.dot(self.forward);
 
         loop {
             if v >= MAX_SPEED {
@@ -176,8 +176,8 @@ impl Car {
     }
 }
 
-pub fn get_vec3(py: Python, py_vec: &PyObject, too_few_vals_err_msg: &str) -> PyResult<Vec3> {
-    let mut vec = Vec3::default();
+pub fn get_vec3(py: Python, py_vec: &PyObject, too_few_vals_err_msg: &str) -> PyResult<Vec3A> {
+    let mut vec = Vec3A::ZERO;
 
     if let Ok(x) = py_vec.get_item(py, 0) {
         vec.x = x.extract(py)?;
@@ -200,15 +200,11 @@ pub fn get_vec3(py: Python, py_vec: &PyObject, too_few_vals_err_msg: &str) -> Py
     Ok(vec)
 }
 
-pub fn get_vec3_named(py: Python, py_vec: PyObject) -> PyResult<Vec3> {
-    Ok(Vec3 {
-        x: py_vec.getattr(py, "x")?.extract(py)?,
-        y: py_vec.getattr(py, "y")?.extract(py)?,
-        z: py_vec.getattr(py, "z")?.extract(py)?,
-    })
+pub fn get_vec3_named(py: Python, py_vec: PyObject) -> PyResult<Vec3A> {
+    Ok(Vec3A::new(py_vec.getattr(py, "x")?.extract(py)?, py_vec.getattr(py, "y")?.extract(py)?, py_vec.getattr(py, "z")?.extract(py)?))
 }
 
-pub fn get_vec3_from_dict(py: Python, py_dict: &PyDict, key: &str, name: &str) -> PyResult<Vec3> {
+pub fn get_vec3_from_dict(py: Python, py_dict: &PyDict, key: &str, name: &str) -> PyResult<Vec3A> {
     match py_dict.get_item(py, key) {
         Some(py_arr) => {
             return Ok(get_vec3(py, &py_arr, &format!("Key '{}' in '{}' needs to be a list of exactly 3 numbers", key, name))?);
@@ -263,35 +259,27 @@ pub fn get_bool_from_dict(py: Python, py_dict: &PyDict, key: &str, name: &str) -
     }
 }
 
-pub fn get_vec_from_vec3(vec: Vec3) -> Vec<f32> {
+pub fn get_vec_from_vec3(vec: Vec3A) -> Vec<f32> {
     vec![vec.x, vec.y, vec.z]
 }
 
-pub fn localize_2d_location(car: &Car, vec: Vec3) -> Vec3 {
+pub fn localize_2d_location(car: &Car, vec: Vec3A) -> Vec3A {
     localize_2d(car, vec - car.location)
 }
 
-pub fn localize_2d(car: &Car, vec: Vec3) -> Vec3 {
-    Vec3 {
-        x: vec.dot(&car.forward),
-        y: vec.dot(&car.right),
-        z: 0.,
-    }
+pub fn localize_2d(car: &Car, vec: Vec3A) -> Vec3A {
+    Vec3A::new(vec.dot(car.forward), vec.dot(car.right), 0.)
 }
 
-// pub fn localize_location(car: &Car, vec: Vec3) -> Vec3 {
+// pub fn localize_location(car: &Car, vec: Vec3A) -> Vec3A {
 //     localize(car, vec - car.location)
 // }
 
-pub fn localize(car: &Car, vec: Vec3) -> Vec3 {
-    Vec3 {
-        x: vec.dot(&car.forward),
-        y: vec.dot(&car.right),
-        z: vec.dot(&car.up),
-    }
+pub fn localize(car: &Car, vec: Vec3A) -> Vec3A {
+    Vec3A::new(vec.dot(car.forward), vec.dot(car.right), vec.dot(car.up))
 }
 
-// pub fn globalize(car: &Car, vec: Vec3) -> Vec3 {
+// pub fn globalize(car: &Car, vec: Vec3A) -> Vec3A {
 //     car.forward * vec.x + car.right * vec.y + car.up * vec.z + car.location
 // }
 
@@ -337,24 +325,12 @@ pub fn curvature(v: f32) -> f32 {
     panic!("Invalid input velocity");
 }
 
-const VEC3_DOWN: Vec3 = Vec3 {
-    x: 0.,
-    y: 0.,
-    z: -1.,
-};
+fn clamp_2d(vec: Vec3A, start: Vec3A, end: Vec3A) -> Vec3A {
+    let s = vec.normalize_or_zero();
+    let right = s.dot(end.cross(-Vec3A::Z)) < 0.;
+    let left = s.dot(start.cross(-Vec3A::Z)) > 0.;
 
-const VEC3_UP: Vec3 = Vec3 {
-    x: 0.,
-    y: 0.,
-    z: 1.,
-};
-
-fn clamp_2d(vec: Vec3, start: Vec3, end: Vec3) -> Vec3 {
-    let s = vec.normalize();
-    let right = s.dot(&end.cross(&VEC3_DOWN)) < 0.;
-    let left = s.dot(&start.cross(&VEC3_DOWN)) > 0.;
-
-    let return_original = if end.dot(&start.cross(&VEC3_DOWN)) > 0. {
+    let return_original = if end.dot(start.cross(-Vec3A::Z)) > 0. {
         right && left
     } else {
         right || left
@@ -362,53 +338,61 @@ fn clamp_2d(vec: Vec3, start: Vec3, end: Vec3) -> Vec3 {
 
     if return_original {
         vec
-    } else if start.dot(&s) < end.dot(&s) {
+    } else if start.dot(s) < end.dot(s) {
         end
     } else {
         start
     }
 }
 
-pub fn get_shot_vector_2d(direction: Vec3, ball_location: Vec3, target_left: Vec3, target_right: Vec3) -> Vec3 {
-    clamp_2d(direction, (target_left - ball_location).normalize(), (target_right - ball_location).normalize())
+fn angle_2d(vec1: Vec3A, vec2: Vec3A) -> f32 {
+    flatten(vec1).dot(flatten(vec2)).clamp(-1., 1.).acos()
+}
+
+pub fn get_shot_vector_2d(direction: Vec3A, ball_location: Vec3A, target_left: Vec3A, target_right: Vec3A) -> Vec3A {
+    clamp_2d(direction, (target_left - ball_location).normalize_or_zero(), (target_right - ball_location).normalize_or_zero())
+}
+
+pub fn flatten(vec: Vec3A) -> Vec3A {
+    Vec3A::new(vec.x, vec.y, 0.)
 }
 
 pub struct PostCorrection {
-    pub target_left: Vec3,
-    pub target_right: Vec3,
+    pub target_left: Vec3A,
+    pub target_right: Vec3A,
     pub fits: bool,
 }
 
-pub fn correct_for_posts(ball_location: Vec3, ball_radius: f32, target_left: Vec3, target_right: Vec3) -> PostCorrection {
-    let goal_line_perp = (target_right - target_left).cross(&VEC3_UP);
+pub fn correct_for_posts(ball_location: Vec3A, ball_radius: f32, target_left: Vec3A, target_right: Vec3A) -> PostCorrection {
+    let goal_line_perp = (target_right - target_left).cross(Vec3A::Z);
 
-    let left_adjusted = target_left + (target_left - ball_location).normalize().cross(&VEC3_DOWN) * ball_radius;
-    let right_adjusted = target_right + (target_right - ball_location).normalize().cross(&VEC3_UP) * ball_radius;
+    let left_adjusted = target_left + (target_left - ball_location).normalize_or_zero().cross(-Vec3A::Z) * ball_radius;
+    let right_adjusted = target_right + (target_right - ball_location).normalize_or_zero().cross(Vec3A::Z) * ball_radius;
 
-    let left_corrected = if (left_adjusted - target_left).dot(&goal_line_perp) > 0. {
+    let left_corrected = if (left_adjusted - target_left).dot(goal_line_perp) > 0. {
         target_left
     } else {
         left_adjusted
     };
 
-    let right_corrected = if (right_adjusted - target_right).dot(&goal_line_perp) > 0. {
+    let right_corrected = if (right_adjusted - target_right).dot(goal_line_perp) > 0. {
         target_right
     } else {
         right_adjusted
     };
 
     let left_to_right = right_corrected - left_corrected;
-    let new_goal_line = left_to_right.normalize();
-    let new_goal_width = left_to_right.magnitude();
+    let new_goal_line = left_to_right.normalize_or_zero();
+    let new_goal_width = left_to_right.length();
 
-    let new_goal_perp = new_goal_line.cross(&VEC3_UP);
+    let new_goal_perp = new_goal_line.cross(Vec3A::Z);
     let goal_center = left_corrected + new_goal_line * new_goal_width * 0.5;
-    let ball_to_goal = (goal_center - ball_location).normalize();
+    let ball_to_goal = (goal_center - ball_location).normalize_or_zero();
 
     PostCorrection {
         target_left: left_corrected,
         target_right: right_corrected,
-        fits: new_goal_width * new_goal_perp.dot(&ball_to_goal).abs() > ball_radius * 2.,
+        fits: new_goal_width * new_goal_perp.dot(ball_to_goal).abs() > ball_radius * 2.,
     }
 }
 
@@ -452,16 +436,12 @@ impl CarFieldRect {
     }
 }
 
-fn path_endpoint_to_vec3(endpoint: [f32; 3]) -> Vec3 {
-    Vec3 {
-        x: endpoint[0],
-        y: endpoint[1],
-        z: 0.,
-    }
+fn path_endpoint_to_vec3(endpoint: [f32; 3]) -> Vec3A {
+    Vec3A::new(endpoint[0], endpoint[1], 0.)
 }
 
-fn radius_from_points_with_directions(car_location: Vec3, car_forward: Vec3, p: Vec3, d: Vec3) -> f32 {
-    (car_location.dist_2d(p) / 2.) * (d.angle_2d(&-car_forward) / 2.).cos()
+fn radius_from_points_with_directions(car_location: Vec3A, car_forward: Vec3A, p: Vec3A, d: Vec3A) -> f32 {
+    (car_location.distance(p) / 2.) * (angle_2d(d, -car_forward) / 2.).cos()
 }
 
 fn shortest_path_in_validate(q0: [f32; 3], q1: [f32; 3], rho: f32, car_field: &CarFieldRect) -> Result<(DubinsPath, [[f32; 3]; 3]), DubinsError> {
@@ -521,7 +501,7 @@ fn shortest_path_in_validate(q0: [f32; 3], q1: [f32; 3], rho: f32, car_field: &C
     }
 }
 
-pub fn analyze_target(ball: &Ball, car: &Car, shot_vector: Vec3, time_remaining: f32, get_target: bool, validate: bool) -> Result<([f32; 4], Option<Vec3>, bool, Option<DubinsPath>), DubinsError> {
+pub fn analyze_target(ball: &Ball, car: &Car, shot_vector: Vec3A, time_remaining: f32, get_target: bool, validate: bool) -> Result<([f32; 4], Option<Vec3A>, bool, Option<DubinsPath>), DubinsError> {
     let offset_target = ball.location - (shot_vector * ball.radius);
     let car_front_length = (car.hitbox_offset.x + car.hitbox.length) / 2.;
 
@@ -533,7 +513,9 @@ pub fn analyze_target(ball: &Ball, car: &Car, shot_vector: Vec3, time_remaining:
     let local_offset = localize_2d_location(car, offset_target);
 
     if local_offset.x > 0. {
-        if local_offset.y.abs() < car.hitbox.width / 2. && car.forward.angle_2d(&shot_vector) < 0.15 {
+        let car_to_shot = angle_2d(car.forward, shot_vector);
+
+        if local_offset.y.abs() < car.hitbox.width / 2. && car_to_shot < 0.15 {
             end_distance += local_offset.x;
 
             let final_target = if get_target {
@@ -544,10 +526,10 @@ pub fn analyze_target(ball: &Ball, car: &Car, shot_vector: Vec3, time_remaining:
 
             return Ok(([0., 0., 0., end_distance], final_target, false, None));
         } else {
-            let angle_to_shot = (ball.location - car.location).normalize().angle_2d(&shot_vector);
+            let angle_to_shot = angle_2d((ball.location - car.location).normalize_or_zero(), shot_vector);
 
             if angle_to_shot < 0.75 {
-                if car.forward.dot(&(exit_turn_point - car.location)) > 0. {
+                if car.forward.dot(exit_turn_point - car.location) > 0. {
                     // // Use circle tangents and trig to calculate the turn radius
                     let turn_rad = radius_from_points_with_directions(car.location, car.forward, exit_turn_point, shot_vector);
 
@@ -563,7 +545,7 @@ pub fn analyze_target(ball: &Ball, car: &Car, shot_vector: Vec3, time_remaining:
 
                         return Ok(([0., 0., turn_distance, end_distance], final_target, true, None));
                     }
-                } else if angle_to_shot < 0.25 && car.forward.angle_2d(&shot_vector) < 0.5 {
+                } else if angle_to_shot < 0.25 && car_to_shot < 0.5 {
                     end_distance += local_offset.x;
 
                     let final_target = if get_target {
@@ -580,7 +562,7 @@ pub fn analyze_target(ball: &Ball, car: &Car, shot_vector: Vec3, time_remaining:
 
     end_distance += offset_distance;
 
-    if validate && (end_distance + car.location.dist_2d(exit_turn_point)) / time_remaining > car.max_speed {
+    if validate && (end_distance + flatten(car.location).distance(flatten(exit_turn_point))) / time_remaining > car.max_speed {
         return Err(DubinsError::NoPath);
     }
 
@@ -684,4 +666,34 @@ pub fn can_reach_target(car: &Car, max_time: f32, distance_remaining: f32, is_fo
     }
 
     Ok(t_r)
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct Options {
+    pub all: bool,
+    pub min_slice: usize,
+    pub max_slice: usize,
+}
+
+pub fn get_options_from_dict(py: Python, py_options: PyDict, max_slices: usize) -> PyResult<Options> {
+    let all = match get_bool_from_dict(py, &py_options, "all", "options") {
+        Ok(b) => b,
+        Err(_) => false,
+    };
+
+    let min_slice = match get_usize_from_dict(py, &py_options, "min_slice", "options") {
+        Ok(u) => u.max(0),
+        Err(_) => 0,
+    };
+
+    let max_slice = match get_usize_from_dict(py, &py_options, "min_slice", "options") {
+        Ok(u) => u.min(max_slices),
+        Err(_) => max_slices,
+    };
+
+    Ok(Options {
+        all,
+        min_slice,
+        max_slice,
+    })
 }

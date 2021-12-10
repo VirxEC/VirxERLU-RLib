@@ -84,7 +84,9 @@ for _ in range(5000):
         800, 5120, 0,
     ), (
         -800, 5120, 0,
-    ), 0, all=True)
+    ), 0, options={
+        "all": True,
+    })
 
     times[1].append(time_ns() - start)
 
@@ -94,7 +96,7 @@ for _ in range(5000):
         800, 5120, 0,
     ), (
         -800, 5120, 0,
-    ), 0, all=False)
+    ), 0, {})
 
     times[2].append(time_ns() - start)
 

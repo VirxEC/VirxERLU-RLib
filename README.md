@@ -34,3 +34,8 @@ Currently, VirxERLU-RLib has:
 + Goal post correction
 + GameTickPacket parsing
 + Support for any car on the field
++ Shot options
+    - Search starting slice
+    - Search ending slice
+    - More coming
++ SIMD vector math

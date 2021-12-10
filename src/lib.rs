@@ -3,14 +3,14 @@ extern crate rl_ball_sym;
 
 mod utils;
 
-use cpython::{exc, py_fn, py_module_initializer, ObjectProtocol, PyBool, PyDict, PyErr, PyFloat, PyInt, PyObject, PyResult, PyTuple, Python, PythonObject};
+use cpython::{exc, py_fn, py_module_initializer, ObjectProtocol, PyDict, PyErr, PyFloat, PyInt, PyObject, PyResult, PyTuple, Python, PythonObject};
 use dubins_paths::path_sample_many;
+use glam::Vec3A;
 use rl_ball_sym::simulation::{
     ball::{Ball, BallPrediction},
     game::Game,
 };
 use utils::*;
-use vvec3::Vec3;
 
 static mut GAME_TIME: f32 = 0.;
 
@@ -33,7 +33,7 @@ py_module_initializer!(virxrlru, |py, m| {
     m.add(py, "tick_dict", py_fn!(py, tick_dict(time: PyFloat, ball: PyDict, car: PyDict)))?;
     m.add(py, "get_slice", py_fn!(py, get_slice(time: PyFloat)))?;
     m.add(py, "get_data_for_shot_with_target", py_fn!(py, get_data_for_shot_with_target(target_left: PyTuple, target_right: PyTuple, time: PyFloat, py_index: PyInt)))?;
-    m.add(py, "get_shot_with_target", py_fn!(py, get_shot_with_target(target_left: PyTuple, target_right: PyTuple, py_index: PyInt, all: PyBool)))?;
+    m.add(py, "get_shot_with_target", py_fn!(py, get_shot_with_target(target_left: PyTuple, target_right: PyTuple, py_index: PyInt, options: PyDict)))?;
     Ok(())
 });
 
@@ -159,6 +159,8 @@ fn tick(py: Python, py_packet: PyObject) -> PyResult<PyObject> {
     unsafe {
         GAME_TIME = game.ball.time.clone();
     }
+
+    game.gravity.z = py_game_info.getattr(py, "world_gravity_z")?.extract(py)?;
 
     let py_ball = py_packet.getattr(py, "game_ball")?;
     let py_ball_physics = py_ball.getattr(py, "physics")?;
@@ -316,7 +318,7 @@ fn get_slice(py: Python, py_slice_time: PyFloat) -> PyResult<PyObject> {
 
 fn get_data_for_shot_with_target(py: Python, py_target_left: PyTuple, py_target_right: PyTuple, py_slice_time: PyFloat, py_index: PyInt) -> PyResult<PyObject> {
     let game_time: &f32;
-    let _gravity: &Vec3;
+    let _gravity: &Vec3A;
     let car: &Car;
     let ball: &Ball;
 
@@ -356,7 +358,7 @@ fn get_data_for_shot_with_target(py: Python, py_target_left: PyTuple, py_target_
 
     let car_to_ball = ball.location - car.location;
     let post_info = correct_for_posts(ball.location, ball.collision_radius, target_left, target_right);
-    let shot_vector = get_shot_vector_2d(car_to_ball.flatten().normalize(), ball.location.flatten(), post_info.target_left.flatten(), post_info.target_right.flatten());
+    let shot_vector = get_shot_vector_2d(flatten(car_to_ball).normalize_or_zero(), flatten(ball.location), flatten(post_info.target_left), flatten(post_info.target_right));
 
     let (distance_parts, final_target, face_shot_vector, path) = match analyze_target(ball, car, shot_vector, 0., true, false) {
         Ok(result) => (result.0, result.1.unwrap(), result.2, result.3),
@@ -400,9 +402,9 @@ fn get_data_for_shot_with_target(py: Python, py_target_left: PyTuple, py_target_
     Ok(result.into_object())
 }
 
-fn get_shot_with_target(py: Python, py_target_left: PyTuple, py_target_right: PyTuple, py_index: PyInt, py_all: PyBool) -> PyResult<PyObject> {
+fn get_shot_with_target(py: Python, py_target_left: PyTuple, py_target_right: PyTuple, py_index: PyInt, py_options: PyDict) -> PyResult<PyObject> {
     let game_time: &f32;
-    let _gravity: &Vec3;
+    let _gravity: &Vec3A;
     let radius: &f32;
     let car: &Car;
     let ball_prediction: &BallPrediction;
@@ -438,7 +440,7 @@ fn get_shot_with_target(py: Python, py_target_left: PyTuple, py_target_right: Py
     let target_left = get_vec3(py, py_target_left.as_object(), "Key 'target_left' needs to be a list of exactly 3 numbers")?;
     let target_right = get_vec3(py, py_target_right.as_object(), "Key 'target_right' needs to be a list of exactly 3 numbers")?;
 
-    let all = py_all.is_true();
+    let options = get_options_from_dict(py, py_options, ball_prediction.num_slices)?;
 
     let dist_from_side = radius + car.hitbox.height;
 
@@ -450,7 +452,7 @@ fn get_shot_with_target(py: Python, py_target_left: PyTuple, py_target_right: Py
         return Ok(result.into_object());
     }
 
-    for ball in &ball_prediction.slices {
+    for ball in &ball_prediction.slices[options.min_slice..options.max_slice] {
         if ball.location.y.abs() > 5120. + ball.collision_radius {
             break;
         }
@@ -467,11 +469,8 @@ fn get_shot_with_target(py: Python, py_target_left: PyTuple, py_target_right: Py
             continue;
         }
 
-        let shot_vector = get_shot_vector_2d(car_to_ball.flatten().normalize(), ball.location.flatten(), post_info.target_left.flatten(), post_info.target_right.flatten());
-        // dbg!(shot_vector);
-
+        let shot_vector = get_shot_vector_2d(flatten(car_to_ball).normalize_or_zero(), flatten(ball.location), flatten(post_info.target_left), flatten(post_info.target_right));
         let time_remaining = ball.time - game_time;
-
         let distance_parts = match analyze_target(ball, car, shot_vector, time_remaining, false, true) {
             Ok(result) => result.0,
             Err(_) => continue,
@@ -483,7 +482,7 @@ fn get_shot_with_target(py: Python, py_target_left: PyTuple, py_target_right: Py
             Err(_) => continue,
         };
 
-        if !all {
+        if !options.all {
             found_ball = Some(ball.clone());
             break;
         } else if found_ball.is_none() {

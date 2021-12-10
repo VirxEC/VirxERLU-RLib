@@ -13,7 +13,7 @@ with open(os.path.join(os.path.abspath(os.path.dirname(__file__)), 'README.md'),
 
 setup(
     name="VirxERLU-RLib",
-    version="0.6.1",
+    version="0.7.0",
     description='Rust modules for VirxERLU',
     long_description=long_description,
     rust_extensions=[RustExtension("virxrlru", binding=Binding.RustCPython)],
