@@ -1,7 +1,7 @@
-use std::f32::INFINITY;
+use std::f32::{consts::FRAC_PI_2, INFINITY};
 
 use cpython::{exc, ObjectProtocol, PyDict, PyErr, PyObject, PyResult, Python};
-use dubins_paths::{intermediate_results, path_sample, word, DubinsError, DubinsPath, DubinsPathType};
+use dubins_paths::{intermediate_results, mod2pi, path_length, path_sample, segment_length, word, DubinsError, DubinsPath, DubinsPathType, SegmentType, DIRDATA};
 use rl_ball_sym::simulation::ball::Ball;
 
 use glam::Vec3A;
@@ -9,7 +9,6 @@ use glam::Vec3A;
 pub const MAX_SPEED: f32 = 2300.;
 pub const MAX_SPEED_NO_BOOST: f32 = 1410.;
 pub const MIN_SPEED: f32 = -MAX_SPEED_NO_BOOST;
-// pub const MAX_SPEED_MIN_TURN_RADIUS: f32 = 1. / 0.00088;
 pub const TPS: f32 = 120.;
 pub const SIMULATION_DT: f32 = 1. / TPS;
 pub const BOOST_CONSUMPTION: f32 = 33.3 + 1. / 33.;
@@ -34,21 +33,13 @@ pub const END_THROTTLE_ACCEL_B: f32 = 160.;
 const BOOST_ACCEL: f32 = 991. + 2. / 3.;
 const BOOST_ACCEL_DT: f32 = BOOST_ACCEL * SIMULATION_DT;
 
-#[derive(Clone, Debug)]
+const STEER_REACTION_TIME: f32 = 0.25;
+
+#[derive(Clone, Copy, Debug, Default)]
 pub struct Hitbox {
     pub length: f32,
     pub width: f32,
     pub height: f32,
-}
-
-impl Default for Hitbox {
-    fn default() -> Self {
-        Self {
-            length: 0.,
-            width: 0.,
-            height: 0.,
-        }
-    }
 }
 
 impl Hitbox {
@@ -61,7 +52,7 @@ impl Hitbox {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct Car {
     pub location: Vec3A,
     pub velocity: Vec3A,
@@ -82,35 +73,8 @@ pub struct Car {
     pub jumped: bool,
     pub doublejumped: bool,
     pub max_speed: f32,
-    /// min turn radius at max_speed
-    pub msmtr: f32,
-}
-
-impl Default for Car {
-    fn default() -> Self {
-        Self {
-            location: Vec3A::ZERO,
-            velocity: Vec3A::ZERO,
-            local_velocity: Vec3A::ZERO,
-            angular_velocity: Vec3A::ZERO,
-            forward: Vec3A::ZERO,
-            right: Vec3A::ZERO,
-            up: Vec3A::ZERO,
-            hitbox: Hitbox::default(),
-            hitbox_offset: Vec3A::ZERO,
-            field: CarFieldRect::default(),
-            pitch: 0.,
-            yaw: 0.,
-            roll: 0.,
-            boost: 0,
-            demolished: false,
-            airborne: false,
-            jumped: false,
-            doublejumped: false,
-            max_speed: 0.,
-            msmtr: 0.,
-        }
-    }
+    /// turn radius at calculated max speed
+    pub ctrms: f32,
 }
 
 impl Car {
@@ -137,7 +101,7 @@ impl Car {
 
     pub fn calculate_max_values(&mut self) {
         self.max_speed = self.get_max_speed();
-        self.msmtr = turn_radius(self.max_speed);
+        self.ctrms = turn_radius(self.max_speed);
     }
 
     pub fn calculate_local_values(&mut self) {
@@ -206,56 +170,36 @@ pub fn get_vec3_named(py: Python, py_vec: PyObject) -> PyResult<Vec3A> {
 
 pub fn get_vec3_from_dict(py: Python, py_dict: &PyDict, key: &str, name: &str) -> PyResult<Vec3A> {
     match py_dict.get_item(py, key) {
-        Some(py_arr) => {
-            return Ok(get_vec3(py, &py_arr, &format!("Key '{}' in '{}' needs to be a list of exactly 3 numbers", key, name))?);
-        }
-        None => {
-            return Err(PyErr::new::<exc::AttributeError, _>(py, format!("No key called '{}' in '{}'.", key, name)));
-        }
+        Some(py_arr) => Ok(get_vec3(py, &py_arr, &format!("Key '{}' in '{}' needs to be a list of exactly 3 numbers", key, name))?),
+        None => Err(PyErr::new::<exc::AttributeError, _>(py, format!("No key called '{}' in '{}'.", key, name))),
     }
 }
 
 pub fn get_f32_from_dict(py: Python, py_dict: &PyDict, key: &str, name: &str) -> PyResult<f32> {
     match py_dict.get_item(py, key) {
-        Some(py_num) => {
-            return Ok(py_num.extract(py)?);
-        }
-        None => {
-            return Err(PyErr::new::<exc::AttributeError, _>(py, format!("No key called '{}' in '{}'.", key, name)));
-        }
+        Some(py_num) => Ok(py_num.extract(py)?),
+        None => Err(PyErr::new::<exc::AttributeError, _>(py, format!("No key called '{}' in '{}'.", key, name))),
     }
 }
 
 pub fn get_usize_from_dict(py: Python, py_dict: &PyDict, key: &str, name: &str) -> PyResult<usize> {
     match py_dict.get_item(py, key) {
-        Some(py_num) => {
-            return Ok(py_num.extract(py)?);
-        }
-        None => {
-            return Err(PyErr::new::<exc::AttributeError, _>(py, format!("No key called '{}' in '{}'.", key, name)));
-        }
+        Some(py_num) => Ok(py_num.extract(py)?),
+        None => Err(PyErr::new::<exc::AttributeError, _>(py, format!("No key called '{}' in '{}'.", key, name))),
     }
 }
 
 pub fn get_u8_from_dict(py: Python, py_dict: &PyDict, key: &str, name: &str) -> PyResult<u8> {
     match py_dict.get_item(py, key) {
-        Some(py_num) => {
-            return Ok(py_num.extract(py)?);
-        }
-        None => {
-            return Err(PyErr::new::<exc::AttributeError, _>(py, format!("No key called '{}' in '{}'.", key, name)));
-        }
+        Some(py_num) => Ok(py_num.extract(py)?),
+        None => Err(PyErr::new::<exc::AttributeError, _>(py, format!("No key called '{}' in '{}'.", key, name))),
     }
 }
 
 pub fn get_bool_from_dict(py: Python, py_dict: &PyDict, key: &str, name: &str) -> PyResult<bool> {
     match py_dict.get_item(py, key) {
-        Some(py_bool) => {
-            return Ok(py_bool.extract(py)?);
-        }
-        None => {
-            return Err(PyErr::new::<exc::AttributeError, _>(py, format!("No key called '{}' in '{}'.", key, name)));
-        }
+        Some(py_bool) => Ok(py_bool.extract(py)?),
+        None => Err(PyErr::new::<exc::AttributeError, _>(py, format!("No key called '{}' in '{}'.", key, name))),
     }
 }
 
@@ -302,23 +246,23 @@ pub fn turn_radius(v: f32) -> f32 {
 }
 
 pub fn curvature(v: f32) -> f32 {
-    if 0. <= v && v < 500. {
+    if (0. ..500.).contains(&v) {
         return 0.0069 - 5.84e-6 * v;
     }
 
-    if 500. <= v && v < 1000. {
+    if (500. ..1000.).contains(&v) {
         return 0.00561 - 3.26e-6 * v;
     }
 
-    if 1000. <= v && v < 1500. {
+    if (1000. ..1500.).contains(&v) {
         return 0.0043 - 1.95e-6 * v;
     }
 
-    if 1500. <= v && v < 1750. {
+    if (1500. ..1750.).contains(&v) {
         return 0.003025 - 1.1e-6 * v;
     }
 
-    if 1750. <= v && v < 2500. {
+    if (1750. ..2500.).contains(&v) {
         return 0.0018 - 4e-7 * v;
     }
 
@@ -357,6 +301,15 @@ pub fn flatten(vec: Vec3A) -> Vec3A {
     Vec3A::new(vec.x, vec.y, 0.)
 }
 
+// fn clockwise90_2d(vec: Vec3A) -> Vec3A {
+//     Vec3A::new(vec.y, -vec.x, 0.)
+// }
+
+fn rotate_2d(vec: Vec3A, angle: f32) -> Vec3A {
+    Vec3A::new(angle.cos() * vec.x - angle.sin() * vec.y, angle.sin() * vec.x + angle.cos() * vec.y, vec.z)
+}
+
+#[derive(Clone, Copy, Debug, Default)]
 pub struct PostCorrection {
     pub target_left: Vec3A,
     pub target_right: Vec3A,
@@ -396,23 +349,12 @@ pub fn correct_for_posts(ball_location: Vec3A, ball_radius: f32, target_left: Ve
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct CarFieldRect {
     goal_x: f32,
     goal_y: f32,
     field_y: f32,
     field_x: f32,
-}
-
-impl Default for CarFieldRect {
-    fn default() -> Self {
-        Self {
-            goal_x: 0.,
-            goal_y: 0.,
-            field_y: 0.,
-            field_x: 0.,
-        }
-    }
 }
 
 impl CarFieldRect {
@@ -432,29 +374,24 @@ impl CarFieldRect {
             return p[0].abs() < self.field_x && p[1].abs() < self.field_y;
         }
 
-        return p[1].abs() < self.goal_y;
+        p[1].abs() < self.goal_y
     }
 }
 
-fn path_endpoint_to_vec3(endpoint: [f32; 3]) -> Vec3A {
+fn path_point_to_vec3(endpoint: [f32; 3]) -> Vec3A {
     Vec3A::new(endpoint[0], endpoint[1], 0.)
 }
 
-fn radius_from_points_with_directions(car_location: Vec3A, car_forward: Vec3A, p: Vec3A, d: Vec3A) -> f32 {
-    (car_location.distance(p) / 2.) * (angle_2d(d, -car_forward) / 2.).cos()
-}
-
-fn shortest_path_in_validate(q0: [f32; 3], q1: [f32; 3], rho: f32, car_field: &CarFieldRect) -> Result<(DubinsPath, [[f32; 3]; 3]), DubinsError> {
+fn shortest_path_in_validate(q0: [f32; 3], q1: [f32; 3], rho: f32, car_field: &CarFieldRect, max_distance: f32, validate: bool) -> Result<DubinsPath, DubinsError> {
     let mut best_cost = INFINITY;
     let mut best_path = None;
-    let mut best_parts = None;
 
     let intermediate_results = intermediate_results(q0, q1, rho)?;
 
     for path_type in DubinsPathType::ALL {
         if let Ok(param) = word(&intermediate_results, path_type) {
             let cost = param[0] + param[1] + param[2];
-            if cost < best_cost {
+            if cost < best_cost && (!validate || cost * rho <= max_distance) {
                 let path = DubinsPath {
                     qi: q0,
                     rho,
@@ -475,12 +412,8 @@ fn shortest_path_in_validate(q0: [f32; 3], q1: [f32; 3], rho: f32, car_field: &C
                     continue;
                 }
 
-                let mut end_parts = [[0.; 3]; 3];
-
                 for (i, dist) in [path.param[0] * path.rho, (path.param[0] + path.param[1]) * path.rho, (path.param[0] + path.param[1] + path.param[2]) * path.rho].iter().enumerate() {
-                    end_parts[i] = path_sample(&path, *dist)?;
-
-                    if !car_field.is_point_in(&end_parts[i]) {
+                    if !car_field.is_point_in(&path_sample(&path, *dist)?) {
                         valid = false;
                         break;
                     }
@@ -489,19 +422,104 @@ fn shortest_path_in_validate(q0: [f32; 3], q1: [f32; 3], rho: f32, car_field: &C
                 if valid {
                     best_cost = cost;
                     best_path = Some(path);
-                    best_parts = Some(end_parts);
                 }
             }
         }
     }
 
     match best_path {
-        Some(path) => Ok((path, best_parts.unwrap())),
+        Some(path) => Ok(path),
         None => Err(DubinsError::NoPath),
     }
 }
 
-pub fn analyze_target(ball: &Ball, car: &Car, shot_vector: Vec3A, time_remaining: f32, get_target: bool, validate: bool) -> Result<([f32; 4], Option<Vec3A>, bool, Option<DubinsPath>), DubinsError> {
+// pub fn segment_angle(t: f32, angle: f32, type_: SegmentType) -> f32 {
+//     (match type_ {
+//         SegmentType::L => t,
+//         SegmentType::R => -t,
+//         SegmentType::S => 0.,
+//     }) + angle
+// }
+
+// fn path_angle(path: &DubinsPath, t: f32) -> Result<f32, DubinsError> {
+//     if t < 0. || t > path_length(path) {
+//         return Err(DubinsError::Param);
+//     }
+
+//     /* tprime is the normalised variant of the parameter t */
+//     let tprime = t / path.rho;
+//     let types = DIRDATA[path.type_.to()];
+
+//     /* generate the target configuration */
+//     let p1 = path.param[0];
+//     let p2 = path.param[1];
+
+//     let q1 = segment_angle(p1, path.qi[2], types[0]); // end-of segment 1
+//     let q2 = segment_angle(p2, q1, types[1]); // end-of segment 2
+
+//     Ok(mod2pi(if tprime < p1 {
+//         segment_angle(tprime, path.qi[2], types[0])
+//     } else if tprime < p1 + p2 {
+//         segment_angle(tprime - p1, q1, types[1])
+//     } else {
+//         segment_angle(tprime - p1 - p2, q2, types[2])
+//     }))
+// }
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct TargetInfo {
+    pub distances: [f32; 4],
+    pub target: Option<Vec3A>,
+    pub angle: Option<f32>,
+    pub path: Option<DubinsPath>,
+}
+
+impl TargetInfo {
+    pub const fn new_dubin(distances: [f32; 4], path: DubinsPath) -> Self {
+        Self {
+            distances,
+            target: None,
+            angle: None,
+            path: Some(path),
+        }
+    }
+    pub const fn new_dubin_target(distances: [f32; 4], target: Vec3A, angle: Option<f32>, path: DubinsPath) -> Self {
+        Self {
+            distances,
+            target: Some(target),
+            path: Some(path),
+            angle,
+        }
+    }
+
+    pub const fn new(distances: [f32; 4]) -> Self {
+        Self {
+            distances,
+            target: None,
+            angle: None,
+            path: None,
+        }
+    }
+
+    pub const fn new_target(distances: [f32; 4], target: Vec3A, angle: Option<f32>) -> Self {
+        Self {
+            distances,
+            target: Some(target),
+            path: None,
+            angle,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct AnalyzeOptions {
+    pub max_speed: f32,
+    pub max_turn_radius: f32,
+    pub get_target: bool,
+    pub validate: bool,
+}
+
+pub fn analyze_target(ball: &Ball, car: &Car, shot_vector: Vec3A, time_remaining: f32, options: AnalyzeOptions) -> Result<TargetInfo, DubinsError> {
     let offset_target = ball.location - (shot_vector * ball.radius);
     let car_front_length = (car.hitbox_offset.x + car.hitbox.length) / 2.;
 
@@ -512,84 +530,115 @@ pub fn analyze_target(ball: &Ball, car: &Car, shot_vector: Vec3A, time_remaining
 
     let local_offset = localize_2d_location(car, offset_target);
 
+    let margin = car.hitbox.width / 3.;
+
+    let target_angle = shot_vector.y.atan2(shot_vector.x);
+
     if local_offset.x > 0. {
         let car_to_shot = angle_2d(car.forward, shot_vector);
 
-        if local_offset.y.abs() < car.hitbox.width / 2. && car_to_shot < 0.15 {
+        if car_to_shot < 0.15 && local_offset.y.abs() < margin {
             end_distance += local_offset.x;
 
-            let final_target = if get_target {
-                Some(car.location + shot_vector * local_offset.x)
+            let distances = [0., 0., 0., end_distance];
+
+            return Ok(if options.get_target {
+                let final_target = car.location + flatten(shot_vector) * local_offset.x;
+
+                TargetInfo::new_target(distances, final_target, None)
             } else {
-                None
-            };
+                TargetInfo::new(distances)
+            });
+        } else if car_to_shot < FRAC_PI_2 {
+            let car_to_exit = exit_turn_point - car.location;
+            if car.forward.dot(car_to_exit) > 0. {
+                let turn_center = car.right * options.max_turn_radius;
+                let turn_center_to_car_location = -turn_center;
+                let turn_center_to_exit_turn_point = car_to_exit - turn_center;
 
-            return Ok(([0., 0., 0., end_distance], final_target, false, None));
-        } else {
-            let angle_to_shot = angle_2d((ball.location - car.location).normalize_or_zero(), shot_vector);
+                let turn_angle = angle_2d(turn_center_to_car_location.normalize(), turn_center_to_exit_turn_point.normalize());
 
-            if angle_to_shot < 0.75 {
-                if car.forward.dot(exit_turn_point - car.location) > 0. {
-                    // // Use circle tangents and trig to calculate the turn radius
-                    let turn_rad = radius_from_points_with_directions(car.location, car.forward, exit_turn_point, shot_vector);
+                let exit_point = rotate_2d(turn_center_to_car_location, -turn_angle);
 
-                    if turn_radius(car.local_velocity.x.abs()) < turn_rad && turn_rad < car.msmtr * 1.3 {
-                        end_distance += offset_distance;
-                        let turn_distance = turn_rad * angle_to_shot;
+                if exit_turn_point.distance(exit_point) < margin / 2. {
+                    end_distance += offset_distance;
 
-                        let final_target = if get_target {
-                            Some(exit_turn_point)
-                        } else {
-                            None
-                        };
+                    let turn_distance = options.max_turn_radius * turn_angle;
 
-                        return Ok(([0., 0., turn_distance, end_distance], final_target, true, None));
-                    }
-                } else if angle_to_shot < 0.25 && car_to_shot < 0.5 {
-                    end_distance += local_offset.x;
+                    let distances = [0., 0., turn_distance, end_distance];
 
-                    let final_target = if get_target {
-                        Some(offset_target)
+                    return Ok(if options.get_target {
+                        TargetInfo::new_target(distances, exit_turn_point, Some(target_angle))
                     } else {
-                        None
-                    };
-
-                    return Ok(([0., 0., 0., end_distance], final_target, true, None));
+                        TargetInfo::new(distances)
+                    });
                 }
             }
+            // let car_location_2d = flatten(car.location);
+            // let exit_2d = flatten(exit_turn_point);
+            // let shot_vector_rotated = clockwise90_2d(shot_vector);
+
+            // let exit_points = [exit_2d + shot_vector_rotated * (margin / 2.), exit_2d - shot_vector_rotated * (margin / 2.)];
+            // let turn_radii = [
+            //     radius_from_points_with_directions(car_location_2d, car.forward, exit_points[0], shot_vector),
+            //     radius_from_points_with_directions(car_location_2d, car.forward, exit_points[1], shot_vector),
+            // ];
+
+            // if get_target {
+            //     dbg!(car.ctrms);
+            //     dbg!(radius_from_points_with_directions(car_location_2d, car.forward, exit_2d, shot_vector));
+            //     dbg!(turn_radii[0].min(turn_radii[1]));
+            //     dbg!(turn_radii[0].max(turn_radii[1]));
+            // }
+
+            // if (turn_radii[0].min(turn_radii[1])..turn_radii[0].max(turn_radii[1])).contains(&car.ctrms) {
+            //     end_distance += offset_distance;
+
+            //     let turn_rad = radius_from_points_with_directions(car_location_2d, car.forward, exit_2d, shot_vector);
+            //     let turn_distance = turn_rad * car_to_shot;
+
+            //     let distances = [0., 0., turn_distance, end_distance];
+
+            //     return Ok(if get_target {
+            //         TargetInfo::new_target(distances, exit_turn_point, Some(target_angle))
+            //     } else {
+            //         TargetInfo::new(distances)
+            //     });
+            // }
         }
     }
 
     end_distance += offset_distance;
 
-    if validate && (end_distance + flatten(car.location).distance(flatten(exit_turn_point))) / time_remaining > car.max_speed {
+    let max_distance = time_remaining * options.max_speed;
+
+    if options.validate && (end_distance + flatten(car.location).distance(flatten(exit_turn_point))) > max_distance {
         return Err(DubinsError::NoPath);
     }
 
     let q0 = [car.location.x, car.location.y, car.yaw];
-    let q1 = [exit_turn_point.x, exit_turn_point.y, shot_vector.y.atan2(shot_vector.x)];
+    let q1 = [exit_turn_point.x, exit_turn_point.y, target_angle];
 
-    let (path, end_parts) = shortest_path_in_validate(q0, q1, car.msmtr * 1.05, &car.field)?;
+    let path = shortest_path_in_validate(q0, q1, options.max_turn_radius, &car.field, max_distance, options.validate)?;
 
-    let distances = [path.param[0] * path.rho, path.param[1] * path.rho, path.param[2] * path.rho];
+    let distances = [segment_length(&path, 0), segment_length(&path, 1), segment_length(&path, 2), end_distance];
 
-    if !get_target {
-        return Ok(([distances[0], distances[1], distances[2], end_distance], None, false, Some(path)));
-    }
+    Ok(if options.get_target {
+        let distance = (car.local_velocity.x.max(500.) * STEER_REACTION_TIME).min(path_length(&path));
+        let sample = path_sample(&path, distance)?;
 
-    let final_target = Some(path_endpoint_to_vec3(
-        end_parts[{
-            if distances[0] + distances[1] < car_front_length {
-                2
-            } else if distances[0] < car_front_length {
-                1
-            } else {
-                0
-            }
-        }],
-    ));
+        let angle = if (distances[0]..(distances[0] + distances[1])).contains(&distance) && DIRDATA[path.type_.to()][1] == SegmentType::S {
+            None
+        } else {
+            Some(sample[2])
+        };
 
-    Ok(([distances[0], distances[1], distances[2], end_distance], final_target, false, Some(path)))
+        let target = path_point_to_vec3(sample);
+
+        TargetInfo::new_dubin_target(distances, target, angle, path)
+    } else {
+        TargetInfo::new_dubin(distances, path)
+    })
 }
 
 fn throttle_acceleration(forward_velocity: f32) -> f32 {
@@ -604,10 +653,10 @@ fn throttle_acceleration(forward_velocity: f32) -> f32 {
         return START_THROTTLE_ACCEL_M * x + START_THROTTLE_ACCEL_B;
     }
 
-    return END_THROTTLE_ACCEL_M * (x - THROTTLE_ACCEL_DIVISION) + END_THROTTLE_ACCEL_B;
+    END_THROTTLE_ACCEL_M * (x - THROTTLE_ACCEL_DIVISION) + END_THROTTLE_ACCEL_B
 }
 
-pub fn can_reach_target(car: &Car, max_time: f32, distance_remaining: f32, is_forwards: bool) -> Result<f32, ()> {
+pub fn can_reach_target(car: &Car, max_speed: f32, max_time: f32, distance_remaining: f32, is_forwards: bool) -> Result<f32, ()> {
     let mut d = distance_remaining;
     let mut t_r = max_time;
     let mut b = car.boost as f32;
@@ -620,9 +669,9 @@ pub fn can_reach_target(car: &Car, max_time: f32, distance_remaining: f32, is_fo
             return Ok(t_r);
         }
 
-        let r = d * direction / t_r;
+        let r = d * direction / t_r.max(0.);
 
-        if t_r < -SIMULATION_DT || (is_forwards && r > car.max_speed) || (!is_forwards && MIN_SPEED > r) {
+        if t_r < -SIMULATION_DT || (is_forwards && r > max_speed) || (!is_forwards && MIN_SPEED > r) {
             return Err(());
         }
 
@@ -637,28 +686,35 @@ pub fn can_reach_target(car: &Car, max_time: f32, distance_remaining: f32, is_fo
         let throttle_accel = throttle_acceleration(v);
         let throttle_boost_transition = throttle_accel + 0.5 * BOOST_ACCEL;
 
-        let mut throttle = 0_f32;
-        let mut boost = false;
+        let throttle: f32;
 
         if acceleration <= BRAKE_COAST_TRANSITION {
             throttle = -1.;
         } else if BRAKE_COAST_TRANSITION < acceleration && acceleration < COASTING_THROTTLE_TRANSITION {
+            throttle = 0.;
+        } else if COASTING_THROTTLE_TRANSITION <= acceleration && acceleration <= throttle_boost_transition {
+            throttle = if throttle_accel == 0. {
+                1.
+            } else {
+                (acceleration / throttle_accel).clamp(0.02, 1.)
+            };
         } else if b >= MIN_BOOST_CONSUMPTION && throttle_boost_transition < acceleration {
             throttle = 1.;
+
             if t > 0. {
-                boost = true;
+                v += BOOST_ACCEL_DT;
+                b -= BOOST_CONSUMPTION_DT;
             }
+        } else {
+            throttle = 0.;
         }
 
-        if throttle.signum() == v.signum() {
+        if throttle == 0. {
+            v += COAST_ACC * SIMULATION_DT;
+        } else if throttle.signum() == v.signum() {
             v += throttle_accel * SIMULATION_DT * throttle;
         } else {
             v += BRAKE_ACC_DT.copysign(throttle);
-        }
-
-        if boost {
-            v += BOOST_ACCEL_DT;
-            b -= BOOST_CONSUMPTION_DT;
         }
 
         t_r -= SIMULATION_DT;
@@ -671,15 +727,15 @@ pub fn can_reach_target(car: &Car, max_time: f32, distance_remaining: f32, is_fo
 #[derive(Clone, Copy, Debug)]
 pub struct Options {
     pub all: bool,
+    pub use_absolute_max_values: bool,
     pub min_slice: usize,
     pub max_slice: usize,
 }
 
 pub fn get_options_from_dict(py: Python, py_options: PyDict, max_slices: usize) -> PyResult<Options> {
-    let all = match get_bool_from_dict(py, &py_options, "all", "options") {
-        Ok(b) => b,
-        Err(_) => false,
-    };
+    let all = get_bool_from_dict(py, &py_options, "all", "options").unwrap_or(false);
+
+    let use_absolute_max_values = get_bool_from_dict(py, &py_options, "use_absolute_max_values", "options").unwrap_or(false);
 
     let min_slice = match get_usize_from_dict(py, &py_options, "min_slice", "options") {
         Ok(u) => u.max(0),
@@ -693,6 +749,7 @@ pub fn get_options_from_dict(py: Python, py_options: PyDict, max_slices: usize) 
 
     Ok(Options {
         all,
+        use_absolute_max_values,
         min_slice,
         max_slice,
     })

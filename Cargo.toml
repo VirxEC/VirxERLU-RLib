@@ -11,7 +11,7 @@ path = "src/lib.rs"
 
 [dependencies]
 glam = "0.20.1"
-rl_ball_sym = "0.7"
+rl_ball_sym = "1.0"
 dubins_paths = "^1.0.3"
 
 [dependencies.cpython]

@@ -15,7 +15,7 @@ print("")
 
 print("Benchmarking...")
 time = 0.
-times = [[], [], [], []]
+times = [[], [], [], [], [], []]
 
 for _ in range(5000):
     start = time_ns()
@@ -86,6 +86,31 @@ for _ in range(5000):
         -800, 5120, 0,
     ), 0, options={
         "all": True,
+        "use_absolute_max_values": True,
+    })
+
+    times[4].append(time_ns() - start)
+
+    start = time_ns()
+
+    rlru.get_shot_with_target((
+        800, 5120, 0,
+    ), (
+        -800, 5120, 0,
+    ), 0, options={
+        "use_absolute_max_values": True,
+    })
+
+    times[5].append(time_ns() - start)
+
+    start = time_ns()
+
+    rlru.get_shot_with_target((
+        800, 5120, 0,
+    ), (
+        -800, 5120, 0,
+    ), 0, options={
+        "all": True,
     })
 
     times[1].append(time_ns() - start)
@@ -106,7 +131,7 @@ for _ in range(5000):
         800, 5120, 0,
     ), (
         -800, 5120, 0,
-    ), 5.9, 0)
+    ), 5.9, 0, {})
 
     times[3].append(time_ns() - start)
 
@@ -117,6 +142,18 @@ print("")
 print("tick():")
 print(f"Total test time: {round(sum(times[0]) / 1000000000, 4)}s")
 print(f"Avg. time of execution: {round(sum(times[0]) / len(times[0]) / 1000000, 3)}ms")
+
+print("")
+
+print("get_shot_with_target(use_absolute_max_values) worst-case:")
+print(f"Total test time: {round(sum(times[4]) / 1000000000, 4)}s")
+print(f"Avg. time of execution: {round(sum(times[4]) / len(times[1]) / 1000000, 3)}ms")
+
+print("")
+
+print("get_shot_with_target(use_absolute_max_values):")
+print(f"Total test time: {round(sum(times[5]) / 1000000000, 4)}s")
+print(f"Avg. time of execution: {round(sum(times[5]) / len(times[1]) / 1000000, 3)}ms")
 
 print("")
 

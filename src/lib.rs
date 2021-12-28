@@ -25,14 +25,25 @@ const NO_BALL_STRUCT_ERR: &str = "BALL_STRUCT is unset. Call the function tick a
 
 py_module_initializer!(virxrlru, |py, m| {
     m.add(py, "__doc__", "VirxERLU-RLib is written in Rust with Python bindings to make analyzing the ball prediction struct much faster.")?;
+    #[allow(clippy::manual_strip)]
     m.add(py, "load_soccar", py_fn!(py, load_soccar()))?;
+    #[allow(clippy::manual_strip)]
     m.add(py, "load_dropshot", py_fn!(py, load_dropshot()))?;
+    #[allow(clippy::manual_strip)]
     m.add(py, "load_hoops", py_fn!(py, load_hoops()))?;
+    #[allow(clippy::manual_strip)]
+    m.add(py, "load_soccar_throwback", py_fn!(py, load_soccar_throwback()))?;
+    #[allow(clippy::manual_strip)]
     m.add(py, "set_gravity", py_fn!(py, set_gravity(gravity: PyDict)))?;
+    #[allow(clippy::manual_strip)]
     m.add(py, "tick", py_fn!(py, tick(packet: PyObject)))?;
+    #[allow(clippy::manual_strip)]
     m.add(py, "tick_dict", py_fn!(py, tick_dict(time: PyFloat, ball: PyDict, car: PyDict)))?;
+    #[allow(clippy::manual_strip)]
     m.add(py, "get_slice", py_fn!(py, get_slice(time: PyFloat)))?;
-    m.add(py, "get_data_for_shot_with_target", py_fn!(py, get_data_for_shot_with_target(target_left: PyTuple, target_right: PyTuple, time: PyFloat, py_index: PyInt)))?;
+    #[allow(clippy::manual_strip)]
+    m.add(py, "get_data_for_shot_with_target", py_fn!(py, get_data_for_shot_with_target(target_left: PyTuple, target_right: PyTuple, time: PyFloat, py_index: PyInt, options: PyDict)))?;
+    #[allow(clippy::manual_strip)]
     m.add(py, "get_shot_with_target", py_fn!(py, get_shot_with_target(target_left: PyTuple, target_right: PyTuple, py_index: PyInt, options: PyDict)))?;
     Ok(())
 });
@@ -67,6 +78,14 @@ fn load_hoops(py: Python) -> PyResult<PyObject> {
     Ok(py.None())
 }
 
+fn load_soccar_throwback(py: Python) -> PyResult<PyObject> {
+    unsafe {
+        GAME = Some(rl_ball_sym::load_soccar_throwback());
+    }
+
+    Ok(py.None())
+}
+
 fn set_gravity(py: Python, py_gravity: PyDict) -> PyResult<PyObject> {
     let mut game: &mut Game;
 
@@ -85,13 +104,11 @@ fn set_gravity(py: Python, py_gravity: PyDict) -> PyResult<PyObject> {
 }
 
 fn tick(py: Python, py_packet: PyObject) -> PyResult<PyObject> {
-    let mut game: &mut Game;
+    let game: &mut Game;
     let cars: &mut Vec<Car>;
 
-    // maybe multithreading will actually become useful
     // simulate max jump height
     // simulate max double jump height
-    // add options to individual shots like min/max time
     // add option for max path time
 
     unsafe {
@@ -154,10 +171,10 @@ fn tick(py: Python, py_packet: PyObject) -> PyResult<PyObject> {
     */
     let py_game_info = py_packet.getattr(py, "game_info")?;
 
-    game.ball.time = py_game_info.getattr(py, "seconds_elapsed")?.extract(py)?;
+    let time = py_game_info.getattr(py, "seconds_elapsed")?.extract(py)?;
 
     unsafe {
-        GAME_TIME = game.ball.time.clone();
+        GAME_TIME = time;
     }
 
     game.gravity.z = py_game_info.getattr(py, "world_gravity_z")?.extract(py)?;
@@ -165,9 +182,12 @@ fn tick(py: Python, py_packet: PyObject) -> PyResult<PyObject> {
     let py_ball = py_packet.getattr(py, "game_ball")?;
     let py_ball_physics = py_ball.getattr(py, "physics")?;
 
-    game.ball.location = get_vec3_named(py, py_ball_physics.getattr(py, "location")?)?;
-    game.ball.velocity = get_vec3_named(py, py_ball_physics.getattr(py, "velocity")?)?;
-    game.ball.angular_velocity = get_vec3_named(py, py_ball_physics.getattr(py, "angular_velocity")?)?;
+    game.ball.update(
+        time,
+        get_vec3_named(py, py_ball_physics.getattr(py, "location")?)?,
+        get_vec3_named(py, py_ball_physics.getattr(py, "velocity")?)?,
+        get_vec3_named(py, py_ball_physics.getattr(py, "angular_velocity")?)?,
+    );
 
     let py_ball_shape = py_ball.getattr(py, "collision_shape")?;
 
@@ -178,41 +198,41 @@ fn tick(py: Python, py_packet: PyObject) -> PyResult<PyObject> {
     let py_game_cars = py_packet.getattr(py, "game_cars")?;
     let num_cars = py_packet.getattr(py, "num_cars")?.extract::<usize>(py)?;
 
-    for i in 0..num_cars {
+    for (i, car) in cars.iter_mut().enumerate().take(num_cars) {
         let py_car = py_game_cars.get_item(py, i)?;
 
         let py_car_physics = py_car.getattr(py, "physics")?;
 
-        cars[i].location = get_vec3_named(py, py_car_physics.getattr(py, "location")?)?;
-        cars[i].velocity = get_vec3_named(py, py_car_physics.getattr(py, "velocity")?)?;
-        cars[i].angular_velocity = get_vec3_named(py, py_car_physics.getattr(py, "angular_velocity")?)?;
+        car.location = get_vec3_named(py, py_car_physics.getattr(py, "location")?)?;
+        car.velocity = get_vec3_named(py, py_car_physics.getattr(py, "velocity")?)?;
+        car.angular_velocity = get_vec3_named(py, py_car_physics.getattr(py, "angular_velocity")?)?;
 
         let py_car_rotator = py_car_physics.getattr(py, "rotation")?;
 
-        cars[i].pitch = py_car_rotator.getattr(py, "pitch")?.extract(py)?;
-        cars[i].yaw = py_car_rotator.getattr(py, "yaw")?.extract(py)?;
-        cars[i].roll = py_car_rotator.getattr(py, "roll")?.extract(py)?;
+        car.pitch = py_car_rotator.getattr(py, "pitch")?.extract(py)?;
+        car.yaw = py_car_rotator.getattr(py, "yaw")?.extract(py)?;
+        car.roll = py_car_rotator.getattr(py, "roll")?.extract(py)?;
 
         let py_car_hitbox = py_car.getattr(py, "hitbox")?;
 
-        cars[i].hitbox = Hitbox {
+        car.hitbox = Hitbox {
             length: py_car_hitbox.getattr(py, "length")?.extract(py)?,
             width: py_car_hitbox.getattr(py, "width")?.extract(py)?,
             height: py_car_hitbox.getattr(py, "height")?.extract(py)?,
         };
 
-        cars[i].hitbox_offset = get_vec3_named(py, py_car.getattr(py, "hitbox_offset")?)?;
+        car.hitbox_offset = get_vec3_named(py, py_car.getattr(py, "hitbox_offset")?)?;
 
-        cars[i].boost = py_car.getattr(py, "boost")?.extract(py)?;
-        cars[i].demolished = py_car.getattr(py, "is_demolished")?.extract(py)?;
-        cars[i].airborne = !py_car.getattr(py, "has_wheel_contact")?.extract(py)?;
-        cars[i].jumped = py_car.getattr(py, "jumped")?.extract(py)?;
-        cars[i].doublejumped = py_car.getattr(py, "double_jumped")?.extract(py)?;
+        car.boost = py_car.getattr(py, "boost")?.extract(py)?;
+        car.demolished = py_car.getattr(py, "is_demolished")?.extract(py)?;
+        car.airborne = !py_car.getattr(py, "has_wheel_contact")?.extract(py)?;
+        car.jumped = py_car.getattr(py, "jumped")?.extract(py)?;
+        car.doublejumped = py_car.getattr(py, "double_jumped")?.extract(py)?;
 
-        cars[i].calculate_orientation_matrix();
-        cars[i].calculate_max_values();
-        cars[i].calculate_local_values();
-        cars[i].calculate_field();
+        car.calculate_orientation_matrix();
+        car.calculate_max_values();
+        car.calculate_local_values();
+        car.calculate_field();
     }
 
     unsafe {
@@ -245,7 +265,7 @@ fn tick_dict(py: Python, py_time: PyFloat, py_ball: PyDict, py_car: PyDict) -> P
     game.ball.time = py_time.value(py) as f32;
 
     unsafe {
-        GAME_TIME = game.ball.time.clone();
+        GAME_TIME = game.ball.time;
     }
 
     game.ball.location = get_vec3_from_dict(py, &py_ball, "location", "ball")?;
@@ -306,7 +326,7 @@ fn get_slice(py: Python, py_slice_time: PyFloat) -> PyResult<PyObject> {
     let py_slice = PyDict::new(py);
     let slice_num = ((py_slice_time.value(py) as f32 - game_time) * 120.).round() as usize;
 
-    let slice = ball_struct.slices[slice_num.clamp(1, ball_struct.num_slices) - 1].clone();
+    let slice = ball_struct.slices[slice_num.clamp(1, ball_struct.num_slices) - 1];
 
     py_slice.set_item(py, "time", slice.time)?;
     py_slice.set_item(py, "location", get_vec_from_vec3(slice.location))?;
@@ -316,7 +336,7 @@ fn get_slice(py: Python, py_slice_time: PyFloat) -> PyResult<PyObject> {
     Ok(py_slice.into_object())
 }
 
-fn get_data_for_shot_with_target(py: Python, py_target_left: PyTuple, py_target_right: PyTuple, py_slice_time: PyFloat, py_index: PyInt) -> PyResult<PyObject> {
+fn get_data_for_shot_with_target(py: Python, py_target_left: PyTuple, py_target_right: PyTuple, py_slice_time: PyFloat, py_index: PyInt, py_options: PyDict) -> PyResult<PyObject> {
     let game_time: &f32;
     let _gravity: &Vec3A;
     let car: &Car;
@@ -353,6 +373,20 @@ fn get_data_for_shot_with_target(py: Python, py_target_left: PyTuple, py_target_
         };
     }
 
+    let use_absolute_max_values = get_bool_from_dict(py, &py_options, "use_absolute_max_values", "options").unwrap_or(false);
+
+    let max_speed = if use_absolute_max_values {
+        MAX_SPEED
+    } else {
+        car.max_speed
+    };
+
+    let max_turn_radius = if use_absolute_max_values {
+        turn_radius(MAX_SPEED)
+    } else {
+        car.ctrms
+    };
+
     let target_left = get_vec3(py, py_target_left.as_object(), "Key 'target_left' needs to be a list of exactly 3 numbers")?;
     let target_right = get_vec3(py, py_target_right.as_object(), "Key 'target_right' needs to be a list of exactly 3 numbers")?;
 
@@ -360,8 +394,15 @@ fn get_data_for_shot_with_target(py: Python, py_target_left: PyTuple, py_target_
     let post_info = correct_for_posts(ball.location, ball.collision_radius, target_left, target_right);
     let shot_vector = get_shot_vector_2d(flatten(car_to_ball).normalize_or_zero(), flatten(ball.location), flatten(post_info.target_left), flatten(post_info.target_right));
 
-    let (distance_parts, final_target, face_shot_vector, path) = match analyze_target(ball, car, shot_vector, 0., true, false) {
-        Ok(result) => (result.0, result.1.unwrap(), result.2, result.3),
+    let analyze_options = AnalyzeOptions {
+        max_speed,
+        max_turn_radius,
+        get_target: true,
+        validate: false,
+    };
+
+    let target_info = match analyze_target(ball, car, shot_vector, ball.time - game_time, analyze_options) {
+        Ok(result) => result,
         Err(duberr) => {
             return Err(PyErr::new::<exc::Exception, _>(py, format!("{:?} - Couldn't calculate path", duberr)));
         }
@@ -369,16 +410,18 @@ fn get_data_for_shot_with_target(py: Python, py_target_left: PyTuple, py_target_
 
     let result = PyDict::new(py);
 
-    // dbg!(distance_parts);
-
-    let distance_remaining: f32 = distance_parts.iter().sum();
+    let distance_remaining: f32 = target_info.distances.iter().sum();
 
     result.set_item(py, "distance_remaining", distance_remaining)?;
-    result.set_item(py, "final_target", get_vec_from_vec3(final_target))?;
-    result.set_item(py, "shot_vector", get_vec_from_vec3(shot_vector))?;
-    result.set_item(py, "face_shot_vector", face_shot_vector)?;
+    result.set_item(py, "final_target", get_vec_from_vec3(target_info.target.unwrap()))?;
 
-    match path {
+    if let Some(face_angle) = target_info.angle {
+        result.set_item(py, "face_angle", face_angle)?;
+    } else {
+        result.set_item(py, "face_angle", py.None())?;
+    }
+
+    match target_info.path {
         Some(path_) => {
             let path_samples = match path_sample_many(&path_, 50.) {
                 Ok(raw_samples) => {
@@ -452,6 +495,25 @@ fn get_shot_with_target(py: Python, py_target_left: PyTuple, py_target_right: Py
         return Ok(result.into_object());
     }
 
+    let max_speed = if options.use_absolute_max_values {
+        MAX_SPEED
+    } else {
+        car.max_speed
+    };
+
+    let max_turn_radius = if options.use_absolute_max_values {
+        turn_radius(MAX_SPEED)
+    } else {
+        car.ctrms
+    };
+
+    let analyze_options = AnalyzeOptions {
+        max_speed,
+        max_turn_radius,
+        get_target: false,
+        validate: true,
+    };
+
     for ball in &ball_prediction.slices[options.min_slice..options.max_slice] {
         if ball.location.y.abs() > 5120. + ball.collision_radius {
             break;
@@ -471,24 +533,24 @@ fn get_shot_with_target(py: Python, py_target_left: PyTuple, py_target_right: Py
 
         let shot_vector = get_shot_vector_2d(flatten(car_to_ball).normalize_or_zero(), flatten(ball.location), flatten(post_info.target_left), flatten(post_info.target_right));
         let time_remaining = ball.time - game_time;
-        let distance_parts = match analyze_target(ball, car, shot_vector, time_remaining, false, true) {
-            Ok(result) => result.0,
+        let distance_parts = match analyze_target(ball, car, shot_vector, time_remaining, analyze_options) {
+            Ok(result) => result.distances,
             Err(_) => continue,
         };
 
         // will be used to calculate if there's enough time left to jump after accelerating
-        let _time_remaining = match can_reach_target(car, time_remaining, distance_parts.iter().sum(), true) {
+        let _time_remaining = match can_reach_target(car, max_speed, time_remaining, distance_parts.iter().sum(), true) {
             Ok(t_r) => t_r,
             Err(_) => continue,
         };
 
         if !options.all {
-            found_ball = Some(ball.clone());
+            found_ball = Some(ball);
             break;
         } else if found_ball.is_none() {
             // for worst-case benchmarking only
             // returns accurate numbers, but analyzes all slices
-            found_ball = Some(ball.clone());
+            found_ball = Some(ball);
         }
     }
 

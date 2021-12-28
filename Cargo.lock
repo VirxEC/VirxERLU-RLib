@@ -37,21 +37,21 @@ dependencies = [
 
 [[package]]
 name = "dubins_paths"
-version = "1.0.3"
+version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c8c30c55cae826cac3925c6441709934c904cf2de63760d336e210b544a3c406"
+checksum = "eac07ae9faef7a45635e55ad9a3b68233f2a6037e067691c7a580404a30b90b7"
 
 [[package]]
 name = "glam"
-version = "0.20.1"
+version = "0.20.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68270e16582ea40f9c5b2fcd588fbc9cb696577222e04a64d9085cc314806a8a"
+checksum = "e4fa84eead97d5412b2a20aed4d66612a97a9e41e08eababdb9ae2bf88667490"
 
 [[package]]
 name = "libc"
-version = "0.2.109"
+version = "0.2.112"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f98a04dce437184842841303488f70d0188c5f51437d2a834dc097eafa909a01"
+checksum = "1b03d17f364a3a042d5e5d46b053bbbf82c92c9430c592dd4c064dc6ee997125"
 
 [[package]]
 name = "memchr"
@@ -103,9 +103,9 @@ checksum = "f497285884f3fcff424ffc933e56d7cbca511def0c9831a7f9b5f6153e3cc89b"
 
 [[package]]
 name = "rl_ball_sym"
-version = "0.7.0"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "589b292e9a3bb787e1c96df15cd40a45a6cf3a7da5f084e621da69506e0be2b7"
+checksum = "8fa1ba53fdbf308d26f26a691987586a712000bfaa28fcb6efe4607b603e5781"
 dependencies = [
  "byteorder",
  "glam",
