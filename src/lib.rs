@@ -1,11 +1,17 @@
 extern crate cpython;
 extern crate rl_ball_sym;
 
+mod car;
+mod constants;
+mod ground;
 mod utils;
 
+use car::{turn_radius, Car, Hitbox};
+use constants::*;
 use cpython::{exc, py_fn, py_module_initializer, ObjectProtocol, PyDict, PyErr, PyFloat, PyInt, PyObject, PyResult, PyTuple, Python, PythonObject};
 use dubins_paths::path_sample_many;
 use glam::Vec3A;
+use ground::*;
 use rl_ball_sym::simulation::{
     ball::{Ball, BallPrediction},
     game::Game,
@@ -18,7 +24,7 @@ static mut GAME: Option<Game> = None;
 const NO_GAME_ERR: &str = "GAME is unset. Call a function like load_soccar first.";
 
 static mut CARS: Option<Vec<Car>> = None;
-const NO_CARS_ERR: &str = "CAR is unset. Call a function like load_soccar first.";
+const NO_CARS_ERR: &str = "CARS is unset. Call a function like load_soccar first.";
 
 static mut BALL_STRUCT: Option<BallPrediction> = None;
 const NO_BALL_STRUCT_ERR: &str = "BALL_STRUCT is unset. Call the function tick and pass in game information first.";
@@ -195,44 +201,11 @@ fn tick(py: Python, py_packet: PyObject) -> PyResult<PyObject> {
     game.ball.collision_radius = game.ball.radius + 0.9;
     game.ball.calculate_moi();
 
-    let py_game_cars = py_packet.getattr(py, "game_cars")?;
     let num_cars = py_packet.getattr(py, "num_cars")?.extract::<usize>(py)?;
+    let py_game_cars = py_packet.getattr(py, "game_cars")?;
 
     for (i, car) in cars.iter_mut().enumerate().take(num_cars) {
-        let py_car = py_game_cars.get_item(py, i)?;
-
-        let py_car_physics = py_car.getattr(py, "physics")?;
-
-        car.location = get_vec3_named(py, py_car_physics.getattr(py, "location")?)?;
-        car.velocity = get_vec3_named(py, py_car_physics.getattr(py, "velocity")?)?;
-        car.angular_velocity = get_vec3_named(py, py_car_physics.getattr(py, "angular_velocity")?)?;
-
-        let py_car_rotator = py_car_physics.getattr(py, "rotation")?;
-
-        car.pitch = py_car_rotator.getattr(py, "pitch")?.extract(py)?;
-        car.yaw = py_car_rotator.getattr(py, "yaw")?.extract(py)?;
-        car.roll = py_car_rotator.getattr(py, "roll")?.extract(py)?;
-
-        let py_car_hitbox = py_car.getattr(py, "hitbox")?;
-
-        car.hitbox = Hitbox {
-            length: py_car_hitbox.getattr(py, "length")?.extract(py)?,
-            width: py_car_hitbox.getattr(py, "width")?.extract(py)?,
-            height: py_car_hitbox.getattr(py, "height")?.extract(py)?,
-        };
-
-        car.hitbox_offset = get_vec3_named(py, py_car.getattr(py, "hitbox_offset")?)?;
-
-        car.boost = py_car.getattr(py, "boost")?.extract(py)?;
-        car.demolished = py_car.getattr(py, "is_demolished")?.extract(py)?;
-        car.airborne = !py_car.getattr(py, "has_wheel_contact")?.extract(py)?;
-        car.jumped = py_car.getattr(py, "jumped")?.extract(py)?;
-        car.doublejumped = py_car.getattr(py, "double_jumped")?.extract(py)?;
-
-        car.calculate_orientation_matrix();
-        car.calculate_max_values();
-        car.calculate_local_values();
-        car.calculate_field();
+        car.update(py, py_game_cars.get_item(py, i)?)?;
     }
 
     unsafe {
@@ -411,15 +384,10 @@ fn get_data_for_shot_with_target(py: Python, py_target_left: PyTuple, py_target_
     let result = PyDict::new(py);
 
     let distance_remaining: f32 = target_info.distances.iter().sum();
+    let target = target_info.target.unwrap();
 
     result.set_item(py, "distance_remaining", distance_remaining)?;
-    result.set_item(py, "final_target", get_vec_from_vec3(target_info.target.unwrap()))?;
-
-    if let Some(face_angle) = target_info.angle {
-        result.set_item(py, "face_angle", face_angle)?;
-    } else {
-        result.set_item(py, "face_angle", py.None())?;
-    }
+    result.set_item(py, "final_target", get_vec_from_vec3(target))?;
 
     match target_info.path {
         Some(path_) => {
@@ -438,7 +406,7 @@ fn get_data_for_shot_with_target(py: Python, py_target_left: PyTuple, py_target_
             result.set_item(py, "path_samples", path_samples)?;
         }
         None => {
-            result.set_item(py, "path_samples", vec![get_vec_from_vec3(car.location), get_vec_from_vec3(ball.location)])?;
+            result.set_item(py, "path_samples", vec![get_vec_from_vec3(car.location), get_vec_from_vec3(target)])?;
         }
     }
 

@@ -65,7 +65,7 @@ for _ in range(5000):
                 0,
             ),
             "pitch": 0,
-            "yaw": 1,
+            "yaw": 0.5,
             "roll": 0,
             "boost": 48,
             "demolished": False,

@@ -1,0 +1,28 @@
+pub const MAX_SPEED: f32 = 2300.;
+pub const MAX_SPEED_NO_BOOST: f32 = 1410.;
+pub const MIN_SPEED: f32 = -MAX_SPEED_NO_BOOST;
+pub const TPS: f32 = 120.;
+pub const SIMULATION_DT: f32 = 1. / TPS;
+pub const BOOST_CONSUMPTION: f32 = 33.3 + 1. / 33.;
+pub const BRAKE_ACC: f32 = 3500.;
+pub const COAST_ACC: f32 = 525.;
+pub const MIN_BOOST_TIME: f32 = 3. / 120.;
+
+pub const THROTTLE_ACCEL_DIVISION: f32 = 1400.;
+pub const START_THROTTLE_ACCEL_M: f32 = -36. / 35.;
+pub const START_THROTTLE_ACCEL_B: f32 = 1600.;
+pub const END_THROTTLE_ACCEL_M: f32 = -16.;
+pub const END_THROTTLE_ACCEL_B: f32 = 160.;
+
+pub const BOOST_ACCEL: f32 = 991. + 2. / 3.;
+pub const BOOST_ACCEL_DT: f32 = BOOST_ACCEL * SIMULATION_DT;
+
+pub const MIN_BOOST_CONSUMPTION: f32 = BOOST_CONSUMPTION * MIN_BOOST_TIME;
+pub const BOOST_CONSUMPTION_DT: f32 = BOOST_CONSUMPTION * SIMULATION_DT;
+pub const BRAKE_ACC_DT: f32 = BRAKE_ACC * SIMULATION_DT;
+
+pub const BRAKE_COAST_TRANSITION: f32 = -(0.45 * BRAKE_ACC + 0.55 * COAST_ACC);
+pub const COASTING_THROTTLE_TRANSITION: f32 = -0.5 * COAST_ACC;
+
+pub const REACTION_TIME: f32 = 0.04;
+pub const STEER_REACTION_TIME: f32 = 0.25;
