@@ -37,9 +37,9 @@ dependencies = [
 
 [[package]]
 name = "dubins_paths"
-version = "1.0.4"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eac07ae9faef7a45635e55ad9a3b68233f2a6037e067691c7a580404a30b90b7"
+checksum = "8a4a0094b85797e1907255bf7c8088295b4444ba04994eb1cb6e922311ecef66"
 
 [[package]]
 name = "glam"

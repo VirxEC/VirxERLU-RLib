@@ -9,7 +9,6 @@ mod utils;
 use car::{turn_radius, Car, Hitbox};
 use constants::*;
 use cpython::{exc, py_fn, py_module_initializer, ObjectProtocol, PyDict, PyErr, PyFloat, PyInt, PyObject, PyResult, PyTuple, Python, PythonObject};
-use dubins_paths::path_sample_many;
 use glam::Vec3A;
 use ground::*;
 use rl_ball_sym::simulation::{
@@ -391,7 +390,7 @@ fn get_data_for_shot_with_target(py: Python, py_target_left: PyTuple, py_target_
 
     match target_info.path {
         Some(path_) => {
-            let path_samples = match path_sample_many(&path_, 50.) {
+            let path_samples = match path_.sample_many(50.) {
                 Ok(raw_samples) => {
                     let mut samples = Vec::with_capacity(raw_samples.len());
                     for sample in raw_samples {

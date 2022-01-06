@@ -1,6 +1,6 @@
 use std::f32::INFINITY;
 
-use dubins_paths::{intermediate_results, path_length, path_sample, segment_length, word, DubinsError, DubinsPath, DubinsPathType};
+use dubins_paths::{DubinsError, DubinsPath, DubinsPathType, DubinsIntermediateResults};
 use glam::Vec3A;
 use rl_ball_sym::simulation::ball::Ball;
 
@@ -40,10 +40,10 @@ fn shortest_path_in_validate(q0: [f32; 3], q1: [f32; 3], rho: f32, car_field: &C
     let mut best_cost = INFINITY;
     let mut best_path = None;
 
-    let intermediate_results = intermediate_results(q0, q1, rho)?;
+    let intermediate_results = DubinsIntermediateResults::from(q0, q1, rho)?;
 
     for path_type in DubinsPathType::ALL {
-        if let Ok(param) = word(&intermediate_results, path_type) {
+        if let Ok(param) = intermediate_results.word(path_type) {
             let cost = param[0] + param[1] + param[2];
             if cost < best_cost && (!validate || cost * rho <= max_distance) {
                 let path = DubinsPath {
@@ -57,7 +57,7 @@ fn shortest_path_in_validate(q0: [f32; 3], q1: [f32; 3], rho: f32, car_field: &C
 
                 // instead of this, do a better "is arc in" or "is line in" thing
                 for dist in [path.param[0] * path.rho / 2., (path.param[0] + path.param[1]) * path.rho / 2., (path.param[0] + path.param[1] + path.param[2]) * path.rho / 2.] {
-                    if !car_field.is_point_in(&path_sample(&path, dist)?) {
+                    if !car_field.is_point_in(&path.sample(dist)?) {
                         valid = false;
                         break;
                     }
@@ -68,7 +68,7 @@ fn shortest_path_in_validate(q0: [f32; 3], q1: [f32; 3], rho: f32, car_field: &C
                 }
 
                 for dist in [path.param[0] * path.rho, (path.param[0] + path.param[1]) * path.rho, (path.param[0] + path.param[1] + path.param[2]) * path.rho] {
-                    if !car_field.is_point_in(&path_sample(&path, dist)?) {
+                    if !car_field.is_point_in(&path.sample(dist)?) {
                         valid = false;
                         break;
                     }
@@ -256,19 +256,19 @@ pub fn analyze_target(ball: &Ball, car: &Car, shot_vector: Vec3A, time_remaining
 
     let path = shortest_path_in_validate(q0, q1, options.max_turn_radius, &car.field, max_distance, options.validate)?;
 
-    let distances = [segment_length(&path, 0), segment_length(&path, 1), segment_length(&path, 2), end_distance];
+    let distances = [path.segment_length(0), path.segment_length(1), path.segment_length(2), end_distance];
 
     Ok(if options.get_target {
         let distance = car.local_velocity.x.max(500.) * STEER_REACTION_TIME;
-        let max_path_distance = path_length(&path);
+        let max_path_distance = path.length();
 
         let target = if distance > max_path_distance {
             let distance_remaining = distance - max_path_distance;
             let additional_space = shot_vector * distance_remaining.min(offset_distance - car_front_length);
 
-            path_point_to_vec3(path_sample(&path, max_path_distance)?) + additional_space
+            path_point_to_vec3(path.sample(max_path_distance)?) + additional_space
         } else {
-            path_point_to_vec3(path_sample(&path, distance)?)
+            path_point_to_vec3(path.sample(distance)?)
         };
 
         TargetInfo::new_dubin_target(distances, target, path)
