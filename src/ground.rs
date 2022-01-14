@@ -1,36 +1,37 @@
 use std::f32::INFINITY;
 
-use dubins_paths::{DubinsError, DubinsPath, DubinsPathType, DubinsIntermediateResults};
+use dubins_paths::{DubinsError, DubinsIntermediateResults, DubinsPath, DubinsPathType};
 use glam::Vec3A;
 use rl_ball_sym::simulation::ball::Ball;
 
-use crate::car::{throttle_acceleration, turn_radius, Car, CarFieldRect};
+use crate::car::{throttle_acceleration, Car, CarFieldRect};
 use crate::constants::*;
+use crate::shot::Shot;
 use crate::utils::*;
 
-fn angle_2d(vec1: Vec3A, vec2: Vec3A) -> f32 {
-    flatten(vec1).dot(flatten(vec2)).clamp(-1., 1.).acos()
-}
+// fn angle_2d(vec1: Vec3A, vec2: Vec3A) -> f32 {
+//     flatten(vec1).dot(flatten(vec2)).clamp(-1., 1.).acos()
+// }
 
-// https://stackoverflow.com/questions/849211/shortest-distance-between-a-point-and-a-line-segment
-fn point_from_line(v: Vec3A, w: Vec3A, p: Vec3A) -> (f32, f32) {
-    // Return minimum distance between line segment vw and point p
-    let l2 = v.distance_squared(w); // i.e. |w-v|^2 -  avoid a sqrt
+// // https://stackoverflow.com/questions/849211/shortest-distance-between-a-point-and-a-line-segment
+// fn point_from_line(v: Vec3A, w: Vec3A, p: Vec3A) -> (f32, f32) {
+//     // Return minimum distance between line segment vw and point p
+//     let l2 = v.distance_squared(w); // i.e. |w-v|^2 -  avoid a sqrt
 
-    // v == w case
-    if l2 == 0. {
-        return (p.distance(v), 1.);
-    }
+//     // v == w case
+//     if l2 == 0. {
+//         return (p.distance(v), 1.);
+//     }
 
-    // Consider the line extending the segment, parameterized as v + t (w - v).
-    // We find projection of point p onto the line.
-    // It falls where t = [(p-v) . (w-v)] / |w-v|^2
-    // We clamp t from [0,1] to handle points outside the segment vw.
-    let t = ((p - v).dot(w - v) / l2).clamp(0., 1.);
-    let projection = lerp(w, v, t); // Projection falls on the segment
+//     // Consider the line extending the segment, parameterized as v + t (w - v).
+//     // We find projection of point p onto the line.
+//     // It falls where t = [(p-v) . (w-v)] / |w-v|^2
+//     // We clamp t from [0,1] to handle points outside the segment vw.
+//     let t = ((p - v).dot(w - v) / l2).clamp(0., 1.);
+//     let projection = lerp(w, v, t); // Projection falls on the segment
 
-    (p.distance(projection), t)
-}
+//     (p.distance(projection), t)
+// }
 
 fn path_point_to_vec3(endpoint: [f32; 3]) -> Vec3A {
     Vec3A::new(endpoint[0], endpoint[1], 0.)
@@ -88,42 +89,26 @@ fn shortest_path_in_validate(q0: [f32; 3], q1: [f32; 3], rho: f32, car_field: &C
     }
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug)]
 pub struct TargetInfo {
     pub distances: [f32; 4],
+    pub path: DubinsPath,
     pub target: Option<Vec3A>,
-    pub path: Option<DubinsPath>,
 }
 
 impl TargetInfo {
-    pub const fn new_dubin(distances: [f32; 4], path: DubinsPath) -> Self {
+    pub const fn from(distances: [f32; 4], path: DubinsPath) -> Self {
         Self {
             distances,
+            path,
             target: None,
-            path: Some(path),
         }
     }
-    pub const fn new_dubin_target(distances: [f32; 4], target: Vec3A, path: DubinsPath) -> Self {
+    pub const fn from_target(distances: [f32; 4], target: Vec3A, path: DubinsPath) -> Self {
         Self {
             distances,
+            path,
             target: Some(target),
-            path: Some(path),
-        }
-    }
-
-    pub const fn new(distances: [f32; 4]) -> Self {
-        Self {
-            distances,
-            target: None,
-            path: None,
-        }
-    }
-
-    pub const fn new_target(distances: [f32; 4], target: Vec3A) -> Self {
-        Self {
-            distances,
-            target: Some(target),
-            path: None,
         }
     }
 }
@@ -136,115 +121,16 @@ pub struct AnalyzeOptions {
     pub validate: bool,
 }
 
+const OFFSET_DISTANCE: f32 = 640.;
+
 pub fn analyze_target(ball: &Ball, car: &Car, shot_vector: Vec3A, time_remaining: f32, options: AnalyzeOptions) -> Result<TargetInfo, DubinsError> {
     let offset_target = ball.location - (shot_vector * ball.radius);
     let car_front_length = (car.hitbox_offset.x + car.hitbox.length) / 2.;
 
-    let mut end_distance = -car_front_length;
-
-    let offset_distance = 640.;
-    let exit_turn_target = offset_target - (shot_vector * offset_distance);
-
-    let local_offset = car.localize_2d_location(offset_target);
-
-    let margin = car.hitbox.width / 3.;
+    let end_distance = OFFSET_DISTANCE - car_front_length;
+    let exit_turn_target = offset_target - (shot_vector * OFFSET_DISTANCE);
 
     let target_angle = shot_vector.y.atan2(shot_vector.x);
-
-    {
-        // all this stuff has the potential ability to drive straight through a wall
-        // ignoring what ever the dubin's pathing has told it to not do
-        // FIX IT
-        // also fix dubin's pathing field check at the same time to be more accurate
-
-        let car_to_shot = angle_2d(car.forward, shot_vector);
-
-        if local_offset.x > 0. && car_to_shot < 0.15 && local_offset.y.abs() < margin / 2. {
-            end_distance += local_offset.x;
-
-            let distances = [0., 0., 0., end_distance];
-
-            return Ok(if options.get_target {
-                let final_target = car.location + flatten(shot_vector) * local_offset.x;
-
-                TargetInfo::new_target(distances, final_target)
-            } else {
-                TargetInfo::new(distances)
-            });
-        }
-
-        // https://www.desmos.com/calculator/e0gk9v6ab0
-        let car_to_exit = flatten(exit_turn_target - car.location);
-        let turn_direction = car.right.dot(car_to_exit).signum();
-        let n = turn_direction * Vec3A::new(-car.forward.y, car.forward.x, 0.);
-        let exit_turn_dir = flatten(car_to_shot.sin() * car.forward + (1. - car_to_shot.cos()) * n);
-
-        let turn_radii = [turn_radius(car.local_velocity.x.abs()), options.max_turn_radius];
-        let exit_points = [turn_radii[0] * exit_turn_dir, turn_radii[1] * exit_turn_dir];
-
-        let (minimum_distance, t) = point_from_line(exit_points[0], exit_points[1], car_to_exit);
-        let turn_rad = lerp(turn_radii[0], turn_radii[1], t);
-
-        // if options.get_target {
-        //     dbg!(margin / 2.);
-        //     dbg!(minimum_distance);
-        //     dbg!(car.forward.dot(car_to_exit) - car.forward.dot(exit_points[1]));
-        //     dbg!(car.right.dot(car_to_exit) - car.right.dot(exit_points[1]));
-        // }
-
-        if minimum_distance < margin / 2. {
-            end_distance += offset_distance;
-
-            let turn_distance = turn_rad * car_to_shot;
-            let distances = [0., 0., turn_distance, end_distance];
-
-            return Ok(if options.get_target {
-                let distance = car.local_velocity.x.max(500.) * STEER_REACTION_TIME;
-
-                let target = if distance > turn_distance {
-                    let distance_remaining = distance - turn_distance;
-                    let additional_space = shot_vector * distance_remaining.min(offset_distance - car_front_length);
-
-                    exit_turn_target + additional_space
-                } else {
-                    let t = turn_distance / distance;
-                    let angle = car_to_shot * t;
-
-                    let partial_target_dir = flatten(angle.sin() * car.forward + (1. - angle.cos()) * n);
-
-                    options.max_turn_radius * partial_target_dir + flatten(car.location)
-                };
-
-                TargetInfo::new_target(distances, target)
-            } else {
-                TargetInfo::new(distances)
-            });
-        } else {
-            let right_distance = car.right.dot(car_to_exit) - car.right.dot(exit_points[1]);
-            if right_distance.abs() < margin / 2. {
-                let forward_distance = car.forward.dot(car_to_exit) - car.forward.dot(exit_points[1]);
-                if forward_distance > -margin / 2. {
-                    end_distance += offset_distance;
-                    let turn_distance = options.max_turn_radius * car_to_shot;
-                    let distances = [right_distance, forward_distance, turn_distance, end_distance];
-
-                    return Ok(if options.get_target {
-                        let right_adjustment = car.right * right_distance;
-                        let forward_travel = car.forward * forward_distance;
-
-                        let target = car.location + right_adjustment + forward_travel;
-
-                        TargetInfo::new_target(distances, target)
-                    } else {
-                        TargetInfo::new(distances)
-                    });
-                }
-            }
-        }
-    }
-
-    end_distance += offset_distance;
-
     let max_distance = time_remaining * options.max_speed;
 
     if options.validate && (end_distance + flatten(car.location).distance(flatten(exit_turn_target))) > max_distance {
@@ -264,16 +150,35 @@ pub fn analyze_target(ball: &Ball, car: &Car, shot_vector: Vec3A, time_remaining
 
         let target = if distance > max_path_distance {
             let distance_remaining = distance - max_path_distance;
-            let additional_space = shot_vector * distance_remaining.min(offset_distance - car_front_length);
+            let additional_space = shot_vector * distance_remaining.min(OFFSET_DISTANCE - car_front_length);
 
             path_point_to_vec3(path.sample(max_path_distance)?) + additional_space
         } else {
             path_point_to_vec3(path.sample(distance)?)
         };
 
-        TargetInfo::new_dubin_target(distances, target, path)
+        TargetInfo::from_target(distances, target, path)
     } else {
-        TargetInfo::new_dubin(distances, path)
+        TargetInfo::from(distances, path)
+    })
+}
+
+pub fn get_target(car: &Car, shot: &Shot, shot_vector: Vec3A) -> Result<Vec3A, DubinsError> {
+    let car_front_length = (car.hitbox_offset.x + car.hitbox.length) / 2.;
+
+    let path_distance = shot.ternary_sections(car.location) as f32 * Shot::STEP_DISTANCE;
+    let subpath = shot.path.extract_subpath(path_distance)?;
+
+    let distance = car.local_velocity.x.max(500.) * STEER_REACTION_TIME;
+    let max_path_distance = subpath.length();
+
+    Ok(if distance > max_path_distance {
+        let distance_remaining = distance - max_path_distance;
+        let additional_space = shot_vector * distance_remaining.min(OFFSET_DISTANCE - car_front_length);
+
+        path_point_to_vec3(subpath.sample(max_path_distance)?) + additional_space
+    } else {
+        path_point_to_vec3(subpath.sample(distance)?)
     })
 }
 

@@ -1,5 +1,3 @@
-use std::ops::{Add, Mul, Sub};
-
 use cpython::{exc, ObjectProtocol, PyDict, PyErr, PyObject, PyResult, Python};
 
 use glam::Vec3A;
@@ -71,12 +69,12 @@ pub fn get_vec_from_vec3(vec: Vec3A) -> Vec<f32> {
     vec![vec.x, vec.y, vec.z]
 }
 
-pub fn lerp<T: Copy + Add<Output = T> + Sub<Output = T> + Mul<f32, Output = T>>(a: T, b: T, t: f32) -> T {
-    // Linearly interpolate from a to b using t
-    // For instance, when t == 0, a is returned, and when t is 1, b is returned
-    // Works for both numbers and Vectors
-    (b - a) * t + a
-}
+// pub fn lerp<T: Copy + Add<Output = T> + Sub<Output = T> + Mul<f32, Output = T>>(a: T, b: T, t: f32) -> T {
+//     // Linearly interpolate from a to b using t
+//     // For instance, when t == 0, a is returned, and when t is 1, b is returned
+//     // Works for both numbers and Vectors
+//     (b - a) * t + a
+// }
 
 // fn invlerp<T: Copy + Sub<Output = T> + Div<Output = f32>>(a: T, b: T, v: T) -> f32 {
 //     // Inverse linear interpolation from a to b with value v
@@ -159,35 +157,4 @@ pub fn correct_for_posts(ball_location: Vec3A, ball_radius: f32, target_left: Ve
         target_right: right_corrected,
         fits: new_goal_width * new_goal_perp.dot(ball_to_goal).abs() > ball_radius * 2.,
     }
-}
-
-#[derive(Clone, Copy, Debug)]
-pub struct Options {
-    pub all: bool,
-    pub use_absolute_max_values: bool,
-    pub min_slice: usize,
-    pub max_slice: usize,
-}
-
-pub fn get_options_from_dict(py: Python, py_options: PyDict, max_slices: usize) -> PyResult<Options> {
-    let all = get_bool_from_dict(py, &py_options, "all", "options").unwrap_or(false);
-
-    let use_absolute_max_values = get_bool_from_dict(py, &py_options, "use_absolute_max_values", "options").unwrap_or(false);
-
-    let min_slice = match get_usize_from_dict(py, &py_options, "min_slice", "options") {
-        Ok(u) => u.max(0),
-        Err(_) => 0,
-    };
-
-    let max_slice = match get_usize_from_dict(py, &py_options, "min_slice", "options") {
-        Ok(u) => u.min(max_slices),
-        Err(_) => max_slices,
-    };
-
-    Ok(Options {
-        all,
-        use_absolute_max_values,
-        min_slice,
-        max_slice,
-    })
 }
