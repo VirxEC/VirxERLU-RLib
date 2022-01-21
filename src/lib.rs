@@ -33,7 +33,7 @@ const NO_BALL_STRUCT_ERR: &str = "BALL_STRUCT is unset. Call the function tick a
 static mut TARGETS: Vec<Option<Target>> = Vec::new();
 const NO_TARGET_ERR: &str = "Target no longer exists";
 
-py_module_initializer!(virxrlru, |py, m| {
+py_module_initializer!(virx_erlu_rlib, |py, m| {
     m.add(py, "__doc__", "VirxERLU-RLib is written in Rust with Python bindings to make analyzing the ball prediction struct much faster.")?;
     #[allow(clippy::manual_strip)]
     m.add(py, "load_soccar", py_fn!(py, load_soccar()))?;

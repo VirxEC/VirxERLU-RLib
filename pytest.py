@@ -1,6 +1,6 @@
 from time import time_ns
 
-import virxrlru as rlru
+import virx_erlu_rlib as rlru
 
 print("")
 

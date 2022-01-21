@@ -1,7 +1,13 @@
 [package]
 name = "virx_erlu_rlib"
-version = "0.1.0"
+version = "0.8.0"
 edition = "2021"
+authors = ["VirxEC <virx@virxcase.dev>"]
+readme = "README.md"
+description = "Rust modules for VirxERLU"
+homepage = "https://github.com/VirxEC/VirxERLU-RLib"
+license = "MIT"
+include = ["/src", "pyproject.toml", "virx_erlu_rlib.pyi", "README.md"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

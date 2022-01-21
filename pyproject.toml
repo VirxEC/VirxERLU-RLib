@@ -1,3 +1,13 @@
 [build-system]
-requires = ["setuptools", "wheel", "setuptools_rust"]
-build-backend = "setuptools.build_meta"
+requires = ["maturin>=0.12,<0.13"]
+build-backend = "maturin"
+
+[project]
+name = "VirxERLU-RLib"
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.7",
+    "Development Status :: 4 - Beta",
+    "Operating System :: Microsoft :: Windows"
+]
