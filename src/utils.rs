@@ -1,26 +1,26 @@
-use cpython::{exc, ObjectProtocol, PyDict, PyErr, PyObject, PyResult, Python};
+use pyo3::{exceptions, types::PyDict, PyAny, PyErr, PyObject, PyResult, Python};
 
 use glam::Vec3A;
 
-pub fn get_vec3(py: Python, py_vec: &PyObject, too_few_vals_err_msg: &str) -> PyResult<Vec3A> {
+pub fn get_vec3(py_vec: &PyAny, too_few_vals_err_msg: String) -> PyResult<Vec3A> {
     let mut vec = Vec3A::ZERO;
 
-    if let Ok(x) = py_vec.get_item(py, 0) {
-        vec.x = x.extract(py)?;
+    if let Ok(x) = py_vec.get_item::<usize>(0) {
+        vec.x = x.extract()?;
     } else {
-        return Err(PyErr::new::<exc::IndexError, _>(py, too_few_vals_err_msg));
+        return Err(PyErr::new::<exceptions::PyIndexError, _>(too_few_vals_err_msg));
     }
 
-    if let Ok(y) = py_vec.get_item(py, 1) {
-        vec.y = y.extract(py)?;
+    if let Ok(y) = py_vec.get_item::<usize>(0) {
+        vec.y = y.extract()?;
     } else {
-        return Err(PyErr::new::<exc::IndexError, _>(py, too_few_vals_err_msg));
+        return Err(PyErr::new::<exceptions::PyIndexError, _>(too_few_vals_err_msg));
     }
 
-    if let Ok(z) = py_vec.get_item(py, 2) {
-        vec.z = z.extract(py)?;
+    if let Ok(z) = py_vec.get_item::<usize>(0) {
+        vec.z = z.extract()?;
     } else {
-        return Err(PyErr::new::<exc::IndexError, _>(py, too_few_vals_err_msg));
+        return Err(PyErr::new::<exceptions::PyIndexError, _>(too_few_vals_err_msg));
     }
 
     Ok(vec)
@@ -30,38 +30,46 @@ pub fn get_vec3_named(py: Python, py_vec: PyObject) -> PyResult<Vec3A> {
     Ok(Vec3A::new(py_vec.getattr(py, "x")?.extract(py)?, py_vec.getattr(py, "y")?.extract(py)?, py_vec.getattr(py, "z")?.extract(py)?))
 }
 
-pub fn get_vec3_from_dict(py: Python, py_dict: &PyDict, key: &str, name: &str) -> PyResult<Vec3A> {
-    match py_dict.get_item(py, key) {
-        Some(py_arr) => Ok(get_vec3(py, &py_arr, &format!("Key '{}' in '{}' needs to be a list of exactly 3 numbers", key, name))?),
-        None => Err(PyErr::new::<exc::AttributeError, _>(py, format!("No key called '{}' in '{}'.", key, name))),
+pub fn get_vec3_from_dict(py_dict: &PyDict, key: &str, name: &str) -> PyResult<Vec3A> {
+    match py_dict.get_item(key) {
+        Some(py_arr) => Ok(get_vec3(py_arr, format!("Key '{}' in '{}' needs to be a list of exactly 3 numbers", key, name))?),
+        None => Err(PyErr::new::<exceptions::PyAttributeError, _>(format!("No key called '{}' in '{}'.", key, name))),
     }
 }
 
-pub fn get_f32_from_dict(py: Python, py_dict: &PyDict, key: &str, name: &str) -> PyResult<f32> {
-    match py_dict.get_item(py, key) {
-        Some(py_num) => Ok(py_num.extract(py)?),
-        None => Err(PyErr::new::<exc::AttributeError, _>(py, format!("No key called '{}' in '{}'.", key, name))),
+pub fn get_f32_from_dict(py_dict: &PyDict, key: &str, name: &str) -> PyResult<f32> {
+    match py_dict.get_item(key) {
+        Some(py_num) => Ok(py_num.extract()?),
+        None => Err(PyErr::new::<exceptions::PyAttributeError, _>(format!("No key called '{}' in '{}'.", key, name))),
     }
 }
 
-pub fn get_usize_from_dict(py: Python, py_dict: &PyDict, key: &str, name: &str) -> PyResult<usize> {
-    match py_dict.get_item(py, key) {
-        Some(py_num) => Ok(py_num.extract(py)?),
-        None => Err(PyErr::new::<exc::AttributeError, _>(py, format!("No key called '{}' in '{}'.", key, name))),
+pub fn get_usize_from_dict(py_dict: &PyDict, key: &str, name: &str) -> PyResult<usize> {
+    match py_dict.get_item(key) {
+        Some(py_num) => Ok(py_num.extract()?),
+        None => Err(PyErr::new::<exceptions::PyAttributeError, _>(format!("No key called '{}' in '{}'.", key, name))),
     }
 }
 
-pub fn get_u8_from_dict(py: Python, py_dict: &PyDict, key: &str, name: &str) -> PyResult<u8> {
-    match py_dict.get_item(py, key) {
-        Some(py_num) => Ok(py_num.extract(py)?),
-        None => Err(PyErr::new::<exc::AttributeError, _>(py, format!("No key called '{}' in '{}'.", key, name))),
+pub fn get_u8_from_dict(py_dict: &PyDict, key: &str, name: &str) -> PyResult<u8> {
+    match py_dict.get_item(key) {
+        Some(py_num) => Ok(py_num.extract()?),
+        None => Err(PyErr::new::<exceptions::PyAttributeError, _>(format!("No key called '{}' in '{}'.", key, name))),
     }
 }
 
-pub fn get_bool_from_dict(py: Python, py_dict: &PyDict, key: &str, name: &str) -> PyResult<bool> {
-    match py_dict.get_item(py, key) {
-        Some(py_bool) => Ok(py_bool.extract(py)?),
-        None => Err(PyErr::new::<exc::AttributeError, _>(py, format!("No key called '{}' in '{}'.", key, name))),
+pub fn get_bool_from_dict(py_dict: &PyDict, key: &str, name: &str) -> PyResult<bool> {
+    match py_dict.get_item(key) {
+        Some(py_bool) => Ok(py_bool.is_true()?),
+        None => Err(PyErr::new::<exceptions::PyAttributeError, _>(format!("No key called '{}' in '{}'.", key, name))),
+    }
+}
+
+pub fn get_vec3_from_vec(vec: Vec<f32>, name: &str) -> PyResult<Vec3A> {
+    if vec.len() != 3 {
+        Err(PyErr::new::<exceptions::PyIndexError, _>(format!("Key '{}' needs to be a list of exactly 3 numbers", name)))
+    } else {
+        Ok(Vec3A::new(vec[0], vec[1], vec[2]))
     }
 }
 

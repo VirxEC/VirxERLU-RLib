@@ -12,6 +12,7 @@ include = ["/src", "pyproject.toml", "virx_erlu_rlib.pyi", "README.md"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
+name = "virx_erlu_rlib"
 crate-type = ["cdylib"]
 path = "src/lib.rs"
 
@@ -20,8 +21,8 @@ glam = "0.20"
 rl_ball_sym = "1.0"
 dubins_paths = "1.1"
 
-[dependencies.cpython]
-version = "0.7"
+[dependencies.pyo3]
+version = "0.15.1"
 features = ["extension-module"]
 
 [profile.release]

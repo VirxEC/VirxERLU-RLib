@@ -142,7 +142,7 @@ for _ in range(5000):
 
 print("")
 
-print("tick():")
+print("tick_dict():")
 print(f"Total test time: {round(sum(times[0]) / 1000000000, 4)}s")
 print(f"Avg. time of execution: {round(sum(times[0]) / len(times[0]) / 1000000, 3)}ms")
 

@@ -1,5 +1,5 @@
-use cpython::{ObjectProtocol, PyObject, PyResult, Python};
 use glam::Vec3A;
+use pyo3::{PyObject, PyResult, Python};
 
 use crate::{constants::*, utils::get_vec3_named};
 

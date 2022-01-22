@@ -1,6 +1,6 @@
-use cpython::{PyDict, PyResult, Python};
 use dubins_paths::DubinsPath;
 use glam::Vec3A;
+use pyo3::{types::PyDict, PyResult};
 
 use crate::utils::{get_bool_from_dict, get_usize_from_dict};
 
@@ -59,17 +59,17 @@ pub struct Options {
 }
 
 impl Options {
-    pub fn from(py: Python, py_options: PyDict, max_slices: usize) -> PyResult<Self> {
-        let all = get_bool_from_dict(py, &py_options, "all", "options").unwrap_or(false);
+    pub fn from(py_options: &PyDict, max_slices: usize) -> PyResult<Self> {
+        let all = get_bool_from_dict(py_options, "all", "options").unwrap_or(false);
 
-        let use_absolute_max_values = get_bool_from_dict(py, &py_options, "use_absolute_max_values", "options").unwrap_or(false);
+        let use_absolute_max_values = get_bool_from_dict(py_options, "use_absolute_max_values", "options").unwrap_or(false);
 
-        let min_slice = match get_usize_from_dict(py, &py_options, "min_slice", "options") {
+        let min_slice = match get_usize_from_dict(py_options, "min_slice", "options") {
             Ok(u) => u.max(0),
             Err(_) => 0,
         };
 
-        let max_slice = match get_usize_from_dict(py, &py_options, "max_slice", "options") {
+        let max_slice = match get_usize_from_dict(py_options, "max_slice", "options") {
             Ok(u) => u.min(max_slices),
             Err(_) => max_slices,
         };
