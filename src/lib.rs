@@ -44,7 +44,7 @@ py_module_initializer!(virx_erlu_rlib, |py, m| {
     #[allow(clippy::manual_strip)]
     m.add(py, "load_soccar_throwback", py_fn!(py, load_soccar_throwback()))?;
     #[allow(clippy::manual_strip)]
-    m.add(py, "set_gravity", py_fn!(py, set_gravity(gravity: PyDict)))?;
+    m.add(py, "set_gravity", py_fn!(py, set_gravity(z: PyFloat)))?;
     #[allow(clippy::manual_strip)]
     m.add(py, "tick", py_fn!(py, tick(packet: PyObject)))?;
     #[allow(clippy::manual_strip)]
@@ -54,15 +54,15 @@ py_module_initializer!(virx_erlu_rlib, |py, m| {
     #[allow(clippy::manual_strip)]
     m.add(py, "new_target", py_fn!(py, new_target(target_left: PyTuple, target_right: PyTuple, car_index: PyInt, options: PyDict)))?;
     #[allow(clippy::manual_strip)]
-    m.add(py, "confirm_target", py_fn!(py, confirm_target(target: PyInt)))?;
+    m.add(py, "confirm_target", py_fn!(py, confirm_target(target_id: PyInt)))?;
     #[allow(clippy::manual_strip)]
-    m.add(py, "remove_target", py_fn!(py, remove_target(target: PyInt)))?;
+    m.add(py, "remove_target", py_fn!(py, remove_target(target_id: PyInt)))?;
     #[allow(clippy::manual_strip)]
     m.add(py, "print_targets", py_fn!(py, print_targets()))?;
     #[allow(clippy::manual_strip)]
-    m.add(py, "get_data_for_shot_with_target", py_fn!(py, get_data_for_shot_with_target(target: PyInt)))?;
+    m.add(py, "get_data_for_shot_with_target", py_fn!(py, get_data_for_shot_with_target(target_id: PyInt)))?;
     #[allow(clippy::manual_strip)]
-    m.add(py, "get_shot_with_target", py_fn!(py, get_shot_with_target(target: PyInt)))?;
+    m.add(py, "get_shot_with_target", py_fn!(py, get_shot_with_target(target_id: PyInt)))?;
     Ok(())
 });
 
@@ -104,8 +104,8 @@ fn load_soccar_throwback(py: Python) -> PyResult<PyObject> {
     Ok(py.None())
 }
 
-fn set_gravity(py: Python, py_gravity: PyDict) -> PyResult<PyObject> {
-    let mut game: &mut Game;
+fn set_gravity(py: Python, py_gravity: PyFloat) -> PyResult<PyObject> {
+    let game: &mut Game;
 
     unsafe {
         game = match GAME.as_mut() {
@@ -116,7 +116,7 @@ fn set_gravity(py: Python, py_gravity: PyDict) -> PyResult<PyObject> {
         };
     }
 
-    game.gravity = get_vec3(py, py_gravity.as_object(), "Key 'gravity' needs to be a list of exactly 3 numbers")?;
+    game.gravity.z = py_gravity.value(py) as f32;
 
     Ok(py.None())
 }
@@ -150,7 +150,7 @@ fn tick(py: Python, py_packet: PyObject) -> PyResult<PyObject> {
 
     targets.retain(|target| match target {
         Some(t) => t.is_confirmed(),
-        None => false,
+        None => true,
     });
 
     /*
@@ -260,7 +260,7 @@ fn tick_dict(py: Python, py_time: PyFloat, py_ball: PyDict, py_car: PyDict) -> P
 
     targets.retain(|target| match target {
         Some(t) => t.is_confirmed(),
-        None => false,
+        None => true,
     });
 
     game.ball.time = py_time.value(py) as f32;
@@ -358,8 +358,16 @@ fn new_target(py: Python, py_target_left: PyTuple, py_target_right: PyTuple, py_
     let target_index;
 
     unsafe {
-        target_index = TARGETS.len();
-        TARGETS.push(target);
+        target_index = match TARGETS.iter().position(|x| x.is_none()) {
+            Some(i) => {
+                TARGETS[i] = target;
+                i
+            }
+            None => {
+                TARGETS.push(target);
+                TARGETS.len() - 1
+            }
+        };
     }
 
     Ok(target_index)

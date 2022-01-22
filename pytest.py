@@ -10,6 +10,7 @@ print("")
 
 print("Loading soccar...")
 rlru.load_soccar()
+rlru.set_gravity(-650.)
 
 print("")
 

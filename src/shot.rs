@@ -43,9 +43,9 @@ impl Shot {
         let mid = (high + low) / 2;
 
         if self.sections[mid].distance(location) > self.sections[mid + 1].distance(location) {
-            self.unimodal_min(location, mid + 1, high)
-        } else {
             self.unimodal_min(location, low, mid)
+        } else {
+            self.unimodal_min(location, mid + 1, high)
         }
     }
 }
