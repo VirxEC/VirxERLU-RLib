@@ -13,7 +13,7 @@ use crate::utils::*;
 //     flatten(vec1).dot(flatten(vec2)).clamp(-1., 1.).acos()
 // }
 
-// // https://stackoverflow.com/questions/849211/shortest-distance-between-a-point-and-a-line-segment
+// https://stackoverflow.com/questions/849211/shortest-distance-between-a-point-and-a-line-segment
 // fn point_from_line(v: Vec3A, w: Vec3A, p: Vec3A) -> (f32, f32) {
 //     // Return minimum distance between line segment vw and point p
 //     let l2 = v.distance_squared(w); // i.e. |w-v|^2 -  avoid a sqrt
@@ -41,7 +41,7 @@ fn shortest_path_in_validate(q0: [f32; 3], q1: [f32; 3], rho: f32, car_field: &C
     let mut best_cost = INFINITY;
     let mut best_path = None;
 
-    let intermediate_results = DubinsIntermediateResults::from(q0, q1, rho)?;
+    let intermediate_results = DubinsIntermediateResults::from(q0, q1, rho);
 
     for path_type in DubinsPathType::ALL {
         if let Ok(param) = intermediate_results.word(path_type) {
@@ -58,7 +58,7 @@ fn shortest_path_in_validate(q0: [f32; 3], q1: [f32; 3], rho: f32, car_field: &C
 
                 // instead of this, do a better "is arc in" or "is line in" thing
                 for dist in [path.param[0] * path.rho / 2., (path.param[0] + path.param[1]) * path.rho / 2., (path.param[0] + path.param[1] + path.param[2]) * path.rho / 2.] {
-                    if !car_field.is_point_in(&path.sample(dist)?) {
+                    if !car_field.is_point_in(&path.sample(dist)) {
                         valid = false;
                         break;
                     }
@@ -69,7 +69,7 @@ fn shortest_path_in_validate(q0: [f32; 3], q1: [f32; 3], rho: f32, car_field: &C
                 }
 
                 for dist in [path.param[0] * path.rho, (path.param[0] + path.param[1]) * path.rho, (path.param[0] + path.param[1] + path.param[2]) * path.rho] {
-                    if !car_field.is_point_in(&path.sample(dist)?) {
+                    if !car_field.is_point_in(&path.sample(dist)) {
                         valid = false;
                         break;
                     }
@@ -152,9 +152,9 @@ pub fn analyze_target(ball: &Ball, car: &Car, shot_vector: Vec3A, time_remaining
             let distance_remaining = distance - max_path_distance;
             let additional_space = shot_vector * distance_remaining.min(OFFSET_DISTANCE - car_front_length);
 
-            path_point_to_vec3(path.sample(max_path_distance)?) + additional_space
+            path_point_to_vec3(path.sample(max_path_distance)) + additional_space
         } else {
-            path_point_to_vec3(path.sample(distance)?)
+            path_point_to_vec3(path.sample(distance))
         };
 
         TargetInfo::from_target(distances, target, path)
@@ -165,20 +165,17 @@ pub fn analyze_target(ball: &Ball, car: &Car, shot_vector: Vec3A, time_remaining
 
 pub fn get_target(car: &Car, shot: &Shot, shot_vector: Vec3A) -> Result<Vec3A, DubinsError> {
     let car_front_length = (car.hitbox_offset.x + car.hitbox.length) / 2.;
-
-    let path_distance = shot.ternary_sections(car.location) as f32 * Shot::STEP_DISTANCE;
-    let subpath = shot.path.extract_subpath(path_distance)?;
-
+    let shot_subpath = shot.extract_subpath_from_target(car.location)?;
     let distance = car.local_velocity.x.max(500.) * STEER_REACTION_TIME;
-    let max_path_distance = subpath.length();
+    let max_path_distance = shot_subpath.length();
 
     Ok(if distance > max_path_distance {
         let distance_remaining = distance - max_path_distance;
         let additional_space = shot_vector * distance_remaining.min(OFFSET_DISTANCE - car_front_length);
 
-        path_point_to_vec3(subpath.sample(max_path_distance)?) + additional_space
+        path_point_to_vec3(shot_subpath.sample(max_path_distance)) + additional_space
     } else {
-        path_point_to_vec3(subpath.sample(distance)?)
+        path_point_to_vec3(shot_subpath.sample(distance))
     })
 }
 

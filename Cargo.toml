@@ -19,7 +19,7 @@ path = "src/lib.rs"
 [dependencies]
 glam = "0.20"
 rl_ball_sym = "1.0"
-dubins_paths = "1.1"
+dubins_paths = "1.2"
 
 [dependencies.pyo3]
 version = "0.15.1"

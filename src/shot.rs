@@ -1,4 +1,4 @@
-use dubins_paths::DubinsPath;
+use dubins_paths::{DubinsError, DubinsPath};
 use glam::Vec3A;
 use pyo3::{types::PyDict, PyResult};
 
@@ -13,10 +13,10 @@ pub struct Shot {
 }
 
 impl Shot {
-    pub const STEP_DISTANCE: f32 = 10.;
+    const STEP_DISTANCE: f32 = 10.;
 
     pub fn from(time: f32, path: DubinsPath, distances: [f32; 4]) -> Self {
-        let pre_sections = path.sample_many(Self::STEP_DISTANCE).unwrap();
+        let pre_sections = path.sample_many(Self::STEP_DISTANCE);
         let mut sections = Vec::with_capacity(pre_sections.len());
 
         for section in pre_sections {
@@ -31,22 +31,36 @@ impl Shot {
         }
     }
 
-    pub fn ternary_sections(&self, location: Vec3A) -> usize {
-        self.unimodal_min(location, 0, self.sections.len())
+    /// Find the minimum distance between a Vec3A and the shot sections
+    /// Use a ternary search
+    /// Sections is sorted in a unimodal fashion
+    /// Returns the index of the section
+    fn find_min_distance_index(&self, target: Vec3A) -> usize {
+        let mut start_index = 0;
+        let mut end_index = self.sections.len() - 1;
+
+        while start_index < end_index {
+            let mid_index = (start_index + end_index) / 2;
+
+            if self.sections[mid_index].distance(target) < self.sections[mid_index + 1].distance(target) {
+                end_index = mid_index - 1;
+            } else {
+                start_index = mid_index + 1;
+            }
+        }
+
+        start_index
     }
 
-    fn unimodal_min(&self, location: Vec3A, low: usize, high: usize) -> usize {
-        if low == high - 1 {
-            return low;
-        }
+    /// Use find_min_distance_index to find the index using the target
+    /// Multiply the index by the step distance to get the path distance
+    /// Extract the subpath from the path distance
+    /// Return either the subpath or a DubinsError
+    pub fn extract_subpath_from_target(&self, target: Vec3A) -> Result<DubinsPath, DubinsError> {
+        let index = self.find_min_distance_index(target);
+        let path_distance = index as f32 * Shot::STEP_DISTANCE;
 
-        let mid = (high + low) / 2;
-
-        if self.sections[mid].distance(location) > self.sections[mid + 1].distance(location) {
-            self.unimodal_min(location, low, mid)
-        } else {
-            self.unimodal_min(location, mid + 1, high)
-        }
+        Ok(self.path.extract_subpath(path_distance))
     }
 }
 
@@ -94,7 +108,7 @@ pub struct Target {
 }
 
 impl Target {
-    pub fn new(target_left: Vec3A, target_right: Vec3A, car_index: usize, options: Options) -> Self {
+    pub const fn new(target_left: Vec3A, target_right: Vec3A, car_index: usize, options: Options) -> Self {
         Self {
             car_index,
             target_left,
@@ -109,7 +123,7 @@ impl Target {
         self.confirmed = true;
     }
 
-    pub fn is_confirmed(&self) -> bool {
+    pub const fn is_confirmed(&self) -> bool {
         self.confirmed
     }
 }
