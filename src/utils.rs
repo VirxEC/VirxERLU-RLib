@@ -1,4 +1,4 @@
-use pyo3::{exceptions, types::PyDict, PyAny, PyErr, PyResult};
+use pyo3::{exceptions, PyAny, PyErr, PyResult};
 
 use glam::Vec3A;
 
@@ -8,20 +8,6 @@ pub fn get_vec3_named(py_vec: &PyAny) -> PyResult<Vec3A> {
         py_vec.getattr("y")?.extract()?,
         py_vec.getattr("z")?.extract()?,
     ))
-}
-
-pub fn get_usize_from_dict(py_dict: &PyDict, key: &str, name: &str) -> PyResult<usize> {
-    match py_dict.get_item(key) {
-        Some(py_num) => Ok(py_num.extract()?),
-        None => Err(PyErr::new::<exceptions::PyAttributeError, _>(format!("No key called '{}' in '{}'.", key, name))),
-    }
-}
-
-pub fn get_bool_from_dict(py_dict: &PyDict, key: &str, name: &str) -> PyResult<bool> {
-    match py_dict.get_item(key) {
-        Some(py_bool) => Ok(py_bool.is_true()?),
-        None => Err(PyErr::new::<exceptions::PyAttributeError, _>(format!("No key called '{}' in '{}'.", key, name))),
-    }
 }
 
 pub fn get_vec3_from_vec(vec: Vec<f32>, name: &str) -> PyResult<Vec3A> {

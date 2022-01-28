@@ -1,6 +1,6 @@
 use std::f32::INFINITY;
 
-use dubins_paths::{DubinsError, DubinsIntermediateResults, DubinsPath, DubinsPathType};
+use dubins_paths::{DubinsError, DubinsIntermediateResults, DubinsPath, DubinsPathType, DubinsResult};
 use glam::Vec3A;
 use rl_ball_sym::simulation::ball::Ball;
 
@@ -37,7 +37,7 @@ fn path_point_to_vec3(endpoint: [f32; 3]) -> Vec3A {
     Vec3A::new(endpoint[0], endpoint[1], 0.)
 }
 
-fn shortest_path_in_validate(q0: [f32; 3], q1: [f32; 3], rho: f32, car_field: &CarFieldRect, max_distance: f32, validate: bool) -> Result<DubinsPath, DubinsError> {
+fn shortest_path_in_validate(q0: [f32; 3], q1: [f32; 3], rho: f32, car_field: &CarFieldRect, max_distance: f32, validate: bool) -> DubinsResult<DubinsPath> {
     let mut best_cost = INFINITY;
     let mut best_path = None;
 
@@ -119,7 +119,7 @@ pub struct AnalyzeOptions {
 
 const OFFSET_DISTANCE: f32 = 640.;
 
-pub fn analyze_target(ball: &Ball, car: &Car, shot_vector: Vec3A, time_remaining: f32, options: AnalyzeOptions) -> Result<TargetInfo, DubinsError> {
+pub fn analyze_target(ball: &Ball, car: &Car, shot_vector: Vec3A, time_remaining: f32, options: AnalyzeOptions) -> DubinsResult<TargetInfo> {
     let offset_target = ball.location - (shot_vector * ball.radius);
     let car_front_length = (car.hitbox_offset.x + car.hitbox.length) / 2.;
 
@@ -159,7 +159,7 @@ pub fn analyze_target(ball: &Ball, car: &Car, shot_vector: Vec3A, time_remaining
     })
 }
 
-pub fn get_target(car: &Car, shot: &Shot, shot_vector: Vec3A) -> Result<Vec3A, DubinsError> {
+pub fn get_target(car: &Car, shot: &Shot, shot_vector: Vec3A) -> DubinsResult<Vec3A> {
     let car_front_length = (car.hitbox_offset.x + car.hitbox.length) / 2.;
     let shot_subpath = shot.extract_subpath_from_target(car.location)?;
     let distance = car.local_velocity.x.max(500.) * STEER_REACTION_TIME;

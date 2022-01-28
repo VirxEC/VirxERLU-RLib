@@ -49,7 +49,7 @@ packet.game_info.world_gravity_z = -650.
 packet.teams[1].team_index = 1
 packet.num_teams = 2
 
-times = [[], [], [], [], [], []]
+times = [[], [], [], [], [], [], []]
 
 print("")
 
@@ -60,36 +60,11 @@ for _ in range(5000):
 
     rlru.tick(packet)
 
-    rlru.new_target((
-        800, 5120, 0,
-    ), (
-        -800, 5120, 0,
-    ), 0, {
-        "all": True,
-        "use_absolute_max_values": True,
-    })
-
-    rlru.new_target((
-        800, 5120, 0,
-    ), (
-        -800, 5120, 0,
-    ), 0, {
-        "use_absolute_max_values": True,
-    })
-
-    rlru.new_target((
-        800, 5120, 0,
-    ), (
-        -800, 5120, 0,
-    ), 0, {
-        "all": True,
-    })
-    
-    rlru.new_target((
-        800, 5120, 0,
-    ), (
-        -800, 5120, 0,
-    ), 0, {})
+    target_args = ((800, 5120, 0), (-800, 5120, 0), 0)
+    rlru.new_target(*target_args, use_absolute_max_values=True, all=True)
+    rlru.new_target(*target_args, use_absolute_max_values=True)
+    rlru.new_target(*target_args, all=True)
+    rlru.new_target(*target_args)
 
     times[0].append(time_ns() - start)
 
@@ -110,6 +85,12 @@ for _ in range(5000):
     rlru.get_shot_with_target(2)
 
     times[1].append(time_ns() - start)
+
+    start = time_ns()
+
+    rlru.get_shot_with_target(3, temporary=True)
+
+    times[6].append(time_ns() - start)
 
     start = time_ns()
 
@@ -152,6 +133,12 @@ print("")
 print("get_shot_with_target():")
 print(f"Total test time: {round(sum(times[2]) / 1000000000, 4)}s")
 print(f"Avg. time of execution: {round(sum(times[2]) / len(times[2]) / 1000000, 3)}ms")
+
+print("")
+
+print("get_shot_with_target(temporary):")
+print(f"Total test time: {round(sum(times[6]) / 1000000000, 4)}s")
+print(f"Avg. time of execution: {round(sum(times[6]) / len(times[6]) / 1000000, 3)}ms")
 
 print("")
 

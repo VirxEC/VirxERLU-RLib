@@ -33,6 +33,8 @@ Currently, VirxERLU-RLib has:
 + Shoots between two goal posts, not at a single point
 + Goal post correction
 + GameTickPacket parsing
++ Custom ball prediction struct length
++ Temporary shots (for just checking the time of a possible shot)
 + Support for any car on the field
 + Shot options
     - Search starting slice

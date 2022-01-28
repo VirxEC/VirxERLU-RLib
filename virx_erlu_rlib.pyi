@@ -31,9 +31,11 @@ except ImportError:
     pass
 
 
-def tick(packet: GameTickPacket) -> None:
+def tick(packet: GameTickPacket, prediction_time: float=6.) -> None:
     """
     Parses the game tick packet from RLBot
+
+    prediction_time: The number of seconds into the future to generate the ball prediction struct
     """
 
 
@@ -43,11 +45,20 @@ def get_slice(time: float) -> dict:
     """
 
 
-def new_target(left_target: tuple[float, float, float], right_target: tuple[float, float, float], car_index: int, options: dict) -> int:
+def new_target(left_target: tuple[float, float, float], right_target: tuple[float, float, float], car_index: int, min_slice: int=0, max_slice: int=720, use_absolute_max_values: bool=False, all: bool=False) -> int:
     """
     Creates a new target and returns the target's I.D.
 
     Targets get automatically deleted upon calling tick() if it hasn't been confirmed.
+
+    OPTIONAL arguments (defaults recommended):
+
+    min_slice: the prediction slice to start the search from
+    max_slice: the prediction slice to end the search at
+    use_absolute_max_values: whether to use the absolute max values for the search
+    all: whether to search for all slices or just the first slice
+
+    NOTE: max_slice isn't always 720, but is set to the current number of slices in the ball prediction struct upon creation 
     """
 
 
@@ -71,9 +82,11 @@ def print_targets() -> None:
     """
 
 
-def get_shot_with_target(target_id: int) -> dict:
+def get_shot_with_target(target_id: int, temporary: bool=False) -> dict:
     """
     Searches the ball prediction struct for a shot
+
+    temporary: Setting this to False will only return the time of the shot, if found
     """
 
 

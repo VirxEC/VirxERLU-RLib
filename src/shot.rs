@@ -1,8 +1,5 @@
-use dubins_paths::{DubinsError, DubinsPath};
+use dubins_paths::{DubinsPath, DubinsResult};
 use glam::Vec3A;
-use pyo3::{types::PyDict, PyResult};
-
-use crate::utils::{get_bool_from_dict, get_usize_from_dict};
 
 #[derive(Clone, Debug)]
 pub struct Shot {
@@ -102,7 +99,7 @@ impl Shot {
     /// Multiply the index by the step distance to get the path distance
     /// Extract the subpath from the path distance
     /// Return either the subpath or a DubinsError
-    pub fn extract_subpath_from_target(&self, target: Vec3A) -> Result<DubinsPath, DubinsError> {
+    pub fn extract_subpath_from_target(&self, target: Vec3A) -> DubinsResult<DubinsPath> {
         let (segment, index) = self.find_min_distance_index(target);
         let path_distance = index as f32 * Shot::STEP_DISTANCE;
 
@@ -119,27 +116,18 @@ pub struct Options {
 }
 
 impl Options {
-    pub fn from(py_options: &PyDict, max_slices: usize) -> PyResult<Self> {
-        let all = get_bool_from_dict(py_options, "all", "options").unwrap_or(false);
+    pub fn from(min_slice: Option<usize>, max_slice: Option<usize>, use_absolute_max_values: Option<bool>, all: Option<bool>, max_slices: usize) -> Self {
+        let min_slice = min_slice.unwrap_or(0);
+        let max_slice = max_slice.unwrap_or(max_slices);
+        let use_absolute_max_values = use_absolute_max_values.unwrap_or(false);
+        let all = all.unwrap_or(false);
 
-        let use_absolute_max_values = get_bool_from_dict(py_options, "use_absolute_max_values", "options").unwrap_or(false);
-
-        let min_slice = match get_usize_from_dict(py_options, "min_slice", "options") {
-            Ok(u) => u.max(0),
-            Err(_) => 0,
-        };
-
-        let max_slice = match get_usize_from_dict(py_options, "max_slice", "options") {
-            Ok(u) => u.min(max_slices),
-            Err(_) => max_slices,
-        };
-
-        Ok(Self {
+        Self {
             all,
             use_absolute_max_values,
             min_slice,
             max_slice,
-        })
+        }
     }
 }
 

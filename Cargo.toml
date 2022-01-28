@@ -22,7 +22,7 @@ rl_ball_sym = "1.0"
 dubins_paths = "1.2"
 
 [dependencies.pyo3]
-version = "0.15.1"
+version = "0.15"
 features = ["extension-module"]
 
 [profile.release]

@@ -93,7 +93,7 @@ fn load_soccar_throwback() -> PyResult<()> {
 }
 
 #[pyfunction]
-fn tick(py: Python, packet: PyObject) -> PyResult<()> {
+fn tick(py: Python, packet: PyObject, prediction_time: Option<f32>) -> PyResult<()> {
     let game: &mut Game;
     let cars: &mut Vec<Car>;
     let targets: &mut Vec<Option<Target>>;
@@ -195,7 +195,8 @@ fn tick(py: Python, packet: PyObject) -> PyResult<()> {
     game.ball.collision_radius = game.ball.radius + 1.9;
     game.ball.calculate_moi();
 
-    let ball_struct = Ball::get_ball_prediction_struct_for_time(game, &6.);
+    let prediction_time = prediction_time.unwrap_or(6.);
+    let ball_struct = Ball::get_ball_prediction_struct_for_time(game, &prediction_time);
 
     unsafe {
         BALL_STRUCT = Some(ball_struct);
@@ -241,7 +242,15 @@ fn get_slice(py: Python, slice_time: f32) -> PyResult<&PyDict> {
 }
 
 #[pyfunction]
-fn new_target(left_target: Vec<f32>, right_target: Vec<f32>, car_index: usize, options: &PyDict) -> PyResult<usize> {
+fn new_target(
+    left_target: Vec<f32>,
+    right_target: Vec<f32>,
+    car_index: usize,
+    min_slice: Option<usize>,
+    max_slice: Option<usize>,
+    use_absolute_max_values: Option<bool>,
+    all: Option<bool>,
+) -> PyResult<usize> {
     let num_slices: usize;
 
     unsafe {
@@ -255,7 +264,7 @@ fn new_target(left_target: Vec<f32>, right_target: Vec<f32>, car_index: usize, o
 
     let target_left = get_vec3_from_vec(left_target, "target_left")?;
     let target_right = get_vec3_from_vec(right_target, "target_right")?;
-    let options = Options::from(options, num_slices)?;
+    let options = Options::from(min_slice, max_slice, use_absolute_max_values, all, num_slices);
 
     let target = Some(Target::new(target_left, target_right, car_index, options));
     let target_index;
@@ -313,7 +322,7 @@ fn print_targets() -> PyResult<()> {
 }
 
 #[pyfunction]
-fn get_shot_with_target(py: Python, target_index: usize) -> PyResult<&PyDict> {
+fn get_shot_with_target(py: Python, target_index: usize, temporary: Option<bool>) -> PyResult<&PyDict> {
     let game_time: &f32;
     let _gravity: &Vec3A;
     let radius: &f32;
@@ -378,6 +387,8 @@ fn get_shot_with_target(py: Python, target_index: usize) -> PyResult<&PyDict> {
         validate: true,
     };
 
+    let temporary = temporary.unwrap_or(false);
+
     for ball in &ball_prediction.slices[target.options.min_slice..target.options.max_slice] {
         if ball.location.y.abs() > 5120. + ball.collision_radius {
             break;
@@ -418,7 +429,10 @@ fn get_shot_with_target(py: Python, target_index: usize) -> PyResult<&PyDict> {
 
         if found_shot.is_none() {
             found_time = Some(ball.time);
-            found_shot = Some(Shot::from(ball.time, result.path, result.distances));
+
+            if !temporary {
+                found_shot = Some(Shot::from(ball.time, result.path, result.distances));
+            }
 
             if !target.options.all {
                 break;
