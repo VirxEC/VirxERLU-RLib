@@ -1,33 +1,27 @@
 __doc__: str
 
 
-def load_soccar():
+def load_soccar() -> None:
     """
     Loads the geometry of a standard soccar field
     """
 
 
-def load_dropshot():
+def load_dropshot() -> None:
     """
     Loads the geometry of a standard dropshot field
     """
 
 
-def load_hoops():
+def load_hoops() -> None:
     """
     Loads the geometry of a standard hoops field
     """
 
 
-def load_soccar_throwback():
+def load_soccar_throwback() -> None:
     """
     Loads the geometry of the field Throwback Stadium
-    """
-
-
-def set_gravity(z: float):
-    """
-    Tells the library what the current gravity is
     """
 
 
@@ -37,7 +31,7 @@ except ImportError:
     pass
 
 
-def tick(packet: GameTickPacket):
+def tick(packet: GameTickPacket) -> None:
     """
     Parses the game tick packet from RLBot
     """
@@ -57,7 +51,7 @@ def new_target(left_target: tuple[float, float, float], right_target: tuple[floa
     """
 
 
-def confirm_target(target_id: int):
+def confirm_target(target_id: int) -> None:
     """
     Confirms a target so it isn't deleted upon calling tick()
 
@@ -65,13 +59,13 @@ def confirm_target(target_id: int):
     """
 
 
-def remove_target(target_id: int):
+def remove_target(target_id: int) -> None:
     """
     Removes a target, letting it's I.D. be reused 
     """
 
 
-def print_targets():
+def print_targets() -> None:
     """
     Prints the current list of targets
     """

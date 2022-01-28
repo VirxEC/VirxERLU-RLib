@@ -1,13 +1,10 @@
-extern crate pyo3;
-extern crate rl_ball_sym;
-
 mod car;
 mod constants;
 mod ground;
 mod shot;
 mod utils;
 
-use car::{turn_radius, Car, Hitbox};
+use car::{turn_radius, Car};
 use constants::*;
 use glam::Vec3A;
 use ground::*;
@@ -40,9 +37,7 @@ fn virx_erlu_rlib(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(load_dropshot, m)?)?;
     m.add_function(wrap_pyfunction!(load_hoops, m)?)?;
     m.add_function(wrap_pyfunction!(load_soccar_throwback, m)?)?;
-    m.add_function(wrap_pyfunction!(set_gravity, m)?)?;
     m.add_function(wrap_pyfunction!(tick, m)?)?;
-    m.add_function(wrap_pyfunction!(tick_dict, m)?)?;
     m.add_function(wrap_pyfunction!(get_slice, m)?)?;
     m.add_function(wrap_pyfunction!(new_target, m)?)?;
     m.add_function(wrap_pyfunction!(confirm_target, m)?)?;
@@ -98,25 +93,7 @@ fn load_soccar_throwback() -> PyResult<()> {
 }
 
 #[pyfunction]
-fn set_gravity(z: f32) -> PyResult<()> {
-    let game: &mut Game;
-
-    unsafe {
-        game = match GAME.as_mut() {
-            Some(game) => game,
-            None => {
-                return Err(PyErr::new::<exceptions::PyNameError, _>(NO_GAME_ERR));
-            }
-        };
-    }
-
-    game.gravity.z = z;
-
-    Ok(())
-}
-
-#[pyfunction]
-fn tick(py: Python, packet: PyObject) -> PyResult<PyObject> {
+fn tick(py: Python, packet: PyObject) -> PyResult<()> {
     let game: &mut Game;
     let cars: &mut Vec<Car>;
     let targets: &mut Vec<Option<Target>>;
@@ -190,116 +167,43 @@ fn tick(py: Python, packet: PyObject) -> PyResult<PyObject> {
         num_teams: 2
     >
     */
-    let py_game_info = packet.getattr(py, "game_info")?;
+    let packet = packet.as_ref(py);
 
-    let time = py_game_info.getattr(py, "seconds_elapsed")?.extract(py)?;
+    let py_game_info = packet.getattr("game_info")?;
+
+    let time = py_game_info.getattr("seconds_elapsed")?.extract()?;
 
     unsafe {
         GAME_TIME = time;
     }
 
-    game.gravity.z = py_game_info.getattr(py, "world_gravity_z")?.extract(py)?;
+    game.gravity.z = py_game_info.getattr("world_gravity_z")?.extract()?;
 
-    let py_ball = packet.getattr(py, "game_ball")?;
-    let py_ball_physics = py_ball.getattr(py, "physics")?;
+    let py_ball = packet.getattr("game_ball")?;
+    let py_ball_physics = py_ball.getattr("physics")?;
 
     game.ball.update(
         time,
-        get_vec3_named(py, py_ball_physics.getattr(py, "location")?)?,
-        get_vec3_named(py, py_ball_physics.getattr(py, "velocity")?)?,
-        get_vec3_named(py, py_ball_physics.getattr(py, "angular_velocity")?)?,
+        get_vec3_named(py_ball_physics.getattr("location")?)?,
+        get_vec3_named(py_ball_physics.getattr("velocity")?)?,
+        get_vec3_named(py_ball_physics.getattr("angular_velocity")?)?,
     );
 
-    let py_ball_shape = py_ball.getattr(py, "collision_shape")?;
+    let py_ball_shape = py_ball.getattr("collision_shape")?;
 
-    game.ball.radius = py_ball_shape.getattr(py, "sphere")?.getattr(py, "diameter")?.extract::<f32>(py)? / 2.;
+    game.ball.radius = py_ball_shape.getattr("sphere")?.getattr("diameter")?.extract::<f32>()? / 2.;
     game.ball.collision_radius = game.ball.radius + 0.9;
     game.ball.calculate_moi();
 
-    let num_cars = packet.getattr(py, "num_cars")?.extract::<usize>(py)?;
-    let py_game_cars = packet.getattr(py, "game_cars")?;
+    unsafe {
+        BALL_STRUCT = Some(Ball::get_ball_prediction_struct_for_time(game, &6.));
+    }
+
+    let num_cars = packet.getattr("num_cars")?.extract::<usize>()?;
+    let py_game_cars = packet.getattr("game_cars")?;
 
     for (i, car) in cars.iter_mut().enumerate().take(num_cars) {
-        car.update(py, py_game_cars.getattr(py, i)?)?;
-    }
-
-    unsafe {
-        BALL_STRUCT = Some(Ball::get_ball_prediction_struct_for_time(game, &6.));
-    }
-
-    Ok(py.None())
-}
-
-#[pyfunction]
-fn tick_dict(time: f32, ball: &PyDict, car: &PyDict) -> PyResult<()> {
-    let mut game: &mut Game;
-    let cars: &mut Vec<Car>;
-    let targets: &mut Vec<Option<Target>>;
-
-    unsafe {
-        game = match GAME.as_mut() {
-            Some(game) => game,
-            None => {
-                return Err(PyErr::new::<exceptions::PyNameError, _>(NO_GAME_ERR));
-            }
-        };
-
-        cars = match &mut CARS {
-            Some(cars) => cars,
-            None => {
-                return Err(PyErr::new::<exceptions::PyNameError, _>(NO_CARS_ERR));
-            }
-        };
-
-        targets = &mut TARGETS;
-    }
-
-    targets.retain(|target| match target {
-        Some(t) => t.is_confirmed(),
-        None => true,
-    });
-
-    game.ball.time = time;
-
-    unsafe {
-        GAME_TIME = game.ball.time;
-    }
-
-    game.ball.location = get_vec3_from_dict(ball, "location", "ball")?;
-    game.ball.velocity = get_vec3_from_dict(ball, "velocity", "ball")?;
-    game.ball.angular_velocity = get_vec3_from_dict(ball, "angular_velocity", "ball")?;
-
-    if let Some(radius) = ball.get_item("radius") {
-        game.ball.radius = radius.extract()?;
-        game.ball.calculate_moi();
-    }
-
-    if let Some(collision_radius) = ball.get_item("collision_radius") {
-        game.ball.collision_radius = collision_radius.extract()?;
-    }
-
-    let index = get_usize_from_dict(car, "index", "car")?;
-
-    cars[index].location = get_vec3_from_dict(car, "location", "car")?;
-    cars[index].velocity = get_vec3_from_dict(car, "velocity", "car")?;
-    cars[index].angular_velocity = get_vec3_from_dict(car, "angular_velocity", "car")?;
-    cars[index].hitbox = Hitbox::from_vec3(get_vec3_from_dict(car, "hitbox", "car")?);
-    cars[index].hitbox_offset = get_vec3_from_dict(car, "hitbox_offset", "car")?;
-    cars[index].pitch = get_f32_from_dict(car, "pitch", "car")?;
-    cars[index].yaw = get_f32_from_dict(car, "yaw", "car")?;
-    cars[index].roll = get_f32_from_dict(car, "roll", "car")?;
-    cars[index].boost = get_u8_from_dict(car, "boost", "car")?;
-    cars[index].demolished = get_bool_from_dict(car, "demolished", "car")?;
-    cars[index].airborne = get_bool_from_dict(car, "airborne", "car")?;
-    cars[index].jumped = get_bool_from_dict(car, "jumped", "car")?;
-    cars[index].doublejumped = get_bool_from_dict(car, "doublejumped", "car")?;
-    cars[index].calculate_orientation_matrix();
-    cars[index].calculate_max_values();
-    cars[index].calculate_local_values();
-    cars[index].calculate_field();
-
-    unsafe {
-        BALL_STRUCT = Some(Ball::get_ball_prediction_struct_for_time(game, &6.));
+        car.update(py_game_cars.get_item(i)?)?;
     }
 
     Ok(())

@@ -1,5 +1,5 @@
 use glam::Vec3A;
-use pyo3::{PyObject, PyResult, Python};
+use pyo3::{PyAny, PyResult};
 
 use crate::{constants::*, utils::get_vec3_named};
 
@@ -51,16 +51,6 @@ pub struct Hitbox {
     pub length: f32,
     pub width: f32,
     pub height: f32,
-}
-
-impl Hitbox {
-    pub fn from_vec3(vec: Vec3A) -> Self {
-        Self {
-            length: vec.x,
-            width: vec.y,
-            height: vec.z,
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -174,34 +164,34 @@ pub struct Car {
 }
 
 impl Car {
-    pub fn update(&mut self, py: Python, py_car: PyObject) -> PyResult<()> {
-        let py_car_physics = py_car.getattr(py, "physics")?;
+    pub fn update(&mut self, py_car: &PyAny) -> PyResult<()> {
+        let py_car_physics = py_car.getattr("physics")?;
 
-        self.location = get_vec3_named(py, py_car_physics.getattr(py, "location")?)?;
-        self.velocity = get_vec3_named(py, py_car_physics.getattr(py, "velocity")?)?;
-        self.angular_velocity = get_vec3_named(py, py_car_physics.getattr(py, "angular_velocity")?)?;
+        self.location = get_vec3_named(py_car_physics.getattr("location")?)?;
+        self.velocity = get_vec3_named(py_car_physics.getattr("velocity")?)?;
+        self.angular_velocity = get_vec3_named(py_car_physics.getattr("angular_velocity")?)?;
 
-        let py_car_rotator = py_car_physics.getattr(py, "rotation")?;
+        let py_car_rotator = py_car_physics.getattr("rotation")?;
 
-        self.pitch = py_car_rotator.getattr(py, "pitch")?.extract(py)?;
-        self.yaw = py_car_rotator.getattr(py, "yaw")?.extract(py)?;
-        self.roll = py_car_rotator.getattr(py, "roll")?.extract(py)?;
+        self.pitch = py_car_rotator.getattr("pitch")?.extract()?;
+        self.yaw = py_car_rotator.getattr("yaw")?.extract()?;
+        self.roll = py_car_rotator.getattr("roll")?.extract()?;
 
-        let py_car_hitbox = py_car.getattr(py, "hitbox")?;
+        let py_car_hitbox = py_car.getattr("hitbox")?;
 
         self.hitbox = Hitbox {
-            length: py_car_hitbox.getattr(py, "length")?.extract(py)?,
-            width: py_car_hitbox.getattr(py, "width")?.extract(py)?,
-            height: py_car_hitbox.getattr(py, "height")?.extract(py)?,
+            length: py_car_hitbox.getattr("length")?.extract()?,
+            width: py_car_hitbox.getattr("width")?.extract()?,
+            height: py_car_hitbox.getattr("height")?.extract()?,
         };
 
-        self.hitbox_offset = get_vec3_named(py, py_car.getattr(py, "hitbox_offset")?)?;
+        self.hitbox_offset = get_vec3_named(py_car.getattr("hitbox_offset")?)?;
 
-        self.boost = py_car.getattr(py, "boost")?.extract(py)?;
-        self.demolished = py_car.getattr(py, "is_demolished")?.extract(py)?;
-        self.airborne = !py_car.getattr(py, "has_wheel_contact")?.extract(py)?;
-        self.jumped = py_car.getattr(py, "jumped")?.extract(py)?;
-        self.doublejumped = py_car.getattr(py, "double_jumped")?.extract(py)?;
+        self.boost = py_car.getattr("boost")?.extract()?;
+        self.demolished = py_car.getattr("is_demolished")?.extract()?;
+        self.airborne = !py_car.getattr("has_wheel_contact")?.extract()?;
+        self.jumped = py_car.getattr("jumped")?.extract()?;
+        self.doublejumped = py_car.getattr("double_jumped")?.extract()?;
 
         self.calculate_orientation_matrix();
         self.calculate_max_values();
