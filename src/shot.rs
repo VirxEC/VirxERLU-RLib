@@ -7,49 +7,95 @@ use crate::utils::{get_bool_from_dict, get_usize_from_dict};
 #[derive(Clone, Debug)]
 pub struct Shot {
     pub time: f32,
-    pub path: DubinsPath,
+    pub subpaths: [DubinsPath; 3],
     pub distances: [f32; 4],
-    pub sections: Vec<Vec3A>,
+    pub all_samples: Vec<Vec<f32>>,
+    pub samples: [Vec<Vec3A>; 3],
 }
 
 impl Shot {
     const STEP_DISTANCE: f32 = 10.;
 
     pub fn from(time: f32, path: DubinsPath, distances: [f32; 4]) -> Self {
-        let pre_sections = path.sample_many(Self::STEP_DISTANCE);
-        let mut sections = Vec::with_capacity(pre_sections.len());
+        // the distance of each segment
+        let segment_distances = [path.segment_length(0), path.segment_length(0) + path.segment_length(1), path.length()];
 
-        for section in pre_sections {
-            sections.push(Vec3A::new(section[0], section[1], section[2]));
-        }
+        // extract the subpath at each distance in segment_distances
+        let subpaths = [
+            path.extract_subpath(segment_distances[0]),
+            path.extract_subpath(segment_distances[1]),
+            path.extract_subpath(segment_distances[2]),
+        ];
+
+        // the samples for each subpath
+        let raw_samples = [
+            subpaths[0].sample_many(Shot::STEP_DISTANCE),
+            subpaths[1].sample_many(Shot::STEP_DISTANCE),
+            subpaths[2].sample_many(Shot::STEP_DISTANCE),
+        ];
+
+        let all_samples = raw_samples[0]
+            .iter()
+            .map(|x| vec![x[0], x[1]])
+            .chain(raw_samples[1].iter().map(|x| vec![x[0], x[1]]))
+            .chain(raw_samples[2].iter().map(|x| vec![x[0], x[1]]))
+            .collect();
+
+        let samples: [Vec<Vec3A>; 3] = [
+            raw_samples[0].iter().map(|v| Vec3A::new(v[0], v[1], 0.)).collect(),
+            raw_samples[1].iter().map(|v| Vec3A::new(v[0], v[1], 0.)).collect(),
+            raw_samples[2].iter().map(|v| Vec3A::new(v[0], v[1], 0.)).collect(),
+        ];
 
         Self {
             time,
-            path,
+            subpaths,
             distances,
-            sections,
+            all_samples,
+            samples,
         }
     }
 
     /// Find the minimum distance between a Vec3A and the shot sections
-    /// Use a ternary search
+    /// Use a binary search
     /// Sections is sorted in a unimodal fashion
     /// Returns the index of the section
-    fn find_min_distance_index(&self, target: Vec3A) -> usize {
+    fn find_min_distance_in_segment_index(&self, segment: usize, target: Vec3A) -> (usize, f32) {
+        let mut min_distance = f32::MAX;
         let mut start_index = 0;
-        let mut end_index = self.sections.len() - 1;
+        let mut end_index = self.samples[segment].len() - 1;
 
         while start_index < end_index {
             let mid_index = (start_index + end_index) / 2;
+            min_distance = self.samples[segment][mid_index].distance(target);
 
-            if self.sections[mid_index].distance(target) < self.sections[mid_index + 1].distance(target) {
+            if min_distance < self.samples[segment][mid_index + 1].distance(target) {
                 end_index = mid_index - 1;
             } else {
                 start_index = mid_index + 1;
             }
         }
 
-        start_index
+        (start_index, min_distance)
+    }
+
+    // Returns the index of the section and the index in the section
+    fn find_min_distance_index(&self, target: Vec3A) -> (usize, usize) {
+        let mut min_distance = f32::MAX;
+        let mut min_distance_index = 0;
+        let mut min_distance_index_in_section = 0;
+
+        for segment in 0..self.samples.len() {
+            let (index, distance) = self.find_min_distance_in_segment_index(segment, target);
+
+            if distance < min_distance {
+                min_distance = distance;
+                min_distance_index = segment;
+                min_distance_index_in_section = index;
+            }
+        }
+
+        (min_distance_index, min_distance_index_in_section)
     }
 
     /// Use find_min_distance_index to find the index using the target
@@ -57,10 +103,10 @@ impl Shot {
     /// Extract the subpath from the path distance
     /// Return either the subpath or a DubinsError
     pub fn extract_subpath_from_target(&self, target: Vec3A) -> Result<DubinsPath, DubinsError> {
-        let index = self.find_min_distance_index(target);
+        let (segment, index) = self.find_min_distance_index(target);
         let path_distance = index as f32 * Shot::STEP_DISTANCE;
 
-        Ok(self.path.extract_subpath(path_distance))
+        Ok(self.subpaths[segment].extract_subpath(path_distance))
     }
 }
 

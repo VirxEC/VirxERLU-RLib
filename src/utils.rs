@@ -27,7 +27,11 @@ pub fn get_vec3(py_vec: &PyAny, too_few_vals_err_msg: String) -> PyResult<Vec3A>
 }
 
 pub fn get_vec3_named(py: Python, py_vec: PyObject) -> PyResult<Vec3A> {
-    Ok(Vec3A::new(py_vec.getattr(py, "x")?.extract(py)?, py_vec.getattr(py, "y")?.extract(py)?, py_vec.getattr(py, "z")?.extract(py)?))
+    Ok(Vec3A::new(
+        py_vec.getattr(py, "x")?.extract(py)?,
+        py_vec.getattr(py, "y")?.extract(py)?,
+        py_vec.getattr(py, "z")?.extract(py)?,
+    ))
 }
 
 pub fn get_vec3_from_dict(py_dict: &PyDict, key: &str, name: &str) -> PyResult<Vec3A> {
@@ -96,11 +100,7 @@ fn clamp_2d(vec: Vec3A, start: Vec3A, end: Vec3A) -> Vec3A {
     let right = s.dot(end.cross(-Vec3A::Z)) < 0.;
     let left = s.dot(start.cross(-Vec3A::Z)) > 0.;
 
-    let return_original = if end.dot(start.cross(-Vec3A::Z)) > 0. {
-        right && left
-    } else {
-        right || left
-    };
+    let return_original = if end.dot(start.cross(-Vec3A::Z)) > 0. { right && left } else { right || left };
 
     if return_original {
         vec
@@ -112,7 +112,11 @@ fn clamp_2d(vec: Vec3A, start: Vec3A, end: Vec3A) -> Vec3A {
 }
 
 pub fn get_shot_vector_2d(direction: Vec3A, ball_location: Vec3A, target_left: Vec3A, target_right: Vec3A) -> Vec3A {
-    clamp_2d(direction, (target_left - ball_location).normalize_or_zero(), (target_right - ball_location).normalize_or_zero())
+    clamp_2d(
+        direction,
+        (target_left - ball_location).normalize_or_zero(),
+        (target_right - ball_location).normalize_or_zero(),
+    )
 }
 
 pub fn flatten(vec: Vec3A) -> Vec3A {

@@ -90,6 +90,62 @@ impl CarFieldRect {
 
         p[1].abs() < self.goal_y
     }
+
+    /// Create a line from the end points p1 and p2
+    /// Check if the line is in the field or goal
+    pub fn is_line_in(&self, p1: &[f32; 3], p2: &[f32; 3]) -> bool {
+        // I have no idea if this works
+        let p1_in = self.is_point_in(p1);
+        let p2_in = self.is_point_in(p2);
+
+        if p1_in && p2_in {
+            return true;
+        }
+
+        if p1_in || p2_in {
+            return false;
+        }
+
+        let p1_x = p1[0].abs();
+        let p1_y = p1[1].abs();
+        let p2_x = p2[0].abs();
+        let p2_y = p2[1].abs();
+
+        if p1_x > self.goal_x && p2_x > self.goal_x {
+            return false;
+        }
+
+        if p1_x < self.field_x && p2_x < self.field_x {
+            return false;
+        }
+
+        if p1_y > self.goal_y && p2_y > self.goal_y {
+            return false;
+        }
+
+        if p1_y < self.field_y && p2_y < self.field_y {
+            return false;
+        }
+
+        let p1_x_in = p1_x < self.goal_x || p1_x > self.field_x;
+        let p1_y_in = p1_y < self.goal_y || p1_y > self.field_y;
+        let p2_x_in = p2_x < self.goal_x || p2_x > self.field_x;
+        let p2_y_in = p2_y < self.goal_y || p2_y > self.field_y;
+
+        if p1_x_in && p1_y_in && p2_x_in && p2_y_in {
+            return false;
+        }
+
+        if p1_x_in && p2_x_in {
+            return false;
+        }
+
+        if p1_y_in && p2_y_in {
+            return false;
+        }
+
+        true
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default)]

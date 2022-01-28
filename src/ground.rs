@@ -57,7 +57,7 @@ fn shortest_path_in_validate(q0: [f32; 3], q1: [f32; 3], rho: f32, car_field: &C
                 let mut valid = true;
 
                 // instead of this, do a better "is arc in" or "is line in" thing
-                for dist in [path.param[0] * path.rho / 2., (path.param[0] + path.param[1]) * path.rho / 2., (path.param[0] + path.param[1] + path.param[2]) * path.rho / 2.] {
+                for dist in [path.segment_length(0) / 2., (path.segment_length(0) + path.segment_length(1)) / 2., path.length() / 2.] {
                     if !car_field.is_point_in(&path.sample(dist)) {
                         valid = false;
                         break;
@@ -68,7 +68,7 @@ fn shortest_path_in_validate(q0: [f32; 3], q1: [f32; 3], rho: f32, car_field: &C
                     continue;
                 }
 
-                for dist in [path.param[0] * path.rho, (path.param[0] + path.param[1]) * path.rho, (path.param[0] + path.param[1] + path.param[2]) * path.rho] {
+                for dist in [path.segment_length(0), path.segment_length(0) + path.segment_length(1), path.length()] {
                     if !car_field.is_point_in(&path.sample(dist)) {
                         valid = false;
                         break;
@@ -98,11 +98,7 @@ pub struct TargetInfo {
 
 impl TargetInfo {
     pub const fn from(distances: [f32; 4], path: DubinsPath) -> Self {
-        Self {
-            distances,
-            path,
-            target: None,
-        }
+        Self { distances, path, target: None }
     }
     pub const fn from_target(distances: [f32; 4], target: Vec3A, path: DubinsPath) -> Self {
         Self {
@@ -216,11 +212,7 @@ pub fn can_reach_target(car: &Car, max_speed: f32, max_time: f32, distance_remai
         } else if BRAKE_COAST_TRANSITION < acceleration && acceleration < COASTING_THROTTLE_TRANSITION {
             throttle = 0.;
         } else if COASTING_THROTTLE_TRANSITION <= acceleration && acceleration <= throttle_boost_transition {
-            throttle = if throttle_accel == 0. {
-                1.
-            } else {
-                (acceleration / throttle_accel).clamp(0.02, 1.)
-            };
+            throttle = if throttle_accel == 0. { 1. } else { (acceleration / throttle_accel).clamp(0.02, 1.) };
         } else if b >= MIN_BOOST_CONSUMPTION && throttle_boost_transition < acceleration {
             throttle = 1.;
 

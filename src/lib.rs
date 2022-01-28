@@ -461,17 +461,9 @@ fn get_shot_with_target(py: Python, target_index: usize) -> PyResult<&PyDict> {
         return Ok(result);
     }
 
-    let max_speed = if target.options.use_absolute_max_values {
-        MAX_SPEED
-    } else {
-        car.max_speed
-    };
+    let max_speed = if target.options.use_absolute_max_values { MAX_SPEED } else { car.max_speed };
 
-    let max_turn_radius = if target.options.use_absolute_max_values {
-        turn_radius(MAX_SPEED)
-    } else {
-        car.ctrms
-    };
+    let max_turn_radius = if target.options.use_absolute_max_values { turn_radius(MAX_SPEED) } else { car.ctrms };
 
     let analyze_options = AnalyzeOptions {
         max_speed,
@@ -497,7 +489,12 @@ fn get_shot_with_target(py: Python, target_index: usize) -> PyResult<&PyDict> {
             continue;
         }
 
-        let shot_vector = get_shot_vector_2d(flatten(car_to_ball).normalize_or_zero(), flatten(ball.location), flatten(post_info.target_left), flatten(post_info.target_right));
+        let shot_vector = get_shot_vector_2d(
+            flatten(car_to_ball).normalize_or_zero(),
+            flatten(ball.location),
+            flatten(post_info.target_left),
+            flatten(post_info.target_right),
+        );
         let max_time_remaining = ball.time - game_time;
         let result = match analyze_target(ball, car, shot_vector, max_time_remaining, analyze_options) {
             Ok(r) => r,
@@ -587,14 +584,14 @@ fn get_data_for_shot_with_target(py: Python, target_index: usize) -> PyResult<&P
         };
     }
 
-    let result = PyDict::new(py);
-
-    let distance_remaining: f32 = shot.distances.iter().sum();
-    result.set_item("distance_remaining", distance_remaining)?;
-
     let car_to_ball = ball.location - car.location;
     let post_info = correct_for_posts(ball.location, ball.collision_radius, target.target_left, target.target_right);
-    let shot_vector = get_shot_vector_2d(flatten(car_to_ball).normalize_or_zero(), flatten(ball.location), flatten(post_info.target_left), flatten(post_info.target_right));
+    let shot_vector = get_shot_vector_2d(
+        flatten(car_to_ball).normalize_or_zero(),
+        flatten(ball.location),
+        flatten(post_info.target_left),
+        flatten(post_info.target_right),
+    );
 
     let target = match get_target(car, shot, shot_vector) {
         Ok(t) => t,
@@ -603,15 +600,12 @@ fn get_data_for_shot_with_target(py: Python, target_index: usize) -> PyResult<&P
         }
     };
 
+    let distance_remaining: f32 = shot.distances.iter().sum();
+
+    let result = PyDict::new(py);
+    result.set_item("distance_remaining", distance_remaining)?;
     result.set_item("final_target", get_vec_from_vec3(target))?;
-
-    let mut path_samples = Vec::with_capacity(shot.sections.len());
-
-    for section in &shot.sections {
-        path_samples.push(vec![section.x, section.y])
-    }
-
-    result.set_item("path_samples", path_samples)?;
+    result.set_item("path_samples", &shot.all_samples)?;
 
     Ok(result)
 }
