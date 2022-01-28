@@ -192,11 +192,13 @@ fn tick(py: Python, packet: PyObject) -> PyResult<()> {
     let py_ball_shape = py_ball.getattr("collision_shape")?;
 
     game.ball.radius = py_ball_shape.getattr("sphere")?.getattr("diameter")?.extract::<f32>()? / 2.;
-    game.ball.collision_radius = game.ball.radius + 0.9;
+    game.ball.collision_radius = game.ball.radius + 1.9;
     game.ball.calculate_moi();
 
+    let ball_struct = Ball::get_ball_prediction_struct_for_time(game, &6.);
+
     unsafe {
-        BALL_STRUCT = Some(Ball::get_ball_prediction_struct_for_time(game, &6.));
+        BALL_STRUCT = Some(ball_struct);
     }
 
     let num_cars = packet.getattr("num_cars")?.extract::<usize>()?;
@@ -415,8 +417,8 @@ fn get_shot_with_target(py: Python, target_index: usize) -> PyResult<&PyDict> {
         };
 
         if found_shot.is_none() {
-            found_shot = Some(Shot::from(ball.time, result.path, result.distances));
             found_time = Some(ball.time);
+            found_shot = Some(Shot::from(ball.time, result.path, result.distances));
 
             if !target.options.all {
                 break;

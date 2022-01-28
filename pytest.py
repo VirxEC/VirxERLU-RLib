@@ -42,10 +42,10 @@ for i in range(packet.num_cars):
         hitbox_offset=Vector3(13.9, 0., 20.8),
         spawn_id=1793714700,
     )
-packet.game_ball.physics.location.z = 93.
+packet.game_ball.physics.location.z = 95.
 packet.game_ball.collision_shape.type = 1
 packet.game_ball.collision_shape.sphere.diameter = 182.5
-packet.game_info.world_gravity_z = 650.
+packet.game_info.world_gravity_z = -650.
 packet.teams[1].team_index = 1
 packet.num_teams = 2
 
@@ -119,7 +119,7 @@ for _ in range(5000):
 
     start = time_ns()
 
-    # rlru.get_data_for_shot_with_target(3)
+    rlru.get_data_for_shot_with_target(3)
 
     times[3].append(time_ns() - start)
 
