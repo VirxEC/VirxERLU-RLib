@@ -3,11 +3,11 @@ from rlbot.utils.structures.game_data_struct import *
 
 import virx_erlu_rlib as rlru
 
-print("")
+print()
 
 print(rlru.__doc__)
 
-print("")
+print()
 
 print("Loading soccar...")
 rlru.load_soccar()
@@ -51,7 +51,61 @@ packet.num_teams = 2
 
 times = [[], [], [], [], [], [], []]
 
-print("")
+print()
+
+print("Testing...")
+
+print()
+
+rlru.tick(packet)
+
+target_args = ((800, 5120, 0), (-800, 5120, 0), 0)
+rlru.new_target(*target_args, use_absolute_max_values=True, all=True)
+rlru.new_target(*target_args, use_absolute_max_values=True)
+rlru.new_target(*target_args, all=True)
+rlru.new_target(*target_args)
+
+print("get_shot_with_target(use_absolute_max_values) worst-case:")
+shot = rlru.get_shot_with_target(0)
+print(shot)
+print(repr(shot))
+
+print()
+
+print("get_shot_with_target(use_absolute_max_values):")
+shot = rlru.get_shot_with_target(1)
+print(shot)
+print(repr(shot))
+
+print()
+
+print("get_shot_with_target() worst-case:")
+shot = rlru.get_shot_with_target(2)
+print(shot)
+print(repr(shot))
+
+print()
+
+print("get_shot_with_target():")
+shot = rlru.get_shot_with_target(3, temporary=True)
+print(shot)
+print(repr(shot))
+
+print()
+
+print("get_shot_with_target(temporary):")
+shot = rlru.get_shot_with_target(3)
+print(shot)
+print(repr(shot))
+
+print()
+
+print("get_data_for_shot_with_target():")
+data = rlru.get_data_for_shot_with_target(3)
+print(data)
+print(repr(data))
+
+print()
 
 print("Benchmarking...")
 
@@ -104,46 +158,44 @@ for _ in range(5000):
 
     times[3].append(time_ns() - start)
 
-print("")
-
 print("Starting:")
 print(f"Total test time: {round(sum(times[0]) / 1000000000, 4)}s")
 print(f"Avg. time of execution: {round(sum(times[0]) / len(times[0]) / 1000000, 3)}ms")
 
-print("")
+print()
 
 print("get_shot_with_target(use_absolute_max_values) worst-case:")
 print(f"Total test time: {round(sum(times[4]) / 1000000000, 4)}s")
 print(f"Avg. time of execution: {round(sum(times[4]) / len(times[1]) / 1000000, 3)}ms")
 
-print("")
+print()
 
 print("get_shot_with_target(use_absolute_max_values):")
 print(f"Total test time: {round(sum(times[5]) / 1000000000, 4)}s")
 print(f"Avg. time of execution: {round(sum(times[5]) / len(times[1]) / 1000000, 3)}ms")
 
-print("")
+print()
 
 print("get_shot_with_target() worst-case:")
 print(f"Total test time: {round(sum(times[1]) / 1000000000, 4)}s")
 print(f"Avg. time of execution: {round(sum(times[1]) / len(times[1]) / 1000000, 3)}ms")
 
-print("")
+print()
 
 print("get_shot_with_target():")
 print(f"Total test time: {round(sum(times[2]) / 1000000000, 4)}s")
 print(f"Avg. time of execution: {round(sum(times[2]) / len(times[2]) / 1000000, 3)}ms")
 
-print("")
+print()
 
 print("get_shot_with_target(temporary):")
 print(f"Total test time: {round(sum(times[6]) / 1000000000, 4)}s")
 print(f"Avg. time of execution: {round(sum(times[6]) / len(times[6]) / 1000000, 3)}ms")
 
-print("")
+print()
 
 print("get_data_for_shot_with_target():")
-print(f"Total test time: {round(sum(times[3]) / 1000000000, 4)}s")
-print(f"Avg. time of execution: {round(sum(times[3]) / len(times[3]) / 1000000, 3)}ms")
+print(f"Total test time: {round(sum(times[3]) / 1000000000, 6)}s")
+print(f"Avg. time of execution: {round(sum(times[3]) / len(times[3]) / 1000000, 5)}ms")
 
-print("")
+print()

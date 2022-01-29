@@ -6,7 +6,7 @@ pub struct Shot {
     pub time: f32,
     pub subpaths: [DubinsPath; 3],
     pub distances: [f32; 4],
-    pub all_samples: Vec<Vec<f32>>,
+    pub all_samples: Vec<(f32, f32)>,
     pub samples: [Vec<Vec3A>; 3],
 }
 
@@ -33,9 +33,9 @@ impl Shot {
 
         let all_samples = raw_samples[0]
             .iter()
-            .map(|x| vec![x[0], x[1]])
-            .chain(raw_samples[1].iter().map(|x| vec![x[0], x[1]]))
-            .chain(raw_samples[2].iter().map(|x| vec![x[0], x[1]]))
+            .map(|x| (x[0], x[1]))
+            .chain(raw_samples[1].iter().map(|x| (x[0], x[1])))
+            .chain(raw_samples[2].iter().map(|x| (x[0], x[1])))
             .collect();
 
         let samples: [Vec<Vec3A>; 3] = [

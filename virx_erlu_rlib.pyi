@@ -1,3 +1,6 @@
+from typing import Optional
+
+
 __doc__: str
 
 
@@ -39,7 +42,17 @@ def tick(packet: GameTickPacket, prediction_time: float=6.) -> None:
     """
 
 
-def get_slice(time: float) -> dict:
+class BallSlice:
+    time: float
+    location: tuple[float, float, float]
+    velocity: tuple[float, float, float]
+    angular_velocity: tuple[float, float, float]
+
+    def __str__(self) -> str: ...
+    def __repr__(self) -> str: ...
+
+
+def get_slice(time: float) -> BallSlice:
     """
     Gets the ball information at some time game time in the future
     """
@@ -82,7 +95,15 @@ def print_targets() -> None:
     """
 
 
-def get_shot_with_target(target_id: int, temporary: bool=False) -> dict:
+class BasicShotInfo:
+    found: bool
+    time: Optional[float]
+
+    def __str__(self) -> str: ...
+    def __repr__(self) -> str: ...
+
+
+def get_shot_with_target(target_id: int, temporary: bool=False) -> BasicShotInfo:
     """
     Searches the ball prediction struct for a shot
 
@@ -90,7 +111,16 @@ def get_shot_with_target(target_id: int, temporary: bool=False) -> dict:
     """
 
 
-def get_data_for_shot_with_target(target_id: int) -> dict:
+class AdvancedShotInfo:
+    final_target: tuple[float, float, float]
+    distance_remaining: float
+    path_samples: list[tuple[float, float]]
+
+    def __str__(self) -> str: ...
+    def __repr__(self) -> str: ...
+
+
+def get_data_for_shot_with_target(target_id: int) -> AdvancedShotInfo:
     """
     Gets information about the found shot
     """

@@ -18,8 +18,8 @@ pub fn get_vec3_from_vec(vec: Vec<f32>, name: &str) -> PyResult<Vec3A> {
     }
 }
 
-pub fn get_vec_from_vec3(vec: Vec3A) -> Vec<f32> {
-    vec![vec.x, vec.y, vec.z]
+pub fn get_tuple_from_vec3(vec: Vec3A) -> (f32, f32, f32) {
+    (vec.x, vec.y, vec.z)
 }
 
 // pub fn lerp<T: Copy + Add<Output = T> + Sub<Output = T> + Mul<f32, Output = T>>(a: T, b: T, t: f32) -> T {

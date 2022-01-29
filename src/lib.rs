@@ -1,6 +1,7 @@
 mod car;
 mod constants;
 mod ground;
+mod pytypes;
 mod shot;
 mod utils;
 
@@ -8,7 +9,8 @@ use car::{turn_radius, Car};
 use constants::*;
 use glam::Vec3A;
 use ground::*;
-use pyo3::{exceptions, prelude::*, types::PyDict, PyErr};
+use pyo3::{exceptions, prelude::*, PyErr};
+use pytypes::*;
 use rl_ball_sym::simulation::{
     ball::{Ball, BallPrediction},
     game::Game,
@@ -213,7 +215,7 @@ fn tick(py: Python, packet: PyObject, prediction_time: Option<f32>) -> PyResult<
 }
 
 #[pyfunction]
-fn get_slice(py: Python, slice_time: f32) -> PyResult<&PyDict> {
+fn get_slice(slice_time: f32) -> PyResult<BallSlice> {
     let game_time: &f32;
     let ball_struct: &BallPrediction;
 
@@ -228,17 +230,10 @@ fn get_slice(py: Python, slice_time: f32) -> PyResult<&PyDict> {
         };
     }
 
-    let py_slice = PyDict::new(py);
     let slice_num = ((slice_time - game_time) * 120.).round() as usize;
+    let ball = ball_struct.slices[slice_num.clamp(1, ball_struct.num_slices) - 1];
 
-    let slice = ball_struct.slices[slice_num.clamp(1, ball_struct.num_slices) - 1];
-
-    py_slice.setattr("time", slice.time)?;
-    py_slice.setattr("location", get_vec_from_vec3(slice.location))?;
-    py_slice.setattr("velocity", get_vec_from_vec3(slice.velocity))?;
-    py_slice.setattr("angular_velocity", get_vec_from_vec3(slice.angular_velocity))?;
-
-    Ok(py_slice)
+    Ok(BallSlice::from(&ball))
 }
 
 #[pyfunction]
@@ -306,7 +301,18 @@ fn confirm_target(target_index: usize) -> PyResult<()> {
 #[pyfunction]
 fn remove_target(target_index: usize) -> PyResult<()> {
     unsafe {
-        TARGETS[target_index] = None;
+        match TARGETS.get(target_index) {
+            Some(t) => {
+                if t.is_none() {
+                    return Err(PyErr::new::<exceptions::PyIndexError, _>(NO_TARGET_ERR));
+                }
+
+                TARGETS[target_index] = None;
+            }
+            None => {
+                return Err(PyErr::new::<exceptions::PyIndexError, _>(NO_TARGET_ERR));
+            }
+        }
     }
 
     Ok(())
@@ -322,7 +328,7 @@ fn print_targets() -> PyResult<()> {
 }
 
 #[pyfunction]
-fn get_shot_with_target(py: Python, target_index: usize, temporary: Option<bool>) -> PyResult<&PyDict> {
+fn get_shot_with_target(target_index: usize, temporary: Option<bool>) -> PyResult<BasicShotInfo> {
     let game_time: &f32;
     let _gravity: &Vec3A;
     let radius: &f32;
@@ -371,9 +377,7 @@ fn get_shot_with_target(py: Python, target_index: usize, temporary: Option<bool>
     let mut found_time = None;
 
     if ball_prediction.num_slices == 0 || car.demolished || car.airborne {
-        let result = PyDict::new(py);
-        result.set_item("found", false)?;
-        return Ok(result);
+        return Ok(BasicShotInfo::not_found());
     }
 
     let max_speed = if target.options.use_absolute_max_values { MAX_SPEED } else { car.max_speed };
@@ -442,23 +446,14 @@ fn get_shot_with_target(py: Python, target_index: usize, temporary: Option<bool>
 
     target.shot = found_shot;
 
-    let result = PyDict::new(py);
-
-    match found_time {
-        Some(time) => {
-            result.set_item("found", true)?;
-            result.set_item("time", time)?;
-        }
-        None => {
-            result.set_item("found", false)?;
-        }
-    }
-
-    Ok(result)
+    Ok(match found_time {
+        Some(time) => BasicShotInfo::found(time),
+        None => BasicShotInfo::not_found(),
+    })
 }
 
 #[pyfunction]
-fn get_data_for_shot_with_target(py: Python, target_index: usize) -> PyResult<&PyDict> {
+fn get_data_for_shot_with_target(target_index: usize) -> PyResult<AdvancedShotInfo> {
     let game_time: &f32;
     let _gravity: &Vec3A;
     let car: &Car;
@@ -522,10 +517,5 @@ fn get_data_for_shot_with_target(py: Python, target_index: usize) -> PyResult<&P
 
     let distance_remaining: f32 = shot.distances.iter().sum();
 
-    let result = PyDict::new(py);
-    result.set_item("distance_remaining", distance_remaining)?;
-    result.set_item("final_target", get_vec_from_vec3(target))?;
-    result.set_item("path_samples", &shot.all_samples)?;
-
-    Ok(result)
+    Ok(AdvancedShotInfo::from(target, distance_remaining, shot.all_samples.clone()))
 }
