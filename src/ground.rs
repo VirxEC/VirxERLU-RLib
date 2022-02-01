@@ -159,20 +159,26 @@ pub fn analyze_target(ball: &Ball, car: &Car, shot_vector: Vec3A, time_remaining
     })
 }
 
-pub fn get_target(car: &Car, shot: &Shot, shot_vector: Vec3A) -> DubinsResult<Vec3A> {
+pub fn get_target_and_distance_remaining(car: &Car, shot: &Shot, shot_vector: Vec3A) -> (Vec3A, f32) {
     let car_front_length = (car.hitbox_offset.x + car.hitbox.length) / 2.;
-    let shot_subpath = shot.extract_subpath_from_target(car.location)?;
-    let distance = car.local_velocity.x.max(500.) * STEER_REACTION_TIME;
-    let max_path_distance = shot_subpath.length();
+    let distance_along = shot.get_distance_along_shot(car.location);
 
-    Ok(if distance > max_path_distance {
+    let distance = car.local_velocity.x.max(500.) * STEER_REACTION_TIME;
+
+    let path_length = shot.distances[0] + shot.distances[1] + shot.distances[2];
+    let max_path_distance = path_length - distance_along;
+    let distance_to_ball = path_length + shot.distances[3] - distance_along;
+
+    let target = if distance > max_path_distance {
         let distance_remaining = distance - max_path_distance;
         let additional_space = shot_vector * distance_remaining.min(OFFSET_DISTANCE - car_front_length);
 
-        path_point_to_vec3(shot_subpath.sample(max_path_distance)) + additional_space
+        path_point_to_vec3(shot.path.endpoint()) + additional_space
     } else {
-        path_point_to_vec3(shot_subpath.sample(distance))
-    })
+        path_point_to_vec3(shot.path.sample(distance_along + distance))
+    };
+
+    (target, distance_to_ball)
 }
 
 pub fn can_reach_target(car: &Car, max_speed: f32, max_time: f32, distance_remaining: f32, is_forwards: bool) -> Result<f32, ()> {

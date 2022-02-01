@@ -27,7 +27,7 @@ impl BasicShotInfo {
 impl BasicShotInfo {
     fn __str__(&self) -> String {
         match self.time {
-            Some(time) => format!("Found at time: {}", time),
+            Some(time) => format!("Found at time: {:.2}", time),
             None => String::from("Not found"),
         }
     }
@@ -57,7 +57,7 @@ pub struct BallSlice {
 impl BallSlice {
     fn __str__(&self) -> String {
         format!(
-            "Ball @{}s - location: {:?}, velocity: {:?}, angular velocity: {:?}",
+            "Ball @{:.2}s - location: {:?}, velocity: {:?}, angular velocity: {:?}",
             self.time, self.location, self.velocity, self.angular_velocity
         )
     }
@@ -100,7 +100,7 @@ pub struct AdvancedShotInfo {
 #[pymethods]
 impl AdvancedShotInfo {
     fn __str__(&self) -> String {
-        format!("Final target: {:?}, distance remaining: {}", self.final_target, self.distance_remaining)
+        format!("Final target: {:?}, distance remaining: {:.2}", self.final_target, self.distance_remaining)
     }
 
     fn __repr__(&self) -> String {

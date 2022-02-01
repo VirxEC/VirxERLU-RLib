@@ -22,9 +22,9 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "dubins_paths"
-version = "1.2.1"
+version = "1.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca230add017147c8090cba7f1a47c0ae1570af997daf51e95505d7a1c03c6609"
+checksum = "723765f90bed0a5a7ab9b532a1ad4bc8d616c9c162c4a47b6fcdd1030f248829"
 
 [[package]]
 name = "glam"

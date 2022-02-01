@@ -1,6 +1,23 @@
+use dubins_paths::DubinsPath;
 use pyo3::{exceptions, PyAny, PyErr, PyResult};
 
 use glam::Vec3A;
+
+/// Get a vec of samples from a path
+/// Starts at the given distance
+/// Ends at the given distance
+/// Step size is given
+pub fn get_samples_from_path(path: &DubinsPath, start_distance: f32, end_distance: f32, step_size: f32) -> Vec<[f32; 3]> {
+    let mut samples = Vec::new();
+    let mut distance = start_distance;
+
+    while distance < end_distance {
+        samples.push(path.sample(distance));
+        distance += step_size;
+    }
+
+    samples
+}
 
 pub fn get_vec3_named(py_vec: &PyAny) -> PyResult<Vec3A> {
     Ok(Vec3A::new(

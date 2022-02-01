@@ -60,48 +60,32 @@ print()
 rlru.tick(packet)
 
 target_args = ((800, 5120, 0), (-800, 5120, 0), 0)
-rlru.new_target(*target_args, use_absolute_max_values=True, all=True)
 rlru.new_target(*target_args, use_absolute_max_values=True)
-rlru.new_target(*target_args, all=True)
 rlru.new_target(*target_args)
 
-print("get_shot_with_target(use_absolute_max_values) worst-case:")
+print("get_slice(1.2):")
+slice = rlru.get_slice(1.2)
+print(slice)
+print(repr(slice))
+
+print()
+
+print("get_shot_with_target(use_absolute_max_values):")
 shot = rlru.get_shot_with_target(0)
 print(shot)
 print(repr(shot))
 
 print()
 
-print("get_shot_with_target(use_absolute_max_values):")
+print("get_shot_with_target():")
 shot = rlru.get_shot_with_target(1)
 print(shot)
 print(repr(shot))
 
 print()
 
-print("get_shot_with_target() worst-case:")
-shot = rlru.get_shot_with_target(2)
-print(shot)
-print(repr(shot))
-
-print()
-
-print("get_shot_with_target():")
-shot = rlru.get_shot_with_target(3, temporary=True)
-print(shot)
-print(repr(shot))
-
-print()
-
-print("get_shot_with_target(temporary):")
-shot = rlru.get_shot_with_target(3)
-print(shot)
-print(repr(shot))
-
-print()
-
 print("get_data_for_shot_with_target():")
-data = rlru.get_data_for_shot_with_target(3)
+data = rlru.get_data_for_shot_with_target(1)
 print(data)
 print(repr(data))
 
