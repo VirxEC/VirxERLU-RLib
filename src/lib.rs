@@ -508,7 +508,5 @@ fn get_data_for_shot_with_target(target_index: usize) -> PyResult<AdvancedShotIn
         flatten(post_info.target_right),
     );
 
-    let (target, distance_remaining) = get_target_and_distance_remaining(car, shot, shot_vector);
-
-    Ok(AdvancedShotInfo::from(target, distance_remaining, shot.all_samples.clone()))
+    Ok(AdvancedShotInfo::get(car, shot, shot_vector))
 }

@@ -6,6 +6,7 @@ use rl_ball_sym::simulation::ball::Ball;
 
 use crate::car::{throttle_acceleration, Car, CarFieldRect};
 use crate::constants::*;
+use crate::pytypes::AdvancedShotInfo;
 use crate::shot::Shot;
 use crate::utils::*;
 
@@ -33,7 +34,7 @@ use crate::utils::*;
 //     (p.distance(projection), t)
 // }
 
-fn path_point_to_vec3(endpoint: [f32; 3]) -> Vec3A {
+pub fn path_point_to_vec3(endpoint: [f32; 3]) -> Vec3A {
     Vec3A::new(endpoint[0], endpoint[1], 0.)
 }
 
@@ -159,28 +160,6 @@ pub fn analyze_target(ball: &Ball, car: &Car, shot_vector: Vec3A, time_remaining
     })
 }
 
-pub fn get_target_and_distance_remaining(car: &Car, shot: &Shot, shot_vector: Vec3A) -> (Vec3A, f32) {
-    let car_front_length = (car.hitbox_offset.x + car.hitbox.length) / 2.;
-    let distance_along = shot.get_distance_along_shot(car.location);
-
-    let distance = car.local_velocity.x.max(500.) * STEER_REACTION_TIME;
-
-    let path_length = shot.distances[0] + shot.distances[1] + shot.distances[2];
-    let max_path_distance = path_length - distance_along;
-    let distance_to_ball = path_length + shot.distances[3] - distance_along;
-
-    let target = if distance > max_path_distance {
-        let distance_remaining = distance - max_path_distance;
-        let additional_space = shot_vector * distance_remaining.min(OFFSET_DISTANCE - car_front_length);
-
-        path_point_to_vec3(shot.path.endpoint()) + additional_space
-    } else {
-        path_point_to_vec3(shot.path.sample(distance_along + distance))
-    };
-
-    (target, distance_to_ball)
-}
-
 pub fn can_reach_target(car: &Car, max_speed: f32, max_time: f32, distance_remaining: f32, is_forwards: bool) -> Result<f32, ()> {
     let mut d = distance_remaining;
     let mut t_r = max_time;
@@ -243,4 +222,31 @@ pub fn can_reach_target(car: &Car, max_speed: f32, max_time: f32, distance_remai
     }
 
     Ok(t_r)
+}
+
+impl AdvancedShotInfo {
+    pub fn get(car: &Car, shot: &Shot, shot_vector: Vec3A) -> Self {
+        let car_front_length = (car.hitbox_offset.x + car.hitbox.length) / 2.;
+        let (distance_along, index) = shot.get_distance_along_shot_and_index(car.location);
+
+        let distance = car.local_velocity.x.max(500.) * STEER_REACTION_TIME;
+
+        let path_length = shot.distances[0] + shot.distances[1] + shot.distances[2];
+        let max_path_distance = path_length - distance_along;
+        let distance_to_ball = path_length + shot.distances[3] - distance_along;
+
+        let target = if distance > max_path_distance {
+            let distance_remaining = distance - max_path_distance;
+            let additional_space = shot_vector * distance_remaining.min(OFFSET_DISTANCE - car_front_length);
+
+            path_point_to_vec3(shot.path.endpoint()) + additional_space
+        } else {
+            path_point_to_vec3(shot.path.sample(distance_along + distance))
+        };
+
+        // get all the samples from the vec after index
+        let samples = shot.all_samples.iter().skip(index).cloned().collect();
+
+        Self::from(target, distance_to_ball, samples)
+    }
 }
