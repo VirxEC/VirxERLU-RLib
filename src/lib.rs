@@ -25,12 +25,14 @@ const NO_GAME_ERR: &str = "GAME is unset. Call a function like load_soccar first
 
 static mut CARS: Option<Vec<Car>> = None;
 const NO_CARS_ERR: &str = "CARS is unset. Call a function like load_soccar first.";
+const NO_CAR_ERR: &str = "No car at the provided index.";
 
 static mut BALL_STRUCT: Option<BallPrediction> = None;
 const NO_BALL_STRUCT_ERR: &str = "BALL_STRUCT is unset. Call the function tick and pass in game information first.";
 
 static mut TARGETS: Vec<Option<Target>> = Vec::new();
-const NO_TARGET_ERR: &str = "Target no longer exists";
+const NO_TARGET_ERR: &str = "Target no longer exists.";
+const NO_SHOT_ERR: &str = "Specified target has no found shot.";
 
 /// VirxERLU-RLib is written in Rust with Python bindings to make analyzing the ball prediction struct much faster.
 #[pymodule]
@@ -51,47 +53,39 @@ fn virx_erlu_rlib(_py: Python, m: &PyModule) -> PyResult<()> {
 }
 
 #[pyfunction]
-fn load_soccar() -> PyResult<()> {
+fn load_soccar() {
     unsafe {
         GAME = Some(rl_ball_sym::load_soccar());
         CARS = Some(vec![Car::default(); 64]);
         BALL_STRUCT = Some(BallPrediction::default());
     }
-
-    Ok(())
 }
 
 #[pyfunction]
-fn load_dropshot() -> PyResult<()> {
+fn load_dropshot() {
     unsafe {
         GAME = Some(rl_ball_sym::load_dropshot());
         CARS = Some(vec![Car::default(); 64]);
         BALL_STRUCT = Some(BallPrediction::default());
     }
-
-    Ok(())
 }
 
 #[pyfunction]
-fn load_hoops() -> PyResult<()> {
+fn load_hoops() {
     unsafe {
         GAME = Some(rl_ball_sym::load_hoops());
         CARS = Some(vec![Car::default(); 64]);
         BALL_STRUCT = Some(BallPrediction::default());
     }
-
-    Ok(())
 }
 
 #[pyfunction]
-fn load_soccar_throwback() -> PyResult<()> {
+fn load_soccar_throwback() {
     unsafe {
         GAME = Some(rl_ball_sym::load_soccar_throwback());
         CARS = Some(vec![Car::default(); 64]);
         BALL_STRUCT = Some(BallPrediction::default());
     }
-
-    Ok(())
 }
 
 #[pyfunction]
@@ -105,21 +99,9 @@ fn tick(py: Python, packet: PyObject, prediction_time: Option<f32>) -> PyResult<
     // add option for max path time
 
     unsafe {
-        game = match GAME.as_mut() {
-            Some(game) => game,
-            None => {
-                return Err(PyErr::new::<exceptions::PyNameError, _>(NO_GAME_ERR));
-            }
-        };
-
-        cars = match &mut CARS {
-            Some(cars) => cars,
-            None => {
-                return Err(PyErr::new::<exceptions::PyNameError, _>(NO_CARS_ERR));
-            }
-        };
-
         targets = &mut TARGETS;
+        game = GAME.as_mut().ok_or_else(|| PyErr::new::<exceptions::PyNameError, _>(NO_GAME_ERR))?;
+        cars = CARS.as_mut().ok_or_else(|| PyErr::new::<exceptions::PyNameError, _>(NO_CARS_ERR))?;
     }
 
     targets.retain(|target| match target {
@@ -221,13 +203,7 @@ fn get_slice(slice_time: f32) -> PyResult<BallSlice> {
 
     unsafe {
         game_time = &GAME_TIME;
-
-        ball_struct = match BALL_STRUCT.as_ref() {
-            Some(ball_struct) => ball_struct,
-            None => {
-                return Err(PyErr::new::<exceptions::PyNameError, _>(NO_BALL_STRUCT_ERR));
-            }
-        };
+        ball_struct = BALL_STRUCT.as_ref().ok_or_else(|| PyErr::new::<exceptions::PyNameError, _>(NO_BALL_STRUCT_ERR))?;
     }
 
     let slice_num = ((slice_time - game_time) * 120.).round() as usize;
@@ -248,13 +224,14 @@ fn new_target(
 ) -> PyResult<usize> {
     let num_slices: usize;
 
-    unsafe {
-        num_slices = match BALL_STRUCT.as_ref() {
-            Some(ball_struct) => ball_struct.num_slices,
-            None => {
-                return Err(PyErr::new::<exceptions::PyNameError, _>(NO_BALL_STRUCT_ERR));
-            }
-        };
+    {
+        let ball_prediction: &BallPrediction;
+
+        unsafe {
+            ball_prediction = BALL_STRUCT.as_ref().ok_or_else(|| PyErr::new::<exceptions::PyNameError, _>(NO_BALL_STRUCT_ERR))?;
+        }
+
+        num_slices = ball_prediction.num_slices;
     }
 
     let target_left = get_vec3_from_vec(left_target, "target_left")?;
@@ -319,12 +296,10 @@ fn remove_target(target_index: usize) -> PyResult<()> {
 }
 
 #[pyfunction]
-fn print_targets() -> PyResult<()> {
+fn print_targets() {
     unsafe {
         dbg!(&TARGETS);
     }
-
-    Ok(())
 }
 
 #[pyfunction]
@@ -336,39 +311,21 @@ fn get_shot_with_target(target_index: usize, temporary: Option<bool>) -> PyResul
     let ball_prediction: &BallPrediction;
     let target: &mut Target;
 
-    unsafe {
-        game_time = &GAME_TIME;
+    {
+        let game: &Game;
+        let cars: &mut Vec<Car>;
 
-        match GAME.as_ref() {
-            Some(game) => {
-                _gravity = &game.gravity;
-                radius = &game.ball.radius;
-            }
-            None => {
-                return Err(PyErr::new::<exceptions::PyNameError, _>(NO_GAME_ERR));
-            }
+        unsafe {
+            game_time = &GAME_TIME;
+            game = GAME.as_ref().ok_or_else(|| PyErr::new::<exceptions::PyNameError, _>(NO_GAME_ERR))?;
+            ball_prediction = BALL_STRUCT.as_ref().ok_or_else(|| PyErr::new::<exceptions::PyNameError, _>(NO_BALL_STRUCT_ERR))?;
+            target = TARGETS[target_index].as_mut().ok_or_else(|| PyErr::new::<exceptions::PyIndexError, _>(NO_TARGET_ERR))?;
+            cars = CARS.as_mut().ok_or_else(|| PyErr::new::<exceptions::PyNameError, _>(NO_CARS_ERR))?;
         }
 
-        ball_prediction = match BALL_STRUCT.as_ref() {
-            Some(ball_struct) => ball_struct,
-            None => {
-                return Err(PyErr::new::<exceptions::PyNameError, _>(NO_BALL_STRUCT_ERR));
-            }
-        };
-
-        target = match TARGETS[target_index].as_mut() {
-            Some(t) => t,
-            None => {
-                return Err(PyErr::new::<exceptions::PyIndexError, _>(NO_TARGET_ERR));
-            }
-        };
-
-        car = match &mut CARS {
-            Some(cars) => cars.get_mut(target.car_index).unwrap(),
-            None => {
-                return Err(PyErr::new::<exceptions::PyNameError, _>(NO_CARS_ERR));
-            }
-        };
+        _gravity = &game.gravity;
+        radius = &game.ball.radius;
+        car = cars.get_mut(target.car_index).ok_or_else(|| PyErr::new::<exceptions::PyIndexError, _>(NO_CAR_ERR))?;
     }
 
     let dist_from_side = radius + car.hitbox.height;
@@ -459,44 +416,27 @@ fn get_data_for_shot_with_target(target_index: usize) -> PyResult<AdvancedShotIn
     let car: &Car;
     let ball: &Ball;
     let target: &Target;
+    let shot: &Shot;
 
-    unsafe {
-        game_time = &GAME_TIME;
+    {
+        let game: &Game;
+        let cars: &mut Vec<Car>;
+        let ball_struct: &BallPrediction;
 
-        match GAME.as_ref() {
-            Some(game) => {
-                _gravity = &game.gravity;
-            }
-            None => {
-                return Err(PyErr::new::<exceptions::PyNameError, _>(NO_GAME_ERR));
-            }
+        unsafe {
+            game_time = &GAME_TIME;
+            game = GAME.as_ref().ok_or_else(|| PyErr::new::<exceptions::PyNameError, _>(NO_GAME_ERR))?;
+            target = TARGETS[target_index].as_ref().ok_or_else(|| PyErr::new::<exceptions::PyIndexError, _>(NO_TARGET_ERR))?;
+            cars = CARS.as_mut().ok_or_else(|| PyErr::new::<exceptions::PyNameError, _>(NO_CARS_ERR))?;
+            ball_struct = BALL_STRUCT.as_ref().ok_or_else(|| PyErr::new::<exceptions::PyNameError, _>(NO_BALL_STRUCT_ERR))?;
         }
 
-        target = match TARGETS[target_index].as_ref() {
-            Some(t) => t,
-            None => {
-                return Err(PyErr::new::<exceptions::PyIndexError, _>(NO_TARGET_ERR));
-            }
-        };
+        _gravity = &game.gravity;
+        car = cars.get_mut(target.car_index).ok_or_else(|| PyErr::new::<exceptions::PyIndexError, _>(NO_CAR_ERR))?;
+        shot = target.shot.as_ref().ok_or_else(|| PyErr::new::<exceptions::PyLookupError, _>(NO_SHOT_ERR))?;
 
-        car = match &mut CARS {
-            Some(cars) => cars.get_mut(target.car_index).unwrap(),
-            None => {
-                return Err(PyErr::new::<exceptions::PyNameError, _>(NO_CARS_ERR));
-            }
-        };
-    }
-
-    let shot = target.shot.as_ref().unwrap();
-    let slice_num = ((shot.time - game_time) * 120.).round() as usize;
-
-    unsafe {
-        ball = match BALL_STRUCT.as_ref() {
-            Some(ball_struct) => &ball_struct.slices[slice_num.clamp(1, ball_struct.num_slices) - 1],
-            None => {
-                return Err(PyErr::new::<exceptions::PyNameError, _>(NO_BALL_STRUCT_ERR));
-            }
-        };
+        let slice_num = ((shot.time - game_time) * 120.).round() as usize;
+        ball = &ball_struct.slices[slice_num.clamp(1, ball_struct.num_slices) - 1];
     }
 
     let car_to_ball = ball.location - car.location;
