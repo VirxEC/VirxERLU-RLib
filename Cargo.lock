@@ -65,6 +65,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "lazy_static"
+version = "1.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
+
+[[package]]
 name = "libc"
 version = "0.2.116"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -261,6 +267,7 @@ version = "0.8.0"
 dependencies = [
  "dubins_paths",
  "glam",
+ "lazy_static",
  "pyo3",
  "rl_ball_sym",
 ]

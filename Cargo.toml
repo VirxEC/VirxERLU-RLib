@@ -20,6 +20,7 @@ path = "src/lib.rs"
 glam = "0.20"
 rl_ball_sym = "1.0"
 dubins_paths = "1.2"
+lazy_static = "1.4"
 
 [dependencies.pyo3]
 version = "0.15"
