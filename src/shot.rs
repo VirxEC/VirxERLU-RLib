@@ -1,4 +1,4 @@
-use crate::utils::get_samples_from_path;
+use crate::utils::{get_samples_from_path, get_samples_from_line, get_vec3_from_array};
 use dubins_paths::DubinsPath;
 use glam::Vec3A;
 
@@ -7,16 +7,18 @@ pub struct Shot {
     pub time: f32,
     pub distances: [f32; 4],
     pub all_samples: Vec<(f32, f32)>,
-    pub samples: [Vec<Vec3A>; 3],
+    pub samples: [Vec<Vec3A>; 4],
     pub path: DubinsPath,
+    pub path_endpoint: Vec3A,
 }
 
 impl Shot {
     const STEP_DISTANCE: f32 = 10.;
 
-    pub fn from(time: f32, path: DubinsPath, distances: [f32; 4]) -> Self {
+    pub fn from(time: f32, path: DubinsPath, distances: [f32; 4], shot_vector: Vec3A) -> Self {
         // the distance of each segment
         let segment_distances = [path.segment_length(0), path.segment_length(0) + path.segment_length(1), path.length()];
+        let path_endpoint = get_vec3_from_array(path.endpoint());
 
         let all_samples;
         let samples;
@@ -27,6 +29,7 @@ impl Shot {
                 get_samples_from_path(&path, 0., segment_distances[0], Self::STEP_DISTANCE),
                 get_samples_from_path(&path, segment_distances[0], segment_distances[1], Self::STEP_DISTANCE),
                 get_samples_from_path(&path, segment_distances[1], segment_distances[2], Self::STEP_DISTANCE),
+                get_samples_from_line(path_endpoint, shot_vector, distances[3], Self::STEP_DISTANCE)
             ];
 
             all_samples = raw_samples[0]
@@ -34,12 +37,14 @@ impl Shot {
                 .map(|x| (x[0], x[1]))
                 .chain(raw_samples[1].iter().map(|x| (x[0], x[1])))
                 .chain(raw_samples[2].iter().map(|x| (x[0], x[1])))
+                .chain(raw_samples[3].iter().map(|x| (x[0], x[1])))
                 .collect();
 
             samples = [
                 raw_samples[0].iter().map(|v| Vec3A::new(v[0], v[1], 0.)).collect(),
                 raw_samples[1].iter().map(|v| Vec3A::new(v[0], v[1], 0.)).collect(),
                 raw_samples[2].iter().map(|v| Vec3A::new(v[0], v[1], 0.)).collect(),
+                raw_samples[3].iter().map(|v| Vec3A::new(v[0], v[1], 0.)).collect(),
             ];
         }
 
@@ -49,6 +54,7 @@ impl Shot {
             all_samples,
             samples,
             path,
+            path_endpoint,
         }
     }
 
@@ -82,7 +88,7 @@ impl Shot {
         let mut min_distance_index = 0;
         let mut min_distance_index_in_section = 0;
 
-        for segment in 0..3 {
+        for segment in 0..self.samples.len() {
             let (index, distance) = self.find_min_distance_in_segment_index(segment, target);
 
             if distance < min_distance {

@@ -372,7 +372,7 @@ fn get_shot_with_target(target_index: usize, temporary: Option<bool>) -> PyResul
             found_time = Some(ball.time);
 
             if !temporary {
-                found_shot = Some(Shot::from(ball.time, result.path, result.distances));
+                found_shot = Some(Shot::from(ball.time, result.path, result.distances, shot_vector));
             }
 
             if !target.options.all {

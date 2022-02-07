@@ -7,13 +7,30 @@ use glam::Vec3A;
 /// Starts at the given distance
 /// Ends at the given distance
 /// Step size is given
-pub fn get_samples_from_path(path: &DubinsPath, start_distance: f32, end_distance: f32, step_size: f32) -> Vec<[f32; 3]> {
+pub fn get_samples_from_path(path: &DubinsPath, start_distance: f32, end_distance: f32, step_distance: f32) -> Vec<[f32; 3]> {
     let mut samples = Vec::new();
     let mut distance = start_distance;
 
     while distance < end_distance {
         samples.push(path.sample(distance));
-        distance += step_size;
+        distance += step_distance;
+    }
+
+    samples
+}
+
+/// Get a vec of samples
+/// Starts at the given point
+/// Ends after the given distance
+/// Goes in the direction of the given vector
+pub fn get_samples_from_line(start: Vec3A, direction: Vec3A, distance: f32, step_distance: f32) -> Vec<[f32; 3]> {
+    let mut samples = Vec::with_capacity((distance / step_distance).ceil() as usize);
+    let mut current_distance = 0.;
+
+    while current_distance < distance {
+        let vec = start + direction * current_distance;
+        samples.push(get_array_from_vec3(vec));
+        current_distance += step_distance;
     }
 
     samples
@@ -33,6 +50,14 @@ pub fn get_vec3_from_vec(vec: Vec<f32>, name: &str) -> PyResult<Vec3A> {
     } else {
         Ok(Vec3A::new(vec[0], vec[1], vec[2]))
     }
+}
+
+pub fn get_vec3_from_array(arr: [f32; 3]) -> Vec3A {
+    Vec3A::new(arr[0], arr[1], arr[2])
+}
+
+pub fn get_array_from_vec3(vec: Vec3A) -> [f32; 3] {
+    [vec.x, vec.y, vec.z]
 }
 
 pub fn get_tuple_from_vec3(vec: Vec3A) -> (f32, f32, f32) {
