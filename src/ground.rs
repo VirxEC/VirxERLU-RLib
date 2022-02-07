@@ -239,7 +239,7 @@ impl AdvancedShotInfo {
             let distance_remaining = distance - max_path_distance;
             let additional_space = shot_vector * distance_remaining.min(OFFSET_DISTANCE - car_front_length);
 
-            path_point_to_vec3(shot.path.endpoint()) + additional_space
+            shot.path_endpoint + additional_space
         } else {
             path_point_to_vec3(shot.path.sample(distance_along + distance))
         };

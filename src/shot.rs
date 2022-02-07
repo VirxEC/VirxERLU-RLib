@@ -1,4 +1,4 @@
-use crate::utils::{get_samples_from_path, get_samples_from_line, get_vec3_from_array};
+use crate::utils::{get_samples_from_line, get_samples_from_path, get_vec3_from_array};
 use dubins_paths::DubinsPath;
 use glam::Vec3A;
 
@@ -29,7 +29,7 @@ impl Shot {
                 get_samples_from_path(&path, 0., segment_distances[0], Self::STEP_DISTANCE),
                 get_samples_from_path(&path, segment_distances[0], segment_distances[1], Self::STEP_DISTANCE),
                 get_samples_from_path(&path, segment_distances[1], segment_distances[2], Self::STEP_DISTANCE),
-                get_samples_from_line(path_endpoint, shot_vector, distances[3], Self::STEP_DISTANCE)
+                get_samples_from_line(path_endpoint, shot_vector, distances[3], Self::STEP_DISTANCE),
             ];
 
             all_samples = raw_samples[0]
