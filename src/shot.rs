@@ -55,7 +55,13 @@ impl Shot {
     fn find_min_distance_in_segment_index(&self, segment: usize, target: Vec3A) -> (usize, f32) {
         let mut min_distance = f32::MAX;
         let mut start_index = 0;
-        let mut end_index = self.samples[segment].len() - 1;
+
+        let length = self.samples[segment].len();
+        if length == 0 {
+            return (start_index, min_distance);
+        }
+
+        let mut end_index = length - 1;
 
         while start_index < end_index {
             let mid_index = (start_index + end_index) / 2;
