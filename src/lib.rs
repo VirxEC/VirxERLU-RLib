@@ -316,7 +316,6 @@ fn get_shot_with_target(target_index: usize, temporary: Option<bool>) -> PyResul
         max_speed,
         max_turn_radius,
         get_target: false,
-        validate: true,
     };
 
     let temporary = temporary.unwrap_or(false);

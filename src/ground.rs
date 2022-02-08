@@ -38,7 +38,7 @@ pub fn path_point_to_vec3(endpoint: [f32; 3]) -> Vec3A {
     Vec3A::new(endpoint[0], endpoint[1], 0.)
 }
 
-fn shortest_path_in_validate(q0: [f32; 3], q1: [f32; 3], rho: f32, car_field: &CarFieldRect, max_distance: f32, validate: bool) -> DubinsResult<DubinsPath> {
+fn shortest_path_in_validate(q0: [f32; 3], q1: [f32; 3], rho: f32, car_field: &CarFieldRect, max_distance: f32) -> DubinsResult<DubinsPath> {
     let mut best_cost = INFINITY;
     let mut best_path = None;
 
@@ -47,7 +47,7 @@ fn shortest_path_in_validate(q0: [f32; 3], q1: [f32; 3], rho: f32, car_field: &C
     for path_type in DubinsPathType::ALL {
         if let Ok(param) = intermediate_results.word(path_type) {
             let cost = param[0] + param[1] + param[2];
-            if cost < best_cost && (!validate || cost * rho <= max_distance) {
+            if cost < best_cost && cost * rho <= max_distance {
                 let path = DubinsPath {
                     qi: q0,
                     rho,
@@ -116,7 +116,6 @@ pub struct AnalyzeOptions {
     pub max_speed: f32,
     pub max_turn_radius: f32,
     pub get_target: bool,
-    pub validate: bool,
 }
 
 pub fn analyze_target(ball: &Ball, car: &Car, shot_vector: Vec3A, time_remaining: f32, options: AnalyzeOptions) -> DubinsResult<TargetInfo> {
@@ -129,14 +128,14 @@ pub fn analyze_target(ball: &Ball, car: &Car, shot_vector: Vec3A, time_remaining
     let target_angle = shot_vector.y.atan2(shot_vector.x);
     let max_distance = time_remaining * options.max_speed;
 
-    if options.validate && (end_distance + flatten(car.location).distance(flatten(exit_turn_target))) > max_distance {
+    if end_distance + flatten(car.location).distance(flatten(exit_turn_target)) > max_distance {
         return Err(DubinsError::NoPath);
     }
 
     let q0 = [car.location.x, car.location.y, car.yaw];
     let q1 = [exit_turn_target.x, exit_turn_target.y, target_angle];
 
-    let path = shortest_path_in_validate(q0, q1, options.max_turn_radius, &car.field, max_distance, options.validate)?;
+    let path = shortest_path_in_validate(q0, q1, options.max_turn_radius, &car.field, max_distance)?;
 
     let distances = [path.segment_length(0), path.segment_length(1), path.segment_length(2), end_distance];
 
