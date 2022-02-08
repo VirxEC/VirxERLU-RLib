@@ -8,7 +8,8 @@ use glam::Vec3A;
 /// Ends at the given distance
 /// Step size is given
 pub fn get_samples_from_path(path: &DubinsPath, start_distance: f32, end_distance: f32, step_distance: f32) -> Vec<[f32; 3]> {
-    let mut samples = Vec::new();
+    let num_steps = ((end_distance - start_distance) / step_distance).ceil() as usize;
+    let mut samples = Vec::with_capacity(num_steps);
     let mut distance = start_distance;
 
     while distance < end_distance {

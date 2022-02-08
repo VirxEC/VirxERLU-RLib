@@ -27,26 +27,17 @@ lazy_static! {
     static ref GAME: Mutex<Option<Game>> = Mutex::new(None);
 }
 
-const NO_GAME_ERR: &str = "GAME is unset. Call a function like load_soccar first.";
-
 lazy_static! {
     static ref CARS: Mutex<[Car; 64]> = Mutex::new([Car::default(); 64]);
 }
-
-const NO_CAR_ERR: &str = "No car at the provided index.";
 
 lazy_static! {
     static ref BALL_STRUCT: Mutex<BallPrediction> = Mutex::new(BallPrediction::default());
 }
 
-const NO_SLICES_ERR: &str = "Ball prediction struct has not been initialized yet. Try calling a function like tick() first.";
-
 lazy_static! {
     static ref TARGETS: Mutex<Vec<Option<Target>>> = Mutex::new(Vec::new());
 }
-
-const NO_TARGET_ERR: &str = "Target no longer exists.";
-const NO_SHOT_ERR: &str = "Specified target has no found shot.";
 
 /// VirxERLU-RLib is written in Rust with Python bindings to make analyzing the ball prediction struct much faster.
 #[pymodule]

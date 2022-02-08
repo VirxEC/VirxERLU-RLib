@@ -101,6 +101,7 @@ impl TargetInfo {
     pub const fn from(distances: [f32; 4], path: DubinsPath) -> Self {
         Self { distances, path, target: None }
     }
+
     pub const fn from_target(distances: [f32; 4], target: Vec3A, path: DubinsPath) -> Self {
         Self {
             distances,
@@ -117,8 +118,6 @@ pub struct AnalyzeOptions {
     pub get_target: bool,
     pub validate: bool,
 }
-
-const OFFSET_DISTANCE: f32 = 640.;
 
 pub fn analyze_target(ball: &Ball, car: &Car, shot_vector: Vec3A, time_remaining: f32, options: AnalyzeOptions) -> DubinsResult<TargetInfo> {
     let offset_target = ball.location - (shot_vector * ball.radius);
