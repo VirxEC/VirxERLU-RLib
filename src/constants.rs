@@ -27,8 +27,6 @@ pub const COASTING_THROTTLE_TRANSITION: f32 = -0.5 * COAST_ACC;
 pub const REACTION_TIME: f32 = 0.04;
 pub const STEER_REACTION_TIME: f32 = 0.25;
 
-pub const OFFSET_DISTANCE: f32 = 640.;
-
 pub const NO_GAME_ERR: &str = "GAME is unset. Call a function like load_soccar first.";
 pub const NO_CAR_ERR: &str = "No car at the provided index.";
 pub const NO_SLICES_ERR: &str = "Ball prediction struct has not been initialized yet. Try calling a function like tick() first.";

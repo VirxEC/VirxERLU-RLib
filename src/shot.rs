@@ -111,6 +111,7 @@ impl Shot {
             0 => 0.,
             1 => self.distances[0],
             2 => self.distances[0] + self.distances[1],
+            3 => self.distances[0] + self.distances[1] + self.distances[2],
             _ => unreachable!(),
         };
 
@@ -118,6 +119,7 @@ impl Shot {
             0 => 0,
             1 => self.samples[0].len(),
             2 => self.samples[0].len() + self.samples[1].len(),
+            3 => self.samples[0].len() + self.samples[1].len() + self.samples[2].len(),
             _ => unreachable!(),
         };
 

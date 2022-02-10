@@ -10,9 +10,9 @@ use crate::pytypes::AdvancedShotInfo;
 use crate::shot::Shot;
 use crate::utils::*;
 
-// fn angle_2d(vec1: Vec3A, vec2: Vec3A) -> f32 {
-//     flatten(vec1).dot(flatten(vec2)).clamp(-1., 1.).acos()
-// }
+fn angle_2d(vec1: Vec3A, vec2: Vec3A) -> f32 {
+    flatten(vec1).dot(flatten(vec2)).clamp(-1., 1.).acos()
+}
 
 // https://stackoverflow.com/questions/849211/shortest-distance-between-a-point-and-a-line-segment
 // fn point_from_line(v: Vec3A, w: Vec3A, p: Vec3A) -> (f32, f32) {
@@ -122,13 +122,21 @@ pub fn analyze_target(ball: &Ball, car: &Car, shot_vector: Vec3A, time_remaining
     let offset_target = ball.location - (shot_vector * ball.radius);
     let car_front_length = (car.hitbox_offset.x + car.hitbox.length) / 2.;
 
-    let end_distance = OFFSET_DISTANCE - car_front_length;
-    let exit_turn_target = offset_target - (shot_vector * OFFSET_DISTANCE);
+    // will also be used to set offsets for jumps
+    let offset_distance = car_front_length
+        + if (0_f32..50_f32).contains(&car.forward.dot(ball.location)) && angle_2d(car.forward, shot_vector) < 0.01 {
+            0. // for pre-aligned ground shots
+        } else {
+            50. // for non-aligned ground shots
+        };
+
+    let end_distance = offset_distance - car_front_length;
+    let exit_turn_target = offset_target - (shot_vector * offset_distance);
 
     let target_angle = shot_vector.y.atan2(shot_vector.x);
-    let max_distance = time_remaining * options.max_speed;
+    let max_distance = time_remaining * options.max_speed + car_front_length;
 
-    if end_distance + flatten(car.location).distance(flatten(exit_turn_target)) > max_distance {
+    if flatten(car.location).distance(flatten(offset_target)) > max_distance {
         return Err(DubinsError::NoPath);
     }
 
@@ -145,7 +153,7 @@ pub fn analyze_target(ball: &Ball, car: &Car, shot_vector: Vec3A, time_remaining
 
         let target = if distance > max_path_distance {
             let distance_remaining = distance - max_path_distance;
-            let additional_space = shot_vector * distance_remaining.min(OFFSET_DISTANCE - car_front_length);
+            let additional_space = shot_vector * distance_remaining;
 
             path_point_to_vec3(path.sample(max_path_distance)) + additional_space
         } else {
@@ -224,7 +232,6 @@ pub fn can_reach_target(car: &Car, max_speed: f32, max_time: f32, distance_remai
 
 impl AdvancedShotInfo {
     pub fn get(car: &Car, shot: &Shot, shot_vector: Vec3A) -> Self {
-        let car_front_length = (car.hitbox_offset.x + car.hitbox.length) / 2.;
         let (distance_along, index) = shot.get_distance_along_shot_and_index(car.location);
 
         let distance = car.local_velocity.x.max(500.) * STEER_REACTION_TIME;
@@ -235,7 +242,7 @@ impl AdvancedShotInfo {
 
         let target = if distance > max_path_distance {
             let distance_remaining = distance - max_path_distance;
-            let additional_space = shot_vector * distance_remaining.min(OFFSET_DISTANCE - car_front_length);
+            let additional_space = shot_vector * distance_remaining;
 
             shot.path_endpoint + additional_space
         } else {
