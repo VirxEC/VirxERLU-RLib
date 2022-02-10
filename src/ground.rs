@@ -123,12 +123,14 @@ pub fn analyze_target(ball: &Ball, car: &Car, shot_vector: Vec3A, time_remaining
     let car_front_length = (car.hitbox_offset.x + car.hitbox.length) / 2.;
 
     // will also be used to set offsets for jumps
-    let offset_distance = car_front_length
-        + if (0_f32..50_f32).contains(&car.forward.dot(ball.location)) && angle_2d(car.forward, shot_vector) < 0.01 {
+    let offset_distance = car_front_length + {
+        let distance = 100.;
+        if (0_f32..distance).contains(&car.forward.dot(ball.location)) && angle_2d(car.forward, shot_vector) < 0.01 {
             0. // for pre-aligned ground shots
         } else {
-            50. // for non-aligned ground shots
-        };
+            distance // for non-aligned ground shots
+        }
+    };
 
     let end_distance = offset_distance - car_front_length;
     let exit_turn_target = offset_target - (shot_vector * offset_distance);
