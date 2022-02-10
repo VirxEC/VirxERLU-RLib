@@ -1,4 +1,7 @@
-use crate::utils::{get_samples_from_line, get_samples_from_path, get_vec3_from_array};
+use crate::{
+    pytypes::TargetOptions,
+    utils::{get_samples_from_line, get_samples_from_path, get_vec3_from_array},
+};
 use dubins_paths::DubinsPath;
 use glam::Vec3A;
 
@@ -131,17 +134,27 @@ pub struct Options {
 }
 
 impl Options {
-    pub fn from(min_slice: Option<usize>, max_slice: Option<usize>, use_absolute_max_values: Option<bool>, all: Option<bool>, max_slices: usize) -> Self {
-        let min_slice = min_slice.unwrap_or(0);
-        let max_slice = max_slice.unwrap_or(max_slices);
-        let use_absolute_max_values = use_absolute_max_values.unwrap_or(false);
-        let all = all.unwrap_or(false);
+    pub fn from(options: Option<TargetOptions>, max_slices: usize) -> Self {
+        match options {
+            Some(options) => {
+                let min_slice = options.min_slice.unwrap_or(0);
+                let max_slice = options.max_slice.unwrap_or(max_slices);
+                let use_absolute_max_values = options.use_absolute_max_values.unwrap_or(false);
+                let all = options.all.unwrap_or(false);
 
-        Self {
-            all,
-            use_absolute_max_values,
-            min_slice,
-            max_slice,
+                Self {
+                    all,
+                    use_absolute_max_values,
+                    min_slice,
+                    max_slice,
+                }
+            }
+            None => Self {
+                min_slice: 0,
+                max_slice: max_slices,
+                use_absolute_max_values: false,
+                all: false,
+            },
         }
     }
 }

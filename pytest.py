@@ -59,8 +59,17 @@ print()
 
 rlru.tick(packet)
 
+use_abs_all = rlru.TargetOptions(use_absolute_max_values=True, all=True)
+use_abs = rlru.TargetOptions(use_absolute_max_values=True)
+use_all = rlru.TargetOptions(all=True)
+
+print(use_abs_all)
+print(use_abs)
+print(use_all)
+print()
+
 target_args = ((800, 5120, 0), (-800, 5120, 0), 0)
-rlru.new_target(*target_args, use_absolute_max_values=True)
+rlru.new_target(*target_args, use_abs)
 rlru.new_target(*target_args)
 
 print("get_slice(1.2):")
@@ -97,7 +106,6 @@ print(data)
 print(repr(data))
 
 print()
-
 print("Benchmarking...")
 
 for _ in range(5000):
@@ -110,9 +118,9 @@ for _ in range(5000):
     start = time_ns()
 
     target_args = ((800, 5120, 0), (-800, 5120, 0), 0)
-    rlru.new_target(*target_args, use_absolute_max_values=True, all=True)
-    rlru.new_target(*target_args, use_absolute_max_values=True)
-    rlru.new_target(*target_args, all=True)
+    rlru.new_target(*target_args, use_abs_all)
+    rlru.new_target(*target_args, use_abs)
+    rlru.new_target(*target_args, use_all)
     rlru.new_target(*target_args)
 
     times[7].append(time_ns() - start)
@@ -137,15 +145,15 @@ for _ in range(5000):
 
     start = time_ns()
 
-    rlru.get_shot_with_target(3, temporary=True)
-
-    times[6].append(time_ns() - start)
-
-    start = time_ns()
-
     rlru.get_shot_with_target(3)
 
     times[2].append(time_ns() - start)
+
+    start = time_ns()
+
+    rlru.get_shot_with_target(3, temporary=True)
+
+    times[6].append(time_ns() - start)
 
     start = time_ns()
 

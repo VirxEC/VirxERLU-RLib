@@ -5,6 +5,57 @@ use rl_ball_sym::simulation::ball::Ball;
 use crate::utils::get_tuple_from_vec3;
 
 #[pyclass]
+#[derive(Clone, Copy, Debug, Default)]
+pub struct TargetOptions {
+    pub min_slice: Option<usize>,
+    pub max_slice: Option<usize>,
+    pub use_absolute_max_values: Option<bool>,
+    pub all: Option<bool>,
+}
+
+#[pymethods]
+impl TargetOptions {
+    #[new]
+    fn __new__(min_slice: Option<usize>, max_slice: Option<usize>, use_absolute_max_values: Option<bool>, all: Option<bool>) -> Self {
+        Self {
+            min_slice,
+            max_slice,
+            use_absolute_max_values,
+            all,
+        }
+    }
+
+    fn __str__(&self) -> String {
+        let mut s = Vec::with_capacity(4);
+
+        if let Some(min_slice) = self.min_slice {
+            s.push(format!("min_slice=={}", min_slice));
+        }
+
+        if let Some(max_slice) = self.max_slice {
+            s.push(format!("max_slice=={}", max_slice));
+        }
+
+        if let Some(use_absolute_max_values) = self.use_absolute_max_values {
+            s.push(format!("use_absolute_max_values=={}", use_absolute_max_values));
+        }
+
+        if let Some(all) = self.all {
+            s.push(format!("all=={}", all));
+        }
+
+        s.join(", ")
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "TargetOptions(min_slice={:?}, max_slice={:?}, use_absolute_max_values={:?}, all={:?})",
+            self.min_slice, self.max_slice, self.use_absolute_max_values, self.all
+        )
+    }
+}
+
+#[pyclass]
 #[allow(dead_code)]
 pub struct BasicShotInfo {
     #[pyo3(get)]

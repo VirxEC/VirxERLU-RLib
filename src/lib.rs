@@ -54,6 +54,7 @@ fn virx_erlu_rlib(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(print_targets, m)?)?;
     m.add_function(wrap_pyfunction!(get_shot_with_target, m)?)?;
     m.add_function(wrap_pyfunction!(get_data_for_shot_with_target, m)?)?;
+    m.add_class::<TargetOptions>()?;
     Ok(())
 }
 
@@ -208,15 +209,7 @@ fn get_slice(slice_time: f32) -> BallSlice {
 }
 
 #[pyfunction]
-fn new_target(
-    left_target: Vec<f32>,
-    right_target: Vec<f32>,
-    car_index: usize,
-    min_slice: Option<usize>,
-    max_slice: Option<usize>,
-    use_absolute_max_values: Option<bool>,
-    all: Option<bool>,
-) -> PyResult<usize> {
+fn new_target(left_target: Vec<f32>, right_target: Vec<f32>, car_index: usize, options: Option<TargetOptions>) -> PyResult<usize> {
     let num_slices = BALL_STRUCT.lock().unwrap().num_slices;
 
     if num_slices == 0 {
@@ -225,7 +218,7 @@ fn new_target(
 
     let target_left = get_vec3_from_vec(left_target, "target_left")?;
     let target_right = get_vec3_from_vec(right_target, "target_right")?;
-    let options = Options::from(min_slice, max_slice, use_absolute_max_values, all, num_slices);
+    let options = Options::from(options, num_slices);
 
     let target = Some(Target::new(target_left, target_right, car_index, options));
     let mut targets = TARGETS.lock().unwrap();
@@ -371,7 +364,9 @@ fn get_shot_with_target(target_index: usize, temporary: Option<bool>) -> PyResul
         }
     }
 
-    target.shot = found_shot;
+    if !temporary {
+        target.shot = found_shot;
+    }
 
     Ok(match found_time {
         Some(time) => BasicShotInfo::found(time),

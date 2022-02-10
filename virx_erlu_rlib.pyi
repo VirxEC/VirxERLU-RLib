@@ -42,6 +42,17 @@ def tick(packet: GameTickPacket, prediction_time: float=6.) -> None:
     """
 
 
+class TargetOptions:
+    max_slice: Optional[int]
+    min_slice: Optional[int]
+    use_absolute_max_values: Optional[bool]
+    all: Optional[bool]
+
+    def __new__(self, max_slice: Optional[int], min_slice: Optional[int], use_absolute_max_values: Optional[bool], all: Optional[bool]) -> TargetOptions: ...
+    def __str__(self) -> str: ...
+    def __repr__(self) -> str: ...
+
+
 class BallSlice:
     time: float
     location: tuple[float, float, float]
@@ -58,7 +69,7 @@ def get_slice(time: float) -> BallSlice:
     """
 
 
-def new_target(left_target: tuple[float, float, float], right_target: tuple[float, float, float], car_index: int, min_slice: int=0, max_slice: int=720, use_absolute_max_values: bool=False, all: bool=False) -> int:
+def new_target(left_target: tuple[float, float, float], right_target: tuple[float, float, float], car_index: int, options: Optional[TargetOptions]) -> int:
     """
     Creates a new target and returns the target's I.D.
 
