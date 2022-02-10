@@ -32,3 +32,4 @@ pub const NO_CAR_ERR: &str = "No car at the provided index.";
 pub const NO_SLICES_ERR: &str = "Ball prediction struct has not been initialized yet. Try calling a function like tick() first.";
 pub const NO_TARGET_ERR: &str = "Target no longer exists.";
 pub const NO_SHOT_ERR: &str = "Specified target has no found shot.";
+pub const BALL_CHANGED_ERR: &str = "Ball has changed too much from the original prediction.";

@@ -233,7 +233,7 @@ pub fn can_reach_target(car: &Car, max_speed: f32, max_time: f32, distance_remai
 }
 
 impl AdvancedShotInfo {
-    pub fn get(car: &Car, shot: &Shot, shot_vector: Vec3A) -> Self {
+    pub fn get(car: &Car, shot: &Shot) -> Self {
         let (distance_along, index) = shot.get_distance_along_shot_and_index(car.location);
 
         let distance = car.local_velocity.x.max(500.) * STEER_REACTION_TIME;
@@ -244,7 +244,7 @@ impl AdvancedShotInfo {
 
         let target = if distance > max_path_distance {
             let distance_remaining = distance - max_path_distance;
-            let additional_space = shot_vector * distance_remaining;
+            let additional_space = shot.direction * distance_remaining;
 
             shot.path_endpoint + additional_space
         } else {

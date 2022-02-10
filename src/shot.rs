@@ -4,10 +4,13 @@ use crate::{
 };
 use dubins_paths::DubinsPath;
 use glam::Vec3A;
+use rl_ball_sym::simulation::ball::Ball;
 
 #[derive(Clone, Debug)]
 pub struct Shot {
     pub time: f32,
+    pub ball_location: Vec3A,
+    pub direction: Vec3A,
     pub distances: [f32; 4],
     pub all_samples: Vec<(f32, f32)>,
     pub samples: [Vec<Vec3A>; 4],
@@ -18,7 +21,10 @@ pub struct Shot {
 impl Shot {
     const STEP_DISTANCE: f32 = 10.;
 
-    pub fn from(time: f32, path: DubinsPath, distances: [f32; 4], shot_vector: Vec3A) -> Self {
+    pub fn from(ball: &Ball, path: DubinsPath, distances: [f32; 4], direction: Vec3A) -> Self {
+        let time = ball.time;
+        let ball_location = ball.location;
+
         // the distance of each segment
         let segment_distances = [path.segment_length(0), path.segment_length(0) + path.segment_length(1), path.length()];
         let path_endpoint = get_vec3_from_array(path.endpoint());
@@ -32,7 +38,7 @@ impl Shot {
                 get_samples_from_path(&path, 0., segment_distances[0], Self::STEP_DISTANCE),
                 get_samples_from_path(&path, segment_distances[0], segment_distances[1], Self::STEP_DISTANCE),
                 get_samples_from_path(&path, segment_distances[1], segment_distances[2], Self::STEP_DISTANCE),
-                get_samples_from_line(path_endpoint, shot_vector, distances[3], Self::STEP_DISTANCE),
+                get_samples_from_line(path_endpoint, direction, distances[3], Self::STEP_DISTANCE),
             ];
 
             all_samples = raw_samples[0]
@@ -53,6 +59,8 @@ impl Shot {
 
         Self {
             time,
+            ball_location,
+            direction,
             distances,
             all_samples,
             samples,

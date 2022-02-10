@@ -355,7 +355,7 @@ fn get_shot_with_target(target_index: usize, temporary: Option<bool>) -> PyResul
             found_time = Some(ball.time);
 
             if !temporary {
-                found_shot = Some(Shot::from(ball.time, result.path, result.distances, shot_vector));
+                found_shot = Some(Shot::from(ball, result.path, result.distances, shot_vector));
             }
 
             if !target.options.all {
@@ -401,14 +401,9 @@ fn get_data_for_shot_with_target(target_index: usize) -> PyResult<AdvancedShotIn
         ball_struct.slices[slice_num.clamp(1, ball_struct.num_slices) - 1]
     };
 
-    let car_to_ball = ball.location - car.location;
-    let post_info = correct_for_posts(ball.location, ball.collision_radius, target.target_left, target.target_right);
-    let shot_vector = get_shot_vector_2d(
-        flatten(car_to_ball).normalize_or_zero(),
-        flatten(ball.location),
-        flatten(post_info.target_left),
-        flatten(post_info.target_right),
-    );
+    if ball.location.distance(shot.ball_location) > 10. {
+        return Err(PyErr::new::<exceptions::PyAssertionError, _>(BALL_CHANGED_ERR));
+    }
 
-    Ok(AdvancedShotInfo::get(car, shot, shot_vector))
+    Ok(AdvancedShotInfo::get(car, shot))
 }
