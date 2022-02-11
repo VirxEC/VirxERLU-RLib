@@ -20,6 +20,7 @@ pub struct Shot {
 
 impl Shot {
     const STEP_DISTANCE: f32 = 10.;
+    pub const ALL_STEP: usize = 3;
 
     pub fn from(ball: &Ball, path: DubinsPath, distances: [f32; 4], direction: Vec3A) -> Self {
         let time = ball.time;
@@ -47,6 +48,7 @@ impl Shot {
                 .chain(raw_samples[1].iter().map(|x| (x[0], x[1])))
                 .chain(raw_samples[2].iter().map(|x| (x[0], x[1])))
                 .chain(raw_samples[3].iter().map(|x| (x[0], x[1])))
+                .step_by(Self::ALL_STEP)
                 .collect();
 
             samples = [

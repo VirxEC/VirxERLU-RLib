@@ -269,7 +269,7 @@ fn remove_target(target_index: usize) -> PyResult<()> {
 
 #[pyfunction]
 fn print_targets() {
-    dbg!(&*TARGETS.lock().unwrap());
+    println!("Current length of targets: {}", TARGETS.lock().unwrap().len());
 }
 
 #[pyfunction]

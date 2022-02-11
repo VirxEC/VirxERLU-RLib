@@ -124,8 +124,8 @@ pub fn analyze_target(ball: &Ball, car: &Car, shot_vector: Vec3A, time_remaining
 
     // will also be used to set offsets for jumps
     let offset_distance = car_front_length + {
-        let distance = 100.;
-        if (0_f32..distance).contains(&car.forward.dot(ball.location)) && angle_2d(car.forward, shot_vector) < 0.01 {
+        let distance = 320.;
+        if (0_f32..distance).contains(&car.forward.dot(ball.location)) && car.right.dot(ball.location) < car.hitbox.width / 2. && angle_2d(car.forward, shot_vector) < 0.02 {
             0. // for pre-aligned ground shots
         } else {
             distance // for non-aligned ground shots
@@ -252,7 +252,7 @@ impl AdvancedShotInfo {
         };
 
         // get all the samples from the vec after index
-        let samples = shot.all_samples.iter().skip(index).cloned().collect();
+        let samples = shot.all_samples.iter().skip(index / Shot::ALL_STEP).cloned().collect();
 
         Self::from(target, distance_to_ball, samples)
     }
