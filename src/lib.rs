@@ -383,8 +383,6 @@ fn get_data_for_shot_with_target(target_index: usize) -> PyResult<AdvancedShotIn
         game.gravity
     };
 
-    let game_time = GAME_TIME.lock().unwrap();
-
     let targets_gaurd = TARGETS.lock().unwrap();
     let target = targets_gaurd[target_index]
         .as_ref()
@@ -394,16 +392,17 @@ fn get_data_for_shot_with_target(target_index: usize) -> PyResult<AdvancedShotIn
     let cars_guard = CARS.lock().unwrap();
     let car = cars_guard.get(target.car_index).ok_or_else(|| PyErr::new::<exceptions::PyIndexError, _>(NO_CAR_ERR))?;
 
+    let ball_struct = BALL_STRUCT.lock().unwrap();
     let ball = {
-        let ball_struct = BALL_STRUCT.lock().unwrap();
+        let game_time = GAME_TIME.lock().unwrap();
         let slice_num = ((shot.time - *game_time) * 120.).round() as usize;
 
-        ball_struct.slices[slice_num.clamp(1, ball_struct.num_slices) - 1]
+        &ball_struct.slices[slice_num.clamp(1, ball_struct.num_slices) - 1]
     };
 
-    if ball.location.distance(shot.ball_location) > 10. {
-        return Err(PyErr::new::<exceptions::PyAssertionError, _>(BALL_CHANGED_ERR));
+    if ball.location.distance(shot.ball_location) > car.hitbox.width / 2. {
+        Err(PyErr::new::<exceptions::PyAssertionError, _>(BALL_CHANGED_ERR))
+    } else {
+        Ok(AdvancedShotInfo::get(car, shot))
     }
-
-    Ok(AdvancedShotInfo::get(car, shot))
 }
