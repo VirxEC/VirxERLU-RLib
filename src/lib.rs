@@ -273,7 +273,15 @@ fn print_targets() {
 }
 
 #[pyfunction]
-fn get_shot_with_target(target_index: usize, temporary: Option<bool>) -> PyResult<BasicShotInfo> {
+fn get_shot_with_target(target_index: usize, temporary: Option<bool>, may_ground_shot: Option<bool>) -> PyResult<BasicShotInfo> {
+    let may_ground_shot = may_ground_shot.unwrap_or(true);
+    
+    // when more options come around, they must be added here
+    if !may_ground_shot {
+        // maybe choose an error other than a value error
+        return Err(PyErr::new::<exceptions::PyValueError, _>(NO_SHOT_SELECTED_ERR));
+    }
+    
     let (_gravity, radius) = {
         let game_guard = GAME.lock().unwrap();
         let game = game_guard.as_ref().ok_or_else(|| PyErr::new::<exceptions::PyNameError, _>(NO_GAME_ERR))?;

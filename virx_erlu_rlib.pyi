@@ -114,7 +114,7 @@ class BasicShotInfo:
     def __repr__(self) -> str: ...
 
 
-def get_shot_with_target(target_id: int, temporary: bool=False) -> BasicShotInfo:
+def get_shot_with_target(target_id: int, temporary: bool=False, may_ground_shot: bool=True) -> BasicShotInfo:
     """
     Searches the ball prediction struct for a shot
 
