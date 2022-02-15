@@ -48,7 +48,7 @@ class TargetOptions:
     use_absolute_max_values: Optional[bool]
     all: Optional[bool]
 
-    def __new__(self, max_slice: Optional[int], min_slice: Optional[int], use_absolute_max_values: Optional[bool], all: Optional[bool]) -> TargetOptions: ...
+    def __new__(self, max_slice: Optional[int]=None, min_slice: Optional[int]=None, use_absolute_max_values: Optional[bool]=None, all: Optional[bool]=None) -> TargetOptions: ...
     def __str__(self) -> str: ...
     def __repr__(self) -> str: ...
 
@@ -69,20 +69,11 @@ def get_slice(time: float) -> BallSlice:
     """
 
 
-def new_target(left_target: tuple[float, float, float], right_target: tuple[float, float, float], car_index: int, options: Optional[TargetOptions]) -> int:
+def new_target(left_target: tuple[float, float, float], right_target: tuple[float, float, float], car_index: int, options: Optional[TargetOptions]=None) -> int:
     """
     Creates a new target and returns the target's I.D.
 
     Targets get automatically deleted upon calling tick() if it hasn't been confirmed.
-
-    OPTIONAL arguments (defaults recommended):
-
-    min_slice: the prediction slice to start the search from
-    max_slice: the prediction slice to end the search at
-    use_absolute_max_values: whether to use the absolute max values for the search
-    all: whether to search for all slices or just the first slice
-
-    NOTE: max_slice isn't always 720, but is set to the current number of slices in the ball prediction struct upon creation 
     """
 
 
@@ -114,11 +105,13 @@ class BasicShotInfo:
     def __repr__(self) -> str: ...
 
 
-def get_shot_with_target(target_id: int, temporary: bool=False, may_ground_shot: bool=True) -> BasicShotInfo:
+def get_shot_with_target(target_id: int, temporary: bool=False, may_ground_shot: Optional[bool]=None, only: bool=False) -> BasicShotInfo:
     """
     Searches the ball prediction struct for a shot
 
     temporary: Setting this to False will only return the time of the shot, if found
+    may_ground_shot: Setting this to True will enable searching for ground shots, default is the opposite of only
+    only: Default False, set to True if you only want to search for the specified shot(s)
     """
 
 

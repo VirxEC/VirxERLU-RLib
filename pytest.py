@@ -108,6 +108,8 @@ print(repr(data))
 print()
 print("Benchmarking...")
 
+rlru.print_targets()
+
 for _ in range(5000):
     start = time_ns()
 

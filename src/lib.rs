@@ -269,19 +269,38 @@ fn remove_target(target_index: usize) -> PyResult<()> {
 
 #[pyfunction]
 fn print_targets() {
-    println!("Current length of targets: {}", TARGETS.lock().unwrap().len());
+    let targets = TARGETS.lock().unwrap();
+    let mut out = Vec::with_capacity(targets.len());
+
+    for target in targets.iter() {
+        match target {
+            Some(t) => {
+                if t.is_confirmed() {
+                    out.push("Confirmed");
+                } else {
+                    out.push("Unconfirmed");
+                }
+            }
+            None => {
+                out.push("None");
+            }
+        }
+    }
+
+    println!("[{}]", out.join(", "));
 }
 
 #[pyfunction]
-fn get_shot_with_target(target_index: usize, temporary: Option<bool>, may_ground_shot: Option<bool>) -> PyResult<BasicShotInfo> {
-    let may_ground_shot = may_ground_shot.unwrap_or(true);
-    
+fn get_shot_with_target(target_index: usize, temporary: Option<bool>, may_ground_shot: Option<bool>, only: Option<bool>) -> PyResult<BasicShotInfo> {
+    let only = only.unwrap_or(false);
+    let may_ground_shot = may_ground_shot.unwrap_or(!only);
+
     // when more options come around, they must be added here
     if !may_ground_shot {
         // maybe choose an error other than a value error
         return Err(PyErr::new::<exceptions::PyValueError, _>(NO_SHOT_SELECTED_ERR));
     }
-    
+
     let (_gravity, radius) = {
         let game_guard = GAME.lock().unwrap();
         let game = game_guard.as_ref().ok_or_else(|| PyErr::new::<exceptions::PyNameError, _>(NO_GAME_ERR))?;

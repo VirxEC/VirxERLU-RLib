@@ -33,4 +33,4 @@ pub const NO_SLICES_ERR: &str = "Ball prediction struct has not been initialized
 pub const NO_TARGET_ERR: &str = "Target no longer exists.";
 pub const NO_SHOT_ERR: &str = "Specified target has no found shot.";
 pub const BALL_CHANGED_ERR: &str = "Ball has changed too much from the original prediction.";
-pub const NO_SHOT_SELECTED_ERR: &str = "All shots were disabled."
+pub const NO_SHOT_SELECTED_ERR: &str = "All shots were disabled.";
