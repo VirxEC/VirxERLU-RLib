@@ -247,7 +247,7 @@ pub fn can_reach_target(car: &Car, max_time: f32, distances: [f32; 4], path_type
             b -= BOOST_CONSUMPTION_DT;
         }
 
-        if is_middle_straight || d < distances[3] {
+        if !(is_middle_straight || d < distances[3]) {
             accel -= turn_rad / 2. * SIMULATION_DT;
             accel = accel.min(2295. - v);
         }
