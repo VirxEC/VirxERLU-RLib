@@ -170,41 +170,61 @@ pub fn analyze_target(ball: &Ball, car: &Car, shot_vector: Vec3A, time_remaining
 
 pub fn can_reach_target(car: &Car, max_time: f32, distances: [f32; 4], path_type: DubinsPathType, is_forwards: bool) -> Result<f32, ()> {
     let is_curved = DubinsPathType::CCC.contains(&path_type);
+    // println!();
+
     let total_d = distances.iter().sum::<f32>();
 
     let middle_range = {
-        let start = distances[0] + distances[1];
-        let end = start + distances[2];
+        let start = distances[0];
+        let end = start + distances[1];
 
         start..end
     };
 
-    let end_straight_start = distances[0] + distances[1] + distances[2];
-
     let mut d = total_d;
     let mut t_r = max_time;
-    let mut b = (car.boost - car.boost.min(12)) as f32; // preserve 12 (or less) boost
+    let b_s = car.boost.min(12) as f32;
+    let mut b = car.boost as f32 - b_s;
     let mut v = car.local_velocity.x;
 
     let direction = is_forwards as u8 as f32;
 
     loop {
-        if d <= 0. {
-            return Ok(t_r);
+        if distances[3] < f32::EPSILON && d < 1. {
+            return Ok(t_r.max(0.));
         }
 
         if t_r <= 0. {
             return Err(());
         }
 
-        let r = d * direction / t_r.max(f32::MIN);
+        let r = d * direction / t_r;
+        let t = r - v;
 
-        let quick_max_speed = if b > 0. {
-            let boost_bonus = t_r * BOOST_ACCEL * (b / BOOST_CONSUMPTION);
+        let distance_traveled = total_d - d;
+        let is_middle_straight = !is_curved && middle_range.contains(&distance_traveled);
 
-            car.max_speed.min(MAX_SPEED_NO_BOOST + boost_bonus)
+        if t.abs() < 20. {
+            if d <= distances[3] + 1. {
+                break;
+            } else if is_middle_straight {
+                // skip ahead to the end of the section
+                let final_d = total_d - distances[1] - distances[0];
+                let delta_d = final_d - d;
+
+                d = final_d;
+                t_r -= delta_d / r;
+
+                continue;
+            }
+        }
+
+        let quick_max_speed = if b >= 1. {
+            let boost_bonus = BOOST_ACCEL * t_r.min((b + b_s) / BOOST_CONSUMPTION);
+
+            MAX_SPEED_NO_BOOST + boost_bonus
         } else {
-            MAX_SPEED_NO_BOOST
+            MAX_SPEED_NO_BOOST.max(v)
         };
 
         if (is_forwards && r > quick_max_speed) || (!is_forwards && MIN_SPEED > r) {
@@ -212,44 +232,12 @@ pub fn can_reach_target(car: &Car, max_time: f32, distances: [f32; 4], path_type
             return Err(());
         }
 
-        let t = r - v;
-
-        let distance_traveled = total_d - d;
-        let middle_straight = !is_curved && middle_range.contains(&distance_traveled);
-
-        if t.abs() < 100. && distance_traveled > end_straight_start {
-            break;
-        }
-
-        let acceleration = t / REACTION_TIME;
-
         let throttle_accel = throttle_acceleration(v);
-        let throttle_boost_transition = throttle_accel + 0.5 * BOOST_ACCEL;
-
-        let throttle: f32;
-        let boost: bool;
-
-        if acceleration <= BRAKE_COAST_TRANSITION {
-            throttle = -1.;
-            boost = false;
-        } else if BRAKE_COAST_TRANSITION < acceleration && acceleration < COASTING_THROTTLE_TRANSITION {
-            throttle = 0.;
-            boost = false;
-        } else if COASTING_THROTTLE_TRANSITION <= acceleration && acceleration <= throttle_boost_transition {
-            throttle = if throttle_accel == 0. { 1. } else { (acceleration / throttle_accel).clamp(0.02, 1.) };
-            boost = false;
-        } else if b >= MIN_BOOST_CONSUMPTION && throttle_boost_transition < acceleration {
-            throttle = 1.;
-            boost = t > 0.;
-        } else {
-            throttle = 0.;
-            boost = false;
-        }
-
+        let (throttle, boost) = get_throttle_and_boost(throttle_accel, b, t);
         let mut accel = 0.;
 
         if throttle == 0. {
-            accel += COAST_ACC * SIMULATION_DT;
+            accel += COAST_ACC * SIMULATION_DT * -v.signum();
         } else if throttle.signum() == v.signum() {
             accel += throttle_accel * SIMULATION_DT * throttle;
         } else {
@@ -261,7 +249,7 @@ pub fn can_reach_target(car: &Car, max_time: f32, distances: [f32; 4], path_type
         // magic constant time!
         let factor = {
             // check if we're on a straight away
-            if middle_straight || distance_traveled > end_straight_start {
+            if is_middle_straight || d < distances[3] {
                 1.
             } else if boost {
                 1. - (0.325 * (v / MAX_SPEED))
@@ -271,7 +259,7 @@ pub fn can_reach_target(car: &Car, max_time: f32, distances: [f32; 4], path_type
         };
 
         if boost {
-            accel += BOOST_ACCEL_DT * SIMULATION_DT;
+            accel += BOOST_ACCEL_DT;
             b -= BOOST_CONSUMPTION_DT;
         }
 
@@ -282,8 +270,26 @@ pub fn can_reach_target(car: &Car, max_time: f32, distances: [f32; 4], path_type
         d -= d_delta;
     }
 
-    dbg!(t_r, v, b);
+    // dbg!(t_r, v, b, d);
     Ok(t_r)
+}
+
+fn get_throttle_and_boost(throttle_accel: f32, b: f32, t: f32) -> (f32, bool) {
+    let acceleration = t / REACTION_TIME;
+    let throttle_boost_transition = throttle_accel + 0.5 * BOOST_ACCEL;
+
+    if acceleration <= BRAKE_COAST_TRANSITION {
+        (-1., false)
+    } else if BRAKE_COAST_TRANSITION < acceleration && acceleration < COASTING_THROTTLE_TRANSITION {
+        (0., false)
+    } else if COASTING_THROTTLE_TRANSITION <= acceleration && acceleration <= throttle_boost_transition {
+        let throttle = if throttle_accel == 0. { 1. } else { (acceleration / throttle_accel).clamp(0.02, 1.) };
+        (throttle, false)
+    } else if b >= MIN_BOOST_CONSUMPTION && throttle_boost_transition < acceleration {
+        (1., t > 0.)
+    } else {
+        (0., false)
+    }
 }
 
 impl AdvancedShotInfo {
