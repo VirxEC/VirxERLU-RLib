@@ -52,6 +52,7 @@ fn virx_erlu_rlib(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(confirm_target, m)?)?;
     m.add_function(wrap_pyfunction!(remove_target, m)?)?;
     m.add_function(wrap_pyfunction!(print_targets, m)?)?;
+    m.add_function(wrap_pyfunction!(get_targets_length, m)?)?;
     m.add_function(wrap_pyfunction!(get_shot_with_target, m)?)?;
     m.add_function(wrap_pyfunction!(get_data_for_shot_with_target, m)?)?;
     m.add_class::<TargetOptions>()?;
@@ -274,15 +275,12 @@ fn print_targets() {
 
     for target in targets.iter() {
         match target {
-            Some(t) => {
-                if t.is_confirmed() {
-                    out.push("Confirmed");
-                } else {
-                    out.push("Unconfirmed");
-                }
-            }
+            Some(t) => match &t.shot {
+                Some(s) => out.push(format!("{}", s.time)),
+                None => out.push(String::from("No shot")),
+            },
             None => {
-                out.push("None");
+                out.push(String::from("None"));
             }
         }
     }
@@ -291,14 +289,17 @@ fn print_targets() {
 }
 
 #[pyfunction]
+fn get_targets_length() -> usize {
+    TARGETS.lock().unwrap().len()
+}
+
+#[pyfunction]
 fn get_shot_with_target(target_index: usize, temporary: Option<bool>, may_ground_shot: Option<bool>, only: Option<bool>) -> PyResult<BasicShotInfo> {
     let only = only.unwrap_or(false);
     let may_ground_shot = may_ground_shot.unwrap_or(!only);
 
-    // when more options come around, they must be added here
     if !may_ground_shot {
-        // maybe choose an error other than a value error
-        return Err(PyErr::new::<exceptions::PyValueError, _>(NO_SHOT_SELECTED_ERR));
+        return Err(PyErr::new::<exceptions::PyAssertionError, _>(NO_SHOT_SELECTED_ERR));
     }
 
     let (_gravity, radius) = {
@@ -369,11 +370,10 @@ fn get_shot_with_target(target_index: usize, temporary: Option<bool>, may_ground
             Err(_) => continue,
         };
 
-        let distance_remaining = result.distances.iter().sum();
         let is_forwards = true;
 
         // will be used to calculate if there's enough time left to jump after accelerating
-        let _time_remaining = match can_reach_target(car, max_speed, max_time_remaining, distance_remaining, is_forwards) {
+        let _time_remaining = match can_reach_target(car, max_time_remaining, result.distances, result.path.type_, is_forwards) {
             Ok(t_r) => t_r,
             Err(_) => continue,
         };
@@ -416,13 +416,21 @@ fn get_data_for_shot_with_target(target_index: usize) -> PyResult<AdvancedShotIn
         .ok_or_else(|| PyErr::new::<exceptions::PyIndexError, _>(NO_TARGET_ERR))?;
     let shot = target.shot.as_ref().ok_or_else(|| PyErr::new::<exceptions::PyLookupError, _>(NO_SHOT_ERR))?;
 
+    let time_remaining = {
+        let game_time = GAME_TIME.lock().unwrap();
+        shot.time - *game_time
+    };
+
+    if time_remaining < 0. {
+        return Err(PyErr::new::<exceptions::PyAssertionError, _>(NO_TIME_REMAINING_ERR));
+    }
+
     let cars_guard = CARS.lock().unwrap();
     let car = cars_guard.get(target.car_index).ok_or_else(|| PyErr::new::<exceptions::PyIndexError, _>(NO_CAR_ERR))?;
 
     let ball_struct = BALL_STRUCT.lock().unwrap();
     let ball = {
-        let game_time = GAME_TIME.lock().unwrap();
-        let slice_num = ((shot.time - *game_time) * 120.).round() as usize;
+        let slice_num = (time_remaining * 120.).round() as usize;
 
         &ball_struct.slices[slice_num.clamp(1, ball_struct.num_slices) - 1]
     };
@@ -430,6 +438,12 @@ fn get_data_for_shot_with_target(target_index: usize) -> PyResult<AdvancedShotIn
     if ball.location.distance(shot.ball_location) > car.hitbox.width / 2. {
         Err(PyErr::new::<exceptions::PyAssertionError, _>(BALL_CHANGED_ERR))
     } else {
-        Ok(AdvancedShotInfo::get(car, shot))
+        let shot_info = AdvancedShotInfo::get(car, shot);
+
+        if car.max_speed * (time_remaining + 0.2) >= shot_info.get_distance_remaining() {
+            Ok(shot_info)
+        } else {
+            Err(PyErr::new::<exceptions::PyAssertionError, _>(BAD_ACCELERATION_ERR))
+        }
     }
 }

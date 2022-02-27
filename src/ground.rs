@@ -168,10 +168,22 @@ pub fn analyze_target(ball: &Ball, car: &Car, shot_vector: Vec3A, time_remaining
     })
 }
 
-pub fn can_reach_target(car: &Car, max_speed: f32, max_time: f32, distance_remaining: f32, is_forwards: bool) -> Result<f32, ()> {
-    let mut d = distance_remaining;
+pub fn can_reach_target(car: &Car, max_time: f32, distances: [f32; 4], path_type: DubinsPathType, is_forwards: bool) -> Result<f32, ()> {
+    let is_curved = DubinsPathType::CCC.contains(&path_type);
+    let total_d = distances.iter().sum::<f32>();
+
+    let middle_range = {
+        let start = distances[0] + distances[1];
+        let end = start + distances[2];
+
+        start..end
+    };
+
+    let end_straight_start = distances[0] + distances[1] + distances[2];
+
+    let mut d = total_d;
     let mut t_r = max_time;
-    let mut b = car.boost as f32;
+    let mut b = (car.boost - car.boost.min(12)) as f32; // preserve 12 (or less) boost
     let mut v = car.local_velocity.x;
 
     let direction = is_forwards as u8 as f32;
@@ -181,15 +193,31 @@ pub fn can_reach_target(car: &Car, max_speed: f32, max_time: f32, distance_remai
             return Ok(t_r);
         }
 
-        let r = d * direction / t_r.max(0.);
+        if t_r <= 0. {
+            return Err(());
+        }
 
-        if t_r < -SIMULATION_DT || (is_forwards && r > max_speed) || (!is_forwards && MIN_SPEED > r) {
+        let r = d * direction / t_r.max(f32::MIN);
+
+        let quick_max_speed = if b > 0. {
+            let boost_bonus = t_r * BOOST_ACCEL * (b / BOOST_CONSUMPTION);
+
+            car.max_speed.min(MAX_SPEED_NO_BOOST + boost_bonus)
+        } else {
+            MAX_SPEED_NO_BOOST
+        };
+
+        if (is_forwards && r > quick_max_speed) || (!is_forwards && MIN_SPEED > r) {
+            // dbg!(max_time, t_r, r, quick_max_speed, b);
             return Err(());
         }
 
         let t = r - v;
 
-        if t.abs() < 100. {
+        let distance_traveled = total_d - d;
+        let middle_straight = !is_curved && middle_range.contains(&distance_traveled);
+
+        if t.abs() < 100. && distance_traveled > end_straight_start {
             break;
         }
 
@@ -199,36 +227,62 @@ pub fn can_reach_target(car: &Car, max_speed: f32, max_time: f32, distance_remai
         let throttle_boost_transition = throttle_accel + 0.5 * BOOST_ACCEL;
 
         let throttle: f32;
+        let boost: bool;
 
         if acceleration <= BRAKE_COAST_TRANSITION {
             throttle = -1.;
+            boost = false;
         } else if BRAKE_COAST_TRANSITION < acceleration && acceleration < COASTING_THROTTLE_TRANSITION {
             throttle = 0.;
+            boost = false;
         } else if COASTING_THROTTLE_TRANSITION <= acceleration && acceleration <= throttle_boost_transition {
             throttle = if throttle_accel == 0. { 1. } else { (acceleration / throttle_accel).clamp(0.02, 1.) };
+            boost = false;
         } else if b >= MIN_BOOST_CONSUMPTION && throttle_boost_transition < acceleration {
             throttle = 1.;
-
-            if t > 0. {
-                v += BOOST_ACCEL_DT;
-                b -= BOOST_CONSUMPTION_DT;
-            }
+            boost = t > 0.;
         } else {
             throttle = 0.;
+            boost = false;
         }
+
+        let mut accel = 0.;
 
         if throttle == 0. {
-            v += COAST_ACC * SIMULATION_DT;
+            accel += COAST_ACC * SIMULATION_DT;
         } else if throttle.signum() == v.signum() {
-            v += throttle_accel * SIMULATION_DT * throttle;
+            accel += throttle_accel * SIMULATION_DT * throttle;
         } else {
-            v += BRAKE_ACC_DT.copysign(throttle);
+            accel += BRAKE_ACC_DT.copysign(throttle);
         }
 
+        // TODO: Only actually handles acceleration, not deceleration
+
+        // magic constant time!
+        let factor = {
+            // check if we're on a straight away
+            if middle_straight || distance_traveled > end_straight_start {
+                1.
+            } else if boost {
+                1. - (0.325 * (v / MAX_SPEED))
+            } else {
+                1. - (0.0022 * (v / MAX_SPEED))
+            }
+        };
+
+        if boost {
+            accel += BOOST_ACCEL_DT * SIMULATION_DT;
+            b -= BOOST_CONSUMPTION_DT;
+        }
+
+        v += accel * factor;
+
         t_r -= SIMULATION_DT;
-        d -= (v * direction) * SIMULATION_DT;
+        let d_delta = (v * direction) * SIMULATION_DT;
+        d -= d_delta;
     }
 
+    dbg!(t_r, v, b);
     Ok(t_r)
 }
 
@@ -255,5 +309,31 @@ impl AdvancedShotInfo {
         let samples = shot.all_samples.iter().skip(index / Shot::ALL_STEP).cloned().collect();
 
         Self::from(target, distance_to_ball, samples)
+    }
+}
+
+// test can_reach_target
+#[cfg(test)]
+mod tests {
+    use dubins_paths::DubinsPathType;
+
+    #[test]
+    fn test_can_reach_target() {
+        let car = crate::car::get_a_car();
+
+        let max_time = 10.;
+
+        let distances = [1000., 500., 1000., 320.];
+
+        let path_type = DubinsPathType::LRL;
+
+        let is_forwards = true;
+
+        let result = super::can_reach_target(&car, max_time, distances, path_type, is_forwards);
+
+        match result {
+            Ok(t) => println!("{}", t),
+            Err(e) => dbg!(e),
+        }
     }
 }

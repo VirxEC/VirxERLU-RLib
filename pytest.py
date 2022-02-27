@@ -19,8 +19,8 @@ packet.num_cars = 6
 for i in range(packet.num_cars):
     packet.game_cars[i] = PlayerInfo(
         physics=Physics(
-            location=Vector3(-3000., 1500., 100.),
-            rotation=Rotator(0., 0.5, 0.),
+            location=Vector3(1000., -3000., 100.),
+            rotation=Rotator(0., 1.57, 0.),
             velocity=Vector3(0., 0., 0.),
             angular_velocity=Vector3(0., 0., 0.),
         ),
@@ -33,7 +33,7 @@ for i in range(packet.num_cars):
         name="DownToEarth",
         jumped=False,
         double_jumped=False,
-        boost=48,
+        boost=100,
         hitbox=BoxShape(
             length=118.,
             width=84.2,
@@ -79,19 +79,19 @@ print(repr(slice))
 
 print()
 
-print("get_shot_with_target(use_absolute_max_values):")
-shot = rlru.get_shot_with_target(0)
-print(shot)
-print(repr(shot))
+# print("get_shot_with_target(use_absolute_max_values):")
+# shot = rlru.get_shot_with_target(0)
+# print(shot)
+# print(repr(shot))
 
-print()
+# print()
 
-print("get_data_for_shot_with_target(use_absolute_max_values):")
-data = rlru.get_data_for_shot_with_target(0)
-print(data)
-print(repr(data))
+# print("get_data_for_shot_with_target(use_absolute_max_values):")
+# data = rlru.get_data_for_shot_with_target(0)
+# print(data)
+# print(repr(data))
 
-print()
+# print()
 
 print("get_shot_with_target():")
 shot = rlru.get_shot_with_target(1)
@@ -104,6 +104,8 @@ print("get_data_for_shot_with_target():")
 data = rlru.get_data_for_shot_with_target(1)
 print(data)
 print(repr(data))
+
+exit()
 
 print()
 print("Benchmarking...")

@@ -226,3 +226,46 @@ impl Car {
         }
     }
 }
+
+#[allow(clippy::field_reassign_with_default)]
+#[allow(dead_code)]
+pub fn get_a_car() -> Car {
+    let mut car = super::Car::default();
+
+    // set all the values in the car
+    car.location = Vec3A::new(-3000., 1500., 100.);
+    car.velocity = Vec3A::new(0., 0., 0.);
+    car.angular_velocity = Vec3A::new(0., 0., 0.);
+    car.pitch = 0.;
+    car.yaw = 0.5;
+    car.roll = 0.;
+    car.hitbox = Hitbox {
+        length: 118.,
+        width: 84.2,
+        height: 36.2,
+    };
+    car.hitbox_offset = Vec3A::new(13.9, 0., 20.8);
+    car.boost = 48;
+    car.demolished = false;
+    car.airborne = false;
+    car.jumped = false;
+    car.doublejumped = false;
+
+    car.calculate_orientation_matrix();
+    car.calculate_max_values();
+    car.calculate_local_values();
+    car.calculate_field();
+
+    car
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn get_max_speed() {
+        let car = super::get_a_car();
+
+        dbg!(car.max_speed);
+        dbg!(car.ctrms);
+    }
+}

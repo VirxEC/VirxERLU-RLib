@@ -97,6 +97,12 @@ def print_targets() -> None:
     """
 
 
+def get_targets_length() -> int:
+    """
+    Gets the number of targets
+    """
+
+
 class BasicShotInfo:
     found: bool
     time: Optional[float]

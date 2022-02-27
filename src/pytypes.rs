@@ -148,6 +148,12 @@ pub struct AdvancedShotInfo {
     path_samples: Vec<(f32, f32)>,
 }
 
+impl AdvancedShotInfo {
+    pub fn get_distance_remaining(&self) -> f32 {
+        self.distance_remaining
+    }
+}
+
 #[pymethods]
 impl AdvancedShotInfo {
     fn __str__(&self) -> String {
