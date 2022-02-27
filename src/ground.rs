@@ -168,9 +168,8 @@ pub fn analyze_target(ball: &Ball, car: &Car, shot_vector: Vec3A, time_remaining
     })
 }
 
-pub fn can_reach_target(car: &Car, max_time: f32, distances: [f32; 4], path_type: DubinsPathType, is_forwards: bool) -> Result<f32, ()> {
+pub fn can_reach_target(car: &Car, max_time: f32, distances: [f32; 4], path_type: DubinsPathType, turn_rad: f32, is_forwards: bool) -> Result<f32, ()> {
     let is_curved = DubinsPathType::CCC.contains(&path_type);
-    // println!();
 
     let total_d = distances.iter().sum::<f32>();
 
@@ -228,7 +227,6 @@ pub fn can_reach_target(car: &Car, max_time: f32, distances: [f32; 4], path_type
         };
 
         if (is_forwards && r > quick_max_speed) || (!is_forwards && MIN_SPEED > r) {
-            // dbg!(max_time, t_r, r, quick_max_speed, b);
             return Err(());
         }
 
@@ -244,33 +242,23 @@ pub fn can_reach_target(car: &Car, max_time: f32, distances: [f32; 4], path_type
             accel += BRAKE_ACC_DT.copysign(throttle);
         }
 
-        // TODO: Only actually handles acceleration, not deceleration
-
-        // magic constant time!
-        let factor = {
-            // check if we're on a straight away
-            if is_middle_straight || d < distances[3] {
-                1.
-            } else if boost {
-                1. - (0.325 * (v / MAX_SPEED))
-            } else {
-                1. - (0.0022 * (v / MAX_SPEED))
-            }
-        };
-
         if boost {
             accel += BOOST_ACCEL_DT;
             b -= BOOST_CONSUMPTION_DT;
         }
 
-        v += accel * factor;
+        if is_middle_straight || d < distances[3] {
+            accel -= turn_rad / 2. * SIMULATION_DT;
+            accel = accel.min(2295. - v);
+        }
+
+        v += accel;
 
         t_r -= SIMULATION_DT;
         let d_delta = (v * direction) * SIMULATION_DT;
         d -= d_delta;
     }
 
-    // dbg!(t_r, v, b, d);
     Ok(t_r)
 }
 
@@ -332,10 +320,11 @@ mod tests {
         let distances = [1000., 500., 1000., 320.];
 
         let path_type = DubinsPathType::LRL;
+        let rho = 500.;
 
         let is_forwards = true;
 
-        let result = super::can_reach_target(&car, max_time, distances, path_type, is_forwards);
+        let result = super::can_reach_target(&car, max_time, distances, path_type, rho, is_forwards);
 
         match result {
             Ok(t) => println!("{}", t),

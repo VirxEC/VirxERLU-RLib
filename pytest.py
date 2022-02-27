@@ -19,7 +19,7 @@ packet.num_cars = 6
 for i in range(packet.num_cars):
     packet.game_cars[i] = PlayerInfo(
         physics=Physics(
-            location=Vector3(3000., -3000., 20.),
+            location=Vector3(3000., -3500., 20.),
             rotation=Rotator(0., 1.57, 0.),
             velocity=Vector3(0., 0., 0.),
             angular_velocity=Vector3(0., 0., 0.),
@@ -33,7 +33,7 @@ for i in range(packet.num_cars):
         name="DownToEarth",
         jumped=False,
         double_jumped=False,
-        boost=60,
+        boost=36,
         hitbox=BoxShape(
             length=118.,
             width=84.2,
