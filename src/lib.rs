@@ -243,15 +243,13 @@ fn confirm_target(target_index: usize) -> PyResult<()> {
     let mut targets = TARGETS.lock().unwrap();
 
     match targets[target_index].as_mut() {
-        Some(t) => {
-            match t.shot {
-                Some(_) => {
-                    t.confirm();
-                    Ok(())
-                }
-                None => Err(PyErr::new::<NoShotPyErr, _>(NO_SHOT_ERR)),
+        Some(t) => match t.shot {
+            Some(_) => {
+                t.confirm();
+                Ok(())
             }
-        }
+            None => Err(PyErr::new::<NoShotPyErr, _>(NO_SHOT_ERR)),
+        },
         None => Err(PyErr::new::<NoTargetPyErr, _>(NO_TARGET_ERR)),
     }
 }
@@ -318,9 +316,7 @@ fn get_shot_with_target(target_index: usize, temporary: Option<bool>, may_ground
     let ball_prediction = BALL_STRUCT.lock().unwrap();
 
     let mut targets_gaurd = TARGETS.lock().unwrap();
-    let mut target = targets_gaurd[target_index]
-        .as_mut()
-        .ok_or_else(|| PyErr::new::<NoTargetPyErr, _>(NO_TARGET_ERR))?;
+    let mut target = targets_gaurd[target_index].as_mut().ok_or_else(|| PyErr::new::<NoTargetPyErr, _>(NO_TARGET_ERR))?;
 
     let mut cars = CARS.lock().unwrap();
     let car = cars.get_mut(target.car_index).ok_or_else(|| PyErr::new::<NoCarPyErr, _>(NO_CAR_ERR))?;
@@ -416,9 +412,7 @@ fn get_data_for_shot_with_target(target_index: usize) -> PyResult<AdvancedShotIn
     };
 
     let targets_gaurd = TARGETS.lock().unwrap();
-    let target = targets_gaurd[target_index]
-        .as_ref()
-        .ok_or_else(|| PyErr::new::<NoTargetPyErr, _>(NO_TARGET_ERR))?;
+    let target = targets_gaurd[target_index].as_ref().ok_or_else(|| PyErr::new::<NoTargetPyErr, _>(NO_TARGET_ERR))?;
     let shot = target.shot.as_ref().ok_or_else(|| PyErr::new::<NoShotPyErr, _>(NO_SHOT_ERR))?;
 
     let time_remaining = {
