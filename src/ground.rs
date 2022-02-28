@@ -182,13 +182,17 @@ pub fn can_reach_target(car: &Car, max_time: f32, distances: [f32; 4], path_type
             }
         }
 
-        let quick_max_speed = if b >= 1. {
-            MAX_SPEED.min(MAX_SPEED_NO_BOOST.max(v) + BOOST_ACCEL * t_r.min(b / BOOST_CONSUMPTION))
-        } else {
-            MAX_SPEED_NO_BOOST.max(v)
-        };
+        if is_forwards {
+            let quick_max_speed = if b >= 1. {
+                MAX_SPEED.min(MAX_SPEED_NO_BOOST.max(v) + BOOST_ACCEL * t_r.min(b / BOOST_CONSUMPTION))
+            } else {
+                MAX_SPEED_NO_BOOST.max(v)
+            };
 
-        if (is_forwards && r > quick_max_speed) || (!is_forwards && MIN_SPEED > r) {
+            if r > quick_max_speed {
+                return Err(());
+            }
+        } else if MIN_SPEED > r {
             return Err(());
         }
 
