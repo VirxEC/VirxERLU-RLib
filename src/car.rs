@@ -1,3 +1,4 @@
+use dubins_paths::DubinsPath;
 use glam::Vec3A;
 use pyo3::{PyAny, PyResult};
 
@@ -71,6 +72,23 @@ impl CarFieldRect {
             field_y: 5120. - half_car_len,
             field_x: 4093. - half_car_len,
         }
+    }
+
+    pub fn is_path_in(&self, path: &DubinsPath) -> bool {
+        // instead of this, do a better "is arc in" or "is line in" thing
+        for dist in [
+            path.segment_length(0) / 2.,
+            path.segment_length(0),
+            path.segment_length(0) + path.segment_length(1) / 2.,
+            path.segment_length(0) + path.segment_length(1),
+            path.segment_length(0) + path.segment_length(1) + path.segment_length(2) / 2.,
+        ] {
+            if dist > 20. && !self.is_point_in(&path.sample(dist)) {
+                return false;
+            }
+        }
+
+        true
     }
 
     pub fn is_point_in(&self, p: &[f32; 3]) -> bool {

@@ -20,6 +20,7 @@ for i in range(packet.num_cars):
     packet.game_cars[i] = PlayerInfo(
         physics=Physics(
             location=Vector3(3000., -3500., 20.),
+            # location=Vector3(0., -3500., 20.),
             rotation=Rotator(0., 1.57, 0.),
             velocity=Vector3(0., 0., 0.),
             angular_velocity=Vector3(0., 0., 0.),

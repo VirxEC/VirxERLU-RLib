@@ -14,26 +14,6 @@ fn angle_2d(vec1: Vec3A, vec2: Vec3A) -> f32 {
     flatten(vec1).dot(flatten(vec2)).clamp(-1., 1.).acos()
 }
 
-// https://stackoverflow.com/questions/849211/shortest-distance-between-a-point-and-a-line-segment
-// fn point_from_line(v: Vec3A, w: Vec3A, p: Vec3A) -> (f32, f32) {
-//     // Return minimum distance between line segment vw and point p
-//     let l2 = v.distance_squared(w); // i.e. |w-v|^2 -  avoid a sqrt
-
-//     // v == w case
-//     if l2 == 0. {
-//         return (p.distance(v), 1.);
-//     }
-
-//     // Consider the line extending the segment, parameterized as v + t (w - v).
-//     // We find projection of point p onto the line.
-//     // It falls where t = [(p-v) . (w-v)] / |w-v|^2
-//     // We clamp t from [0,1] to handle points outside the segment vw.
-//     let t = ((p - v).dot(w - v) / l2).clamp(0., 1.);
-//     let projection = lerp(w, v, t); // Projection falls on the segment
-
-//     (p.distance(projection), t)
-// }
-
 pub fn path_point_to_vec3(endpoint: [f32; 3]) -> Vec3A {
     Vec3A::new(endpoint[0], endpoint[1], 0.)
 }
@@ -55,28 +35,7 @@ fn shortest_path_in_validate(q0: [f32; 3], q1: [f32; 3], rho: f32, car_field: &C
                     type_: path_type,
                 };
 
-                let mut valid = true;
-
-                // instead of this, do a better "is arc in" or "is line in" thing
-                for dist in [path.segment_length(0) / 2., (path.segment_length(0) + path.segment_length(1)) / 2., path.length() / 2.] {
-                    if !car_field.is_point_in(&path.sample(dist)) {
-                        valid = false;
-                        break;
-                    }
-                }
-
-                if !valid {
-                    continue;
-                }
-
-                for dist in [path.segment_length(0), path.segment_length(0) + path.segment_length(1), path.length()] {
-                    if !car_field.is_point_in(&path.sample(dist)) {
-                        valid = false;
-                        break;
-                    }
-                }
-
-                if valid {
+                if car_field.is_path_in(&path) {
                     best_cost = cost;
                     best_path = Some(path);
                 }
@@ -122,6 +81,12 @@ pub fn analyze_target(ball: &Ball, car: &Car, shot_vector: Vec3A, time_remaining
     let offset_target = ball.location - (shot_vector * ball.radius);
     let car_front_length = (car.hitbox_offset.x + car.hitbox.length) / 2.;
 
+    let max_distance = time_remaining * options.max_speed + car_front_length;
+
+    if flatten(car.location).distance(flatten(offset_target)) > max_distance {
+        return Err(DubinsError::NoPath);
+    }
+
     // will also be used to set offsets for jumps
     let offset_distance = car_front_length + {
         let distance = 320.;
@@ -135,12 +100,11 @@ pub fn analyze_target(ball: &Ball, car: &Car, shot_vector: Vec3A, time_remaining
     let end_distance = offset_distance - car_front_length;
     let exit_turn_target = offset_target - (shot_vector * offset_distance);
 
-    let target_angle = shot_vector.y.atan2(shot_vector.x);
-    let max_distance = time_remaining * options.max_speed + car_front_length;
-
-    if flatten(car.location).distance(flatten(offset_target)) > max_distance {
+    if !car.field.is_point_in(&[exit_turn_target.x, exit_turn_target.y, 0.]) {
         return Err(DubinsError::NoPath);
     }
+
+    let target_angle = shot_vector.y.atan2(shot_vector.x);
 
     let q0 = [car.location.x, car.location.y, car.yaw];
     let q1 = [exit_turn_target.x, exit_turn_target.y, target_angle];
@@ -180,6 +144,13 @@ pub fn can_reach_target(car: &Car, max_time: f32, distances: [f32; 4], path_type
         start..end
     };
 
+    // let end_turn_range = {
+    //     let start = distances[0] + distances[1];
+    //     let end = start + distances[2];
+
+    //     start..end
+    // };
+
     let mut d = total_d;
     let mut t_r = max_time;
     let b_s = car.boost.min(12) as f32;
@@ -216,6 +187,27 @@ pub fn can_reach_target(car: &Car, max_time: f32, distances: [f32; 4], path_type
 
                 continue;
             }
+            // doesn't factor in throttle acceleration
+            // else if end_turn_range.contains(&distance_traveled) {
+            //     let final_d = total_d - distances[2] - distances[1] - distances[0];
+            //     let delta_d = final_d - d;
+
+            //     let delta_t = delta_d / r;
+
+            //     // calculate boost usage
+            //     // turn_rad / 2. is the reduction in r per second
+            //     // find the total accel reduction over the section
+            //     let accel_reduction = turn_rad / 2. * delta_t;
+            //     // find the needed boost to make up the accel reduction
+            //     let boost_needed = accel_reduction / BOOST_ACCEL;
+
+            //     if boost_needed > b {
+            //         d = final_d;
+            //         t_r -= delta_t;
+            //         b -= boost_needed;
+            //         continue;
+            //     }
+            // }
         }
 
         let quick_max_speed = if b >= 1. {
