@@ -183,9 +183,7 @@ pub fn can_reach_target(car: &Car, max_time: f32, distances: [f32; 4], path_type
         }
 
         let quick_max_speed = if b >= 1. {
-            let boost_bonus = BOOST_ACCEL * t_r.min((b + b_s) / BOOST_CONSUMPTION);
-
-            MAX_SPEED_NO_BOOST + boost_bonus
+            MAX_SPEED.min(MAX_SPEED_NO_BOOST.max(v) + BOOST_ACCEL * t_r.min(b / BOOST_CONSUMPTION))
         } else {
             MAX_SPEED_NO_BOOST.max(v)
         };
