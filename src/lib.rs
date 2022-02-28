@@ -9,7 +9,7 @@ use car::{turn_radius, Car};
 use constants::*;
 use ground::*;
 use lazy_static::{initialize, lazy_static};
-use pyo3::{exceptions, prelude::*, PyErr};
+use pyo3::{prelude::*, PyErr};
 use pytypes::*;
 use rl_ball_sym::simulation::{
     ball::{Ball, BallPrediction},
@@ -101,7 +101,7 @@ fn load_soccar_throwback() {
 #[pyfunction]
 fn tick(py: Python, packet: PyObject, prediction_time: Option<f32>) -> PyResult<()> {
     let mut game_guard = GAME.lock().unwrap();
-    let game = game_guard.as_mut().ok_or_else(|| PyErr::new::<exceptions::PyNameError, _>(NO_GAME_ERR))?;
+    let game = game_guard.as_mut().ok_or_else(|| PyErr::new::<NoGamePyErr, _>(NO_GAME_ERR))?;
 
     let mut cars = CARS.lock().unwrap();
     let mut targets = TARGETS.lock().unwrap();
@@ -214,7 +214,7 @@ fn new_target(left_target: Vec<f32>, right_target: Vec<f32>, car_index: usize, o
     let num_slices = BALL_STRUCT.lock().unwrap().num_slices;
 
     if num_slices == 0 {
-        return Err(PyErr::new::<exceptions::PyValueError, _>(NO_SLICES_ERR));
+        return Err(PyErr::new::<NoSlicesPyErr, _>(NO_SLICES_ERR));
     }
 
     let target_left = get_vec3_from_vec(left_target, "target_left")?;
@@ -244,10 +244,15 @@ fn confirm_target(target_index: usize) -> PyResult<()> {
 
     match targets[target_index].as_mut() {
         Some(t) => {
-            t.confirm();
-            Ok(())
+            match t.shot {
+                Some(_) => {
+                    t.confirm();
+                    Ok(())
+                }
+                None => Err(PyErr::new::<NoShotPyErr, _>(NO_SHOT_ERR)),
+            }
         }
-        None => Err(PyErr::new::<exceptions::PyIndexError, _>(NO_TARGET_ERR)),
+        None => Err(PyErr::new::<NoTargetPyErr, _>(NO_TARGET_ERR)),
     }
 }
 
@@ -258,13 +263,13 @@ fn remove_target(target_index: usize) -> PyResult<()> {
     match targets.get(target_index) {
         Some(t) => {
             if t.is_none() {
-                Err(PyErr::new::<exceptions::PyIndexError, _>(NO_TARGET_ERR))
+                Err(PyErr::new::<NoTargetPyErr, _>(NO_TARGET_ERR))
             } else {
                 targets[target_index] = None;
                 Ok(())
             }
         }
-        None => Err(PyErr::new::<exceptions::PyIndexError, _>(NO_TARGET_ERR)),
+        None => Err(PyErr::new::<NoTargetPyErr, _>(NO_TARGET_ERR)),
     }
 }
 
@@ -299,12 +304,12 @@ fn get_shot_with_target(target_index: usize, temporary: Option<bool>, may_ground
     let may_ground_shot = may_ground_shot.unwrap_or(!only);
 
     if !may_ground_shot {
-        return Err(PyErr::new::<exceptions::PyAssertionError, _>(NO_SHOT_SELECTED_ERR));
+        return Err(PyErr::new::<NoShotSelectedPyErr, _>(NO_SHOT_SELECTED_ERR));
     }
 
     let (_gravity, radius) = {
         let game_guard = GAME.lock().unwrap();
-        let game = game_guard.as_ref().ok_or_else(|| PyErr::new::<exceptions::PyNameError, _>(NO_GAME_ERR))?;
+        let game = game_guard.as_ref().ok_or_else(|| PyErr::new::<NoGamePyErr, _>(NO_GAME_ERR))?;
 
         (game.gravity, game.ball.radius)
     };
@@ -315,10 +320,10 @@ fn get_shot_with_target(target_index: usize, temporary: Option<bool>, may_ground
     let mut targets_gaurd = TARGETS.lock().unwrap();
     let mut target = targets_gaurd[target_index]
         .as_mut()
-        .ok_or_else(|| PyErr::new::<exceptions::PyIndexError, _>(NO_TARGET_ERR))?;
+        .ok_or_else(|| PyErr::new::<NoTargetPyErr, _>(NO_TARGET_ERR))?;
 
     let mut cars = CARS.lock().unwrap();
-    let car = cars.get_mut(target.car_index).ok_or_else(|| PyErr::new::<exceptions::PyIndexError, _>(NO_CAR_ERR))?;
+    let car = cars.get_mut(target.car_index).ok_or_else(|| PyErr::new::<NoCarPyErr, _>(NO_CAR_ERR))?;
 
     let dist_from_side = radius + car.hitbox.height;
 
@@ -405,7 +410,7 @@ fn get_shot_with_target(target_index: usize, temporary: Option<bool>, may_ground
 fn get_data_for_shot_with_target(target_index: usize) -> PyResult<AdvancedShotInfo> {
     let _gravity = {
         let game_guard = GAME.lock().unwrap();
-        let game = game_guard.as_ref().ok_or_else(|| PyErr::new::<exceptions::PyNameError, _>(NO_GAME_ERR))?;
+        let game = game_guard.as_ref().ok_or_else(|| PyErr::new::<NoGamePyErr, _>(NO_GAME_ERR))?;
 
         game.gravity
     };
@@ -413,8 +418,8 @@ fn get_data_for_shot_with_target(target_index: usize) -> PyResult<AdvancedShotIn
     let targets_gaurd = TARGETS.lock().unwrap();
     let target = targets_gaurd[target_index]
         .as_ref()
-        .ok_or_else(|| PyErr::new::<exceptions::PyIndexError, _>(NO_TARGET_ERR))?;
-    let shot = target.shot.as_ref().ok_or_else(|| PyErr::new::<exceptions::PyLookupError, _>(NO_SHOT_ERR))?;
+        .ok_or_else(|| PyErr::new::<NoTargetPyErr, _>(NO_TARGET_ERR))?;
+    let shot = target.shot.as_ref().ok_or_else(|| PyErr::new::<NoShotPyErr, _>(NO_SHOT_ERR))?;
 
     let time_remaining = {
         let game_time = GAME_TIME.lock().unwrap();
@@ -422,11 +427,11 @@ fn get_data_for_shot_with_target(target_index: usize) -> PyResult<AdvancedShotIn
     };
 
     if time_remaining < 0. {
-        return Err(PyErr::new::<exceptions::PyAssertionError, _>(NO_TIME_REMAINING_ERR));
+        return Err(PyErr::new::<NoTimeRemainingPyErr, _>(NO_TIME_REMAINING_ERR));
     }
 
     let cars_guard = CARS.lock().unwrap();
-    let car = cars_guard.get(target.car_index).ok_or_else(|| PyErr::new::<exceptions::PyIndexError, _>(NO_CAR_ERR))?;
+    let car = cars_guard.get(target.car_index).ok_or_else(|| PyErr::new::<NoCarPyErr, _>(NO_CAR_ERR))?;
 
     let ball_struct = BALL_STRUCT.lock().unwrap();
     let ball = {
@@ -436,14 +441,14 @@ fn get_data_for_shot_with_target(target_index: usize) -> PyResult<AdvancedShotIn
     };
 
     if ball.location.distance(shot.ball_location) > car.hitbox.width / 2. {
-        Err(PyErr::new::<exceptions::PyAssertionError, _>(BALL_CHANGED_ERR))
+        Err(PyErr::new::<BallChangedPyErr, _>(BALL_CHANGED_ERR))
     } else {
         let shot_info = AdvancedShotInfo::get(car, shot);
 
         if car.max_speed * (time_remaining + 0.2) >= shot_info.get_distance_remaining() {
             Ok(shot_info)
         } else {
-            Err(PyErr::new::<exceptions::PyAssertionError, _>(BAD_ACCELERATION_ERR))
+            Err(PyErr::new::<BadAccelerationPyErr, _>(BAD_ACCELERATION_ERR))
         }
     }
 }

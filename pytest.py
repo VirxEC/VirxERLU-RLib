@@ -19,11 +19,11 @@ packet.num_cars = 6
 for i in range(packet.num_cars):
     packet.game_cars[i] = PlayerInfo(
         physics=Physics(
-            location=Vector3(3000., -3500., 20.),
+            location=Vector3(3500, -4000, 20),
             # location=Vector3(0., -3500., 20.),
-            rotation=Rotator(0., 1.57, 0.),
-            velocity=Vector3(0., 0., 0.),
-            angular_velocity=Vector3(0., 0., 0.),
+            rotation=Rotator(0, 1.1, 0),
+            velocity=Vector3(0, 0, 0),
+            angular_velocity=Vector3(0, 0, 0),
         ),
         score_info=ScoreInfo(0, 0, 0, 0, 0, 0, 0),
         is_demolished=False,
@@ -36,17 +36,17 @@ for i in range(packet.num_cars):
         double_jumped=False,
         boost=36,
         hitbox=BoxShape(
-            length=118.,
+            length=118,
             width=84.2,
             height=36.2,
         ),
-        hitbox_offset=Vector3(13.9, 0., 20.8),
+        hitbox_offset=Vector3(13.9, 0, 20.8),
         spawn_id=1793714700,
     )
-packet.game_ball.physics.location.z = 95.
+packet.game_ball.physics.location.z = 95
 packet.game_ball.collision_shape.type = 1
 packet.game_ball.collision_shape.sphere.diameter = 182.5
-packet.game_info.world_gravity_z = -650.
+packet.game_info.world_gravity_z = -650
 packet.teams[1].team_index = 1
 packet.num_teams = 2
 
@@ -106,12 +106,13 @@ data = rlru.get_data_for_shot_with_target(1)
 print(data)
 print(repr(data))
 
-# exit()
-
 print()
-print("Benchmarking...")
-
 rlru.print_targets()
+
+# exit()
+print()
+
+print("Benchmarking...")
 
 for _ in range(5000):
     start = time_ns()
@@ -212,6 +213,6 @@ print()
 
 print("get_data_for_shot_with_target():")
 print(f"Total test time: {round(sum(times[3]) / 1000000000, 6)}s")
-print(f"Avg. time of execution: {round(sum(times[3]) / len(times[3]) / 1000000, 5)}ms")
+print(f"Avg. time of execution: {round(sum(times[3]) / len(times[3]), 3)}ns")
 
 print()

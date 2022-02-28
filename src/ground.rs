@@ -144,13 +144,6 @@ pub fn can_reach_target(car: &Car, max_time: f32, distances: [f32; 4], path_type
         start..end
     };
 
-    // let end_turn_range = {
-    //     let start = distances[0] + distances[1];
-    //     let end = start + distances[2];
-
-    //     start..end
-    // };
-
     let mut d = total_d;
     let mut t_r = max_time;
     let b_s = car.boost.min(12) as f32;
@@ -187,27 +180,6 @@ pub fn can_reach_target(car: &Car, max_time: f32, distances: [f32; 4], path_type
 
                 continue;
             }
-            // doesn't factor in throttle acceleration
-            // else if end_turn_range.contains(&distance_traveled) {
-            //     let final_d = total_d - distances[2] - distances[1] - distances[0];
-            //     let delta_d = final_d - d;
-
-            //     let delta_t = delta_d / r;
-
-            //     // calculate boost usage
-            //     // turn_rad / 2. is the reduction in r per second
-            //     // find the total accel reduction over the section
-            //     let accel_reduction = turn_rad / 2. * delta_t;
-            //     // find the needed boost to make up the accel reduction
-            //     let boost_needed = accel_reduction / BOOST_ACCEL;
-
-            //     if boost_needed > b {
-            //         d = final_d;
-            //         t_r -= delta_t;
-            //         b -= boost_needed;
-            //         continue;
-            //     }
-            // }
         }
 
         let quick_max_speed = if b >= 1. {
