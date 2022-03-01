@@ -5,6 +5,16 @@ use rl_ball_sym::simulation::ball::Ball;
 use crate::utils::get_tuple_from_vec3;
 
 #[pyclass]
+#[derive(Clone, Copy)]
+pub struct ShotType;
+
+#[pymethods]
+impl ShotType {
+    #[classattr]
+    pub const GROUND: usize = 0;
+}
+
+#[pyclass]
 #[derive(Clone, Copy, Debug, Default)]
 pub struct TargetOptions {
     pub min_slice: Option<usize>,
@@ -62,15 +72,25 @@ pub struct BasicShotInfo {
     found: bool,
     #[pyo3(get)]
     time: Option<f32>,
+    #[pyo3(get)]
+    shot_type: Option<usize>,
 }
 
 impl BasicShotInfo {
     pub const fn not_found() -> Self {
-        BasicShotInfo { found: false, time: None }
+        BasicShotInfo {
+            found: false,
+            time: None,
+            shot_type: None,
+        }
     }
 
-    pub const fn found(time: f32) -> Self {
-        BasicShotInfo { found: true, time: Some(time) }
+    pub const fn found(time: f32, shot_type: usize) -> Self {
+        BasicShotInfo {
+            found: true,
+            time: Some(time),
+            shot_type: Some(shot_type),
+        }
     }
 }
 

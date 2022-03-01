@@ -56,6 +56,7 @@ fn virx_erlu_rlib(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(get_shot_with_target, m)?)?;
     m.add_function(wrap_pyfunction!(get_data_for_shot_with_target, m)?)?;
     m.add_class::<TargetOptions>()?;
+    m.add_class::<ShotType>()?;
     Ok(())
 }
 
@@ -324,7 +325,7 @@ fn get_shot_with_target(target_index: usize, temporary: Option<bool>, may_ground
     let dist_from_side = radius + car.hitbox.height;
 
     let mut found_shot = None;
-    let mut found_time = None;
+    let mut basic_shot_info = None;
 
     if ball_prediction.num_slices == 0 || car.demolished || car.airborne {
         return Ok(BasicShotInfo::not_found());
@@ -380,7 +381,7 @@ fn get_shot_with_target(target_index: usize, temporary: Option<bool>, may_ground
         };
 
         if found_shot.is_none() {
-            found_time = Some(ball.time);
+            basic_shot_info = Some(BasicShotInfo::found(ball.time, result.shot_type));
 
             if !temporary {
                 found_shot = Some(Shot::from(ball, result.path, result.distances, shot_vector));
@@ -396,8 +397,8 @@ fn get_shot_with_target(target_index: usize, temporary: Option<bool>, may_ground
         target.shot = found_shot;
     }
 
-    Ok(match found_time {
-        Some(time) => BasicShotInfo::found(time),
+    Ok(match basic_shot_info {
+        Some(bsi) => bsi,
         None => BasicShotInfo::not_found(),
     })
 }

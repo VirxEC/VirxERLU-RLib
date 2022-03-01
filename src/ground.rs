@@ -6,7 +6,7 @@ use rl_ball_sym::simulation::ball::Ball;
 
 use crate::car::{throttle_acceleration, Car, CarFieldRect};
 use crate::constants::*;
-use crate::pytypes::AdvancedShotInfo;
+use crate::pytypes::{AdvancedShotInfo, ShotType};
 use crate::shot::Shot;
 use crate::utils::*;
 
@@ -54,17 +54,24 @@ pub struct TargetInfo {
     pub distances: [f32; 4],
     pub path: DubinsPath,
     pub target: Option<Vec3A>,
+    pub shot_type: usize,
 }
 
 impl TargetInfo {
-    pub const fn from(distances: [f32; 4], path: DubinsPath) -> Self {
-        Self { distances, path, target: None }
-    }
-
-    pub const fn from_target(distances: [f32; 4], target: Vec3A, path: DubinsPath) -> Self {
+    pub const fn from(distances: [f32; 4], shot_type: usize, path: DubinsPath) -> Self {
         Self {
             distances,
             path,
+            shot_type,
+            target: None,
+        }
+    }
+
+    pub const fn from_target(distances: [f32; 4], shot_type: usize, target: Vec3A, path: DubinsPath) -> Self {
+        Self {
+            distances,
+            path,
+            shot_type,
             target: Some(target),
         }
     }
@@ -87,6 +94,7 @@ pub fn analyze_target(ball: &Ball, car: &Car, shot_vector: Vec3A, time_remaining
         return Err(DubinsError::NoPath);
     }
 
+    let shot_type = ShotType::GROUND;
     // will also be used to set offsets for jumps
     let offset_distance = car_front_length + {
         let distance = 320.;
@@ -126,9 +134,9 @@ pub fn analyze_target(ball: &Ball, car: &Car, shot_vector: Vec3A, time_remaining
             path_point_to_vec3(path.sample(distance))
         };
 
-        TargetInfo::from_target(distances, target, path)
+        TargetInfo::from_target(distances, shot_type, target, path)
     } else {
-        TargetInfo::from(distances, path)
+        TargetInfo::from(distances, shot_type, path)
     })
 }
 
