@@ -242,34 +242,28 @@ fn new_target(left_target: Vec<f32>, right_target: Vec<f32>, car_index: usize, o
 #[pyfunction]
 fn confirm_target(target_index: usize) -> PyResult<()> {
     let mut targets = TARGETS.lock().unwrap();
+    let target = targets
+        .get_mut(target_index)
+        .ok_or_else(|| PyErr::new::<NoTargetPyErr, _>(NO_TARGET_ERR))?
+        .as_mut()
+        .ok_or_else(|| PyErr::new::<NoTargetPyErr, _>(NO_TARGET_ERR))?;
 
-    match targets[target_index].as_mut() {
-        Some(t) => match t.shot {
-            Some(_) => {
-                t.confirm();
-                Ok(())
-            }
-            None => Err(PyErr::new::<NoShotPyErr, _>(NO_SHOT_ERR)),
-        },
-        None => Err(PyErr::new::<NoTargetPyErr, _>(NO_TARGET_ERR)),
+    if target.shot.is_none() {
+        return Err(PyErr::new::<NoShotPyErr, _>(NO_SHOT_ERR));
     }
+
+    target.confirm();
+    Ok(())
 }
 
 #[pyfunction]
-fn remove_target(target_index: usize) -> PyResult<()> {
+fn remove_target(target_index: usize) {
     let mut targets = TARGETS.lock().unwrap();
-
-    match targets.get(target_index) {
-        Some(t) => {
-            if t.is_none() {
-                Err(PyErr::new::<NoTargetPyErr, _>(NO_TARGET_ERR))
-            } else {
-                targets[target_index] = None;
-                Ok(())
-            }
-        }
-        None => Err(PyErr::new::<NoTargetPyErr, _>(NO_TARGET_ERR)),
+    if targets.get(target_index).is_none() {
+        return;
     }
+
+    targets[target_index] = None;
 }
 
 #[pyfunction]
@@ -317,7 +311,11 @@ fn get_shot_with_target(target_index: usize, temporary: Option<bool>, may_ground
     let ball_prediction = BALL_STRUCT.lock().unwrap();
 
     let mut targets_gaurd = TARGETS.lock().unwrap();
-    let mut target = targets_gaurd[target_index].as_mut().ok_or_else(|| PyErr::new::<NoTargetPyErr, _>(NO_TARGET_ERR))?;
+    let target = targets_gaurd
+        .get_mut(target_index)
+        .ok_or_else(|| PyErr::new::<NoTargetPyErr, _>(NO_TARGET_ERR))?
+        .as_mut()
+        .ok_or_else(|| PyErr::new::<NoTargetPyErr, _>(NO_TARGET_ERR))?;
 
     let mut cars = CARS.lock().unwrap();
     let car = cars.get_mut(target.car_index).ok_or_else(|| PyErr::new::<NoCarPyErr, _>(NO_CAR_ERR))?;
@@ -413,7 +411,11 @@ fn get_data_for_shot_with_target(target_index: usize) -> PyResult<AdvancedShotIn
     };
 
     let targets_gaurd = TARGETS.lock().unwrap();
-    let target = targets_gaurd[target_index].as_ref().ok_or_else(|| PyErr::new::<NoTargetPyErr, _>(NO_TARGET_ERR))?;
+    let target = targets_gaurd
+        .get(target_index)
+        .ok_or_else(|| PyErr::new::<NoTargetPyErr, _>(NO_TARGET_ERR))?
+        .as_ref()
+        .ok_or_else(|| PyErr::new::<NoTargetPyErr, _>(NO_TARGET_ERR))?;
     let shot = target.shot.as_ref().ok_or_else(|| PyErr::new::<NoShotPyErr, _>(NO_SHOT_ERR))?;
 
     let time_remaining = {
