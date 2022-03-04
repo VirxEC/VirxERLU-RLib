@@ -1,3 +1,5 @@
+use std::ops::{Add, Mul, Sub};
+
 use dubins_paths::DubinsPath;
 use pyo3::{exceptions, PyAny, PyErr, PyResult};
 
@@ -65,12 +67,12 @@ pub fn get_tuple_from_vec3(vec: Vec3A) -> (f32, f32, f32) {
     (vec.x, vec.y, vec.z)
 }
 
-// pub fn lerp<T: Copy + Add<Output = T> + Sub<Output = T> + Mul<f32, Output = T>>(a: T, b: T, t: f32) -> T {
-//     // Linearly interpolate from a to b using t
-//     // For instance, when t == 0, a is returned, and when t is 1, b is returned
-//     // Works for both numbers and Vectors
-//     (b - a) * t + a
-// }
+pub fn lerp<T: Copy + Add<Output = T> + Sub<Output = T> + Mul<f32, Output = T>>(a: T, b: T, t: f32) -> T {
+    // Linearly interpolate from a to b using t
+    // For instance, when t == 0, a is returned, and when t is 1, b is returned
+    // Works for both numbers and Vectors
+    (b - a) * t + a
+}
 
 // fn invlerp<T: Copy + Sub<Output = T> + Div<Output = f32>>(a: T, b: T, v: T) -> f32 {
 //     // Inverse linear interpolation from a to b with value v
@@ -79,33 +81,44 @@ pub fn get_tuple_from_vec3(vec: Vec3A) -> (f32, f32, f32) {
 //     (v - a) / (b - a)
 // }
 
-fn clamp_2d(vec: Vec3A, start: Vec3A, end: Vec3A) -> Vec3A {
-    let s = vec.normalize_or_zero();
+fn clamp_index(s: Vec3A, start: Vec3A, end: Vec3A) -> usize {
     let right = s.dot(end.cross(-Vec3A::Z)) < 0.;
     let left = s.dot(start.cross(-Vec3A::Z)) > 0.;
 
     let return_original = if end.dot(start.cross(-Vec3A::Z)) > 0. { right && left } else { right || left };
 
     if return_original {
-        vec
+        0
     } else if start.dot(s) < end.dot(s) {
-        end
+        2
     } else {
-        start
+        1
     }
 }
 
-pub fn get_shot_vector_2d(car_location: Vec3A, ball_location: Vec3A, target_left: Vec3A, target_right: Vec3A) -> Vec3A {
-    // let z = (left_vector.z + right_vector.z) / 2.;
-    let left_vector = flatten(target_left - ball_location).normalize_or_zero();
-    let right_vector = flatten(target_right - ball_location).normalize_or_zero();
-    let car_to_ball = flatten(ball_location - car_location).normalize_or_zero();
+pub fn get_shot_vector_target(car_location: Vec3A, ball_location: Vec3A, target_left: Vec3A, target_right: Vec3A) -> Vec3A {
+    let left_vector = (target_left - ball_location).normalize_or_zero();
+    let left_vector_flat = flatten(left_vector);
+    let right_vector = (target_right - ball_location).normalize_or_zero();
+    let right_vector_flat = flatten(right_vector);
+    let car_to_ball_flat = flatten(ball_location - car_location).normalize_or_zero();
 
-    clamp_2d(
-        car_to_ball,
-        left_vector,
-        right_vector,
-    )
+    // All of this is so that the returned vector will always point towards the target z
+    match clamp_index(car_to_ball_flat, left_vector_flat, right_vector_flat) {
+        0 => {
+            // angle_between between uses acos, will always be between 0 and pi
+            let car_to_left_angle = left_vector_flat.angle_between(car_to_ball_flat);
+            let left_to_right_angle = left_vector_flat.angle_between(right_vector);
+
+            // convert angles to a value between 0 and 1
+            let t = car_to_left_angle / left_to_right_angle;
+
+            (lerp(target_left, target_right, t) - ball_location).normalize_or_zero()
+        }
+        1 => left_vector,
+        2 => right_vector,
+        _ => unreachable!(),
+    }
 }
 
 pub fn flatten(vec: Vec3A) -> Vec3A {

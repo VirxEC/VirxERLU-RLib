@@ -356,12 +356,7 @@ fn get_shot_with_target(target_index: usize, temporary: Option<bool>, may_ground
             continue;
         }
 
-        let shot_vector = get_shot_vector_2d(
-            car.location,
-            ball.location,
-            post_info.target_left,
-            post_info.target_right,
-        );
+        let shot_vector = get_shot_vector_target(car.location, ball.location, post_info.target_left, post_info.target_right);
         let max_time_remaining = ball.time - *game_time;
         let result = match analyze_target(ball, car, shot_vector, max_time_remaining, analyze_options) {
             Ok(r) => r,
