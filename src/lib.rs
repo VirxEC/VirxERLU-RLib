@@ -350,8 +350,6 @@ fn get_shot_with_target(target_index: usize, temporary: Option<bool>, may_ground
             continue;
         }
 
-        let car_to_ball = ball.location - car.location;
-
         let post_info = correct_for_posts(ball.location, ball.collision_radius, target.target_left, target.target_right);
 
         if !post_info.fits {
@@ -359,10 +357,10 @@ fn get_shot_with_target(target_index: usize, temporary: Option<bool>, may_ground
         }
 
         let shot_vector = get_shot_vector_2d(
-            flatten(car_to_ball).normalize_or_zero(),
-            flatten(ball.location),
-            flatten(post_info.target_left),
-            flatten(post_info.target_right),
+            car.location,
+            ball.location,
+            post_info.target_left,
+            post_info.target_right,
         );
         let max_time_remaining = ball.time - *game_time;
         let result = match analyze_target(ball, car, shot_vector, max_time_remaining, analyze_options) {
@@ -437,7 +435,7 @@ fn get_data_for_shot_with_target(target_index: usize) -> PyResult<AdvancedShotIn
         &ball_struct.slices[slice_num.clamp(1, ball_struct.num_slices) - 1]
     };
 
-    if ball.location.distance(shot.ball_location) > car.hitbox.width / 2. {
+    if ball.location.distance(shot.ball_location) > car.hitbox.width {
         Err(PyErr::new::<BallChangedPyErr, _>(BALL_CHANGED_ERR))
     } else {
         let shot_info = AdvancedShotInfo::get(car, shot);

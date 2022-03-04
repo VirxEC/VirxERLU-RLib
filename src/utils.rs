@@ -95,11 +95,16 @@ fn clamp_2d(vec: Vec3A, start: Vec3A, end: Vec3A) -> Vec3A {
     }
 }
 
-pub fn get_shot_vector_2d(direction: Vec3A, ball_location: Vec3A, target_left: Vec3A, target_right: Vec3A) -> Vec3A {
+pub fn get_shot_vector_2d(car_location: Vec3A, ball_location: Vec3A, target_left: Vec3A, target_right: Vec3A) -> Vec3A {
+    // let z = (left_vector.z + right_vector.z) / 2.;
+    let left_vector = flatten(target_left - ball_location).normalize_or_zero();
+    let right_vector = flatten(target_right - ball_location).normalize_or_zero();
+    let car_to_ball = flatten(ball_location - car_location).normalize_or_zero();
+
     clamp_2d(
-        direction,
-        (target_left - ball_location).normalize_or_zero(),
-        (target_right - ball_location).normalize_or_zero(),
+        car_to_ball,
+        left_vector,
+        right_vector,
     )
 }
 
