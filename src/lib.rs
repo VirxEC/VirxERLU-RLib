@@ -300,11 +300,11 @@ fn get_shot_with_target(target_index: usize, temporary: Option<bool>, may_ground
         return Err(PyErr::new::<NoShotSelectedPyErr, _>(NO_SHOT_SELECTED_ERR));
     }
 
-    let (_gravity, radius) = {
+    let _gravity = {
         let game_guard = GAME.lock().unwrap();
         let game = game_guard.as_ref().ok_or_else(|| PyErr::new::<NoGamePyErr, _>(NO_GAME_ERR))?;
 
-        (game.gravity, game.ball.radius)
+        game.gravity
     };
 
     let game_time = GAME_TIME.lock().unwrap();
@@ -319,8 +319,6 @@ fn get_shot_with_target(target_index: usize, temporary: Option<bool>, may_ground
 
     let mut cars = CARS.lock().unwrap();
     let car = cars.get_mut(target.car_index).ok_or_else(|| PyErr::new::<NoCarPyErr, _>(NO_CAR_ERR))?;
-
-    let dist_from_side = radius + car.hitbox.height;
 
     let mut found_shot = None;
     let mut basic_shot_info = None;
@@ -344,10 +342,6 @@ fn get_shot_with_target(target_index: usize, temporary: Option<bool>, may_ground
     for ball in &ball_prediction.slices[target.options.min_slice..target.options.max_slice] {
         if ball.location.y.abs() > 5120. + ball.collision_radius {
             break;
-        }
-
-        if ball.location.z > dist_from_side {
-            continue;
         }
 
         let post_info = correct_for_posts(ball.location, ball.collision_radius, target.target_left, target.target_right);

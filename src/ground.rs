@@ -86,6 +86,7 @@ pub struct AnalyzeOptions {
 
 pub fn analyze_target(ball: &Ball, car: &Car, shot_vector: Vec3A, time_remaining: f32, options: AnalyzeOptions) -> DubinsResult<TargetInfo> {
     let offset_target = ball.location - (shot_vector * ball.radius);
+    let shot_vector = flatten(shot_vector).normalize_or_zero();
     let car_front_length = (car.hitbox_offset.x + car.hitbox.length) / 2.;
 
     let max_distance = time_remaining * options.max_speed + car_front_length;
@@ -94,7 +95,13 @@ pub fn analyze_target(ball: &Ball, car: &Car, shot_vector: Vec3A, time_remaining
         return Err(DubinsError::NoPath);
     }
 
-    let shot_type = ShotType::GROUND;
+    // One jump shots are added, remove the + ball.radius
+    let shot_type = if offset_target.z < car.hitbox.height + 17. + ball.radius {
+        Ok(ShotType::GROUND)
+    } else {
+        Err(DubinsError::NoPath)
+    }?;
+
     // will also be used to set offsets for jumps
     let offset_distance = car_front_length + {
         let distance = 320.;
