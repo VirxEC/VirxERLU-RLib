@@ -351,8 +351,8 @@ fn get_shot_with_target(target_index: usize, temporary: Option<bool>, may_ground
         if !post_info.fits {
             continue;
         }
-        print!("a");
-        io::stdout().flush().unwrap();
+        // print!("a");
+        // io::stdout().flush().unwrap();
 
         let shot_vector = get_shot_vector_target(car.location, ball.location, post_info.target_left, post_info.target_right);
         let max_time_remaining = ball.time - *game_time;
@@ -360,8 +360,8 @@ fn get_shot_with_target(target_index: usize, temporary: Option<bool>, may_ground
             Ok(r) => r,
             Err(_) => continue,
         };
-        print!("b");
-        io::stdout().flush().unwrap();
+        // print!("b");
+        // io::stdout().flush().unwrap();
 
         let is_forwards = true;
 
@@ -370,8 +370,8 @@ fn get_shot_with_target(target_index: usize, temporary: Option<bool>, may_ground
             Ok(t_r) => t_r,
             Err(_) => continue,
         };
-        print!("c");
-        io::stdout().flush().unwrap();
+        // print!("c");
+        // io::stdout().flush().unwrap();
 
         if found_shot.is_none() {
             basic_shot_info = Some(BasicShotInfo::found(ball.time, result.shot_type));
@@ -384,8 +384,8 @@ fn get_shot_with_target(target_index: usize, temporary: Option<bool>, may_ground
                 break;
             }
         }
-        print!("d");
-        io::stdout().flush().unwrap();
+        // print!("d");
+        // io::stdout().flush().unwrap();
     }
 
     if !temporary {
