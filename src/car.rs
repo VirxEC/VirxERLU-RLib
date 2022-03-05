@@ -2,7 +2,10 @@ use dubins_paths::DubinsPath;
 use glam::Vec3A;
 use pyo3::{PyAny, PyResult};
 
-use crate::{constants::*, utils::get_vec3_named};
+use crate::{
+    constants::*,
+    utils::{flatten, get_landing_time, get_vec3_named},
+};
 
 pub fn throttle_acceleration(forward_velocity: f32) -> f32 {
     let x = forward_velocity.abs();
@@ -123,10 +126,12 @@ pub struct Car {
     pub max_speed: f32,
     /// turn radius at calculated max speed
     pub ctrms: f32,
+    pub landing_time: f32,
+    pub landing_location: Vec3A,
 }
 
 impl Car {
-    pub fn update(&mut self, py_car: &PyAny) -> PyResult<()> {
+    pub fn update(&mut self, py_car: &PyAny, gravity: f32) -> PyResult<()> {
         let py_car_physics = py_car.getattr("physics")?;
 
         self.location = get_vec3_named(py_car_physics.getattr("location")?)?;
@@ -159,8 +164,53 @@ impl Car {
         self.calculate_max_values();
         self.calculate_local_values();
         self.calculate_field();
+        self.calculate_landing_info(gravity);
 
         Ok(())
+    }
+
+    pub fn calculate_landing_info(&mut self, gravity: f32) {
+        if !self.airborne {
+            self.landing_time = 0.;
+            self.landing_location = self.location;
+        }
+
+        // it's impossible to set get true 0 gravity in RL
+        // best you can get is a very small value
+        // so we'll just ignore that edge case
+
+        // this is the vertex of the equation, which also happens to be the apex of the trajectory
+        let h = self.velocity.z / -gravity; // time to apex
+        let k = self.velocity.z * self.velocity.z / -gravity; // vertical height at apex
+
+        // solves for hitting the local ceiling
+        // we just want to solve for the time landing on the local floor, though
+        // if gravity < 0. && car.location.z + k >= 2030.  {
+        //     let (x1, x2) = vertex_quadratic_solve_for_x(gravity, h, k, 2030. - car.location.z);
+        //     return minimum_non_negative(x1, x2);
+        // } else if gravity > 0. && car.location.z + k <= 20. {
+        //     let (x1, x2) = vertex_quadratic_solve_for_x(gravity, h, k, 17. - car.location.z);
+        //     return minimum_non_negative(x1, x2);
+        // }
+
+        // this is necessary because after we reach our terminal velocity, the equation becomes linear (distance_remaining / terminal_velocity)
+        let terminal_velocity = (2300. - flatten(self.velocity).length()).copysign(gravity);
+        let time_until_terminal_velocity = (terminal_velocity - self.velocity.z) / gravity;
+        let falling_distance_until_terminal_velocity =
+            self.velocity.z * time_until_terminal_velocity + -gravity * (time_until_terminal_velocity * time_until_terminal_velocity) / 2.;
+
+        let fall_distance = -self.location.z + if gravity < 0. { 17. } else { 2030. };
+
+        self.landing_time = get_landing_time(
+            fall_distance,
+            time_until_terminal_velocity,
+            falling_distance_until_terminal_velocity,
+            terminal_velocity,
+            k,
+            h,
+            gravity,
+        );
+        self.landing_location = self.location + flatten(self.velocity) * self.landing_time + Vec3A::new(0., 0., fall_distance);
     }
 
     pub fn calculate_orientation_matrix(&mut self) {

@@ -193,7 +193,7 @@ fn tick(py: Python, packet: PyObject, prediction_time: Option<f32>) -> PyResult<
     let py_game_cars = packet.getattr("game_cars")?;
 
     for (i, car) in cars.iter_mut().enumerate().take(num_cars) {
-        car.update(py_game_cars.get_item(i)?)?;
+        car.update(py_game_cars.get_item(i)?, game.gravity.z)?;
     }
 
     Ok(())
@@ -291,6 +291,8 @@ fn get_targets_length() -> usize {
     TARGETS.lock().unwrap().len()
 }
 
+use std::io::{self, Write};
+
 #[pyfunction]
 fn get_shot_with_target(target_index: usize, temporary: Option<bool>, may_ground_shot: Option<bool>, only: Option<bool>) -> PyResult<BasicShotInfo> {
     let only = only.unwrap_or(false);
@@ -304,7 +306,7 @@ fn get_shot_with_target(target_index: usize, temporary: Option<bool>, may_ground
         let game_guard = GAME.lock().unwrap();
         let game = game_guard.as_ref().ok_or_else(|| PyErr::new::<NoGamePyErr, _>(NO_GAME_ERR))?;
 
-        game.gravity
+        game.gravity.z
     };
 
     let game_time = GAME_TIME.lock().unwrap();
@@ -323,7 +325,7 @@ fn get_shot_with_target(target_index: usize, temporary: Option<bool>, may_ground
     let mut found_shot = None;
     let mut basic_shot_info = None;
 
-    if ball_prediction.num_slices == 0 || car.demolished || car.airborne {
+    if ball_prediction.num_slices == 0 || car.demolished || car.landing_time >= ball_prediction.slices[ball_prediction.num_slices - 1].time {
         return Ok(BasicShotInfo::not_found());
     }
 
@@ -331,7 +333,7 @@ fn get_shot_with_target(target_index: usize, temporary: Option<bool>, may_ground
 
     let max_turn_radius = if target.options.use_absolute_max_values { turn_radius(MAX_SPEED) } else { car.ctrms };
 
-    let analyze_options = AnalyzeOptions {
+    let analyzer = Analyzer {
         max_speed,
         max_turn_radius,
         get_target: false,
@@ -349,13 +351,17 @@ fn get_shot_with_target(target_index: usize, temporary: Option<bool>, may_ground
         if !post_info.fits {
             continue;
         }
+        print!("a");
+        io::stdout().flush().unwrap();
 
         let shot_vector = get_shot_vector_target(car.location, ball.location, post_info.target_left, post_info.target_right);
         let max_time_remaining = ball.time - *game_time;
-        let result = match analyze_target(ball, car, shot_vector, max_time_remaining, analyze_options) {
+        let result = match analyzer.target(ball, car, shot_vector, max_time_remaining) {
             Ok(r) => r,
             Err(_) => continue,
         };
+        print!("b");
+        io::stdout().flush().unwrap();
 
         let is_forwards = true;
 
@@ -364,18 +370,22 @@ fn get_shot_with_target(target_index: usize, temporary: Option<bool>, may_ground
             Ok(t_r) => t_r,
             Err(_) => continue,
         };
+        print!("c");
+        io::stdout().flush().unwrap();
 
         if found_shot.is_none() {
             basic_shot_info = Some(BasicShotInfo::found(ball.time, result.shot_type));
 
             if !temporary {
-                found_shot = Some(Shot::from(ball, result.path, result.distances, shot_vector));
+                found_shot = Some(Shot::from(ball, result.path, result.distances, shot_vector, result.shot_type));
             }
 
             if !target.options.all {
                 break;
             }
         }
+        print!("d");
+        io::stdout().flush().unwrap();
     }
 
     if !temporary {
@@ -394,7 +404,7 @@ fn get_data_for_shot_with_target(target_index: usize) -> PyResult<AdvancedShotIn
         let game_guard = GAME.lock().unwrap();
         let game = game_guard.as_ref().ok_or_else(|| PyErr::new::<NoGamePyErr, _>(NO_GAME_ERR))?;
 
-        game.gravity
+        game.gravity.z
     };
 
     let targets_gaurd = TARGETS.lock().unwrap();

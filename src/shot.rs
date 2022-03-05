@@ -16,13 +16,14 @@ pub struct Shot {
     pub samples: [Vec<Vec3A>; 4],
     pub path: DubinsPath,
     pub path_endpoint: Vec3A,
+    pub shot_type: usize,
 }
 
 impl Shot {
     const STEP_DISTANCE: f32 = 10.;
     pub const ALL_STEP: usize = 3;
 
-    pub fn from(ball: &Ball, path: DubinsPath, distances: [f32; 4], direction: Vec3A) -> Self {
+    pub fn from(ball: &Ball, path: DubinsPath, distances: [f32; 4], direction: Vec3A, shot_type: usize) -> Self {
         let time = ball.time;
         let ball_location = ball.location;
 
@@ -68,6 +69,7 @@ impl Shot {
             samples,
             path,
             path_endpoint,
+            shot_type,
         }
     }
 

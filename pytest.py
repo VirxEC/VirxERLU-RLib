@@ -19,7 +19,7 @@ packet.num_cars = 6
 for i in range(packet.num_cars):
     packet.game_cars[i] = PlayerInfo(
         physics=Physics(
-            location=Vector3(3500, -4000, 20),
+            location=Vector3(3500, -3500, 100),
             # location=Vector3(0., -3500., 20.),
             rotation=Rotator(0, 1.1, 0),
             velocity=Vector3(0, 0, 0),
@@ -27,7 +27,7 @@ for i in range(packet.num_cars):
         ),
         score_info=ScoreInfo(0, 0, 0, 0, 0, 0, 0),
         is_demolished=False,
-        has_wheel_contact=True,
+        has_wheel_contact=False,
         is_super_sonic=False,
         is_bot=True,
         team=0,

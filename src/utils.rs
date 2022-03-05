@@ -172,3 +172,61 @@ pub fn correct_for_posts(ball_location: Vec3A, ball_radius: f32, target_left: Ve
         fits: new_goal_width * new_goal_perp.dot(ball_to_goal).abs() > ball_radius * 2.,
     }
 }
+
+fn minimum_non_negative(x1: f32, x2: f32) -> f32 {
+    // get the smallest, non-negative value
+    if x1 < 0. {
+        x2
+    } else if x2 < 0. {
+        x1
+    } else {
+        x1.min(x2)
+    }
+}
+
+// solve for x
+// y = a(x - h)^2 + k
+// y - k = a(x - h)^2
+// (y - k) / a = (x - h)^2
+// sqrt((y - k) / a) = x - h
+// sqrt((y - k) / a) + h = x
+fn vertex_quadratic_solve_for_x(a: f32, h: f32, k: f32, y: f32) -> (f32, f32) {
+    if a == 0. {
+        return (0., 0.);
+    }
+
+    let v_sqrt = ((y - k) / a).sqrt();
+    (h + v_sqrt, h - v_sqrt)
+}
+
+pub fn get_landing_time(fall_distance: f32, time_until_terminal_velocity: f32, distance_until_terminal_velocity: f32, terminal_velocity: f32, k: f32, h: f32, g: f32) -> f32 {
+    let op_g_sign = (-g).signum();
+    if fall_distance * op_g_sign <= distance_until_terminal_velocity * op_g_sign {
+        let (x1, x2) = vertex_quadratic_solve_for_x(g, h, k, fall_distance);
+        minimum_non_negative(x1, x2)
+    } else {
+        time_until_terminal_velocity + ((fall_distance - distance_until_terminal_velocity) / terminal_velocity)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use glam::Vec3A;
+
+    use crate::car::get_a_car;
+
+    #[test]
+    pub fn landing_time_test() {
+        let mut car = get_a_car();
+        car.location.z = 1000.;
+        dbg!(car.location);
+        car.velocity = Vec3A::new(100., -100., 2000.);
+
+        let gravity = -650.;
+
+        car.calculate_landing_info(gravity);
+
+        dbg!(car.landing_time);
+        dbg!(car.landing_location);
+    }
+}
