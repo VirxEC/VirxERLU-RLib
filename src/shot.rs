@@ -203,3 +203,59 @@ impl Target {
         self.confirmed
     }
 }
+
+// create tests
+#[cfg(test)]
+mod tests {
+    use std::{f32::consts::PI, io::Write};
+
+    use dubins_paths::DubinsPath;
+    use glam::Vec3A;
+    use rand::{thread_rng, Rng};
+    use rl_ball_sym::simulation::ball::Ball;
+
+    use crate::pytypes::ShotType;
+
+    use super::Shot;
+
+    #[test]
+    fn shot_search() {
+        // create a random path
+        let mut rng = thread_rng();
+
+        loop {
+            // random q0, q1 and rho
+            let q0 = [rng.gen_range(-1000_f32..2000.), rng.gen_range(-1000_f32..2000.), rng.gen_range(-PI..PI)];
+            let q1 = [rng.gen_range(-1000_f32..2000.), rng.gen_range(-1000_f32..2000.), rng.gen_range(-PI..PI)];
+            let rho = rng.gen_range(100_f32..1300.);
+
+            let path = match DubinsPath::shortest_from(q0, q1, rho) {
+                Ok(path) => path,
+                Err(_) => continue,
+            };
+
+            // print path to the console with a carriage return at the end
+            print!("{:?}\r", path);
+            std::io::stdout().flush().unwrap();
+
+            let ball = Ball::initialize_soccar();
+
+            let distances = [path.segment_length(0), path.segment_length(1), path.segment_length(2), 320.];
+
+            let direction = Vec3A::new(q1[2].cos(), q1[2].sin(), 0.);
+
+            let shot = Shot::from(&ball, path, distances, direction, ShotType::GROUND);
+            let step = f32::EPSILON * 10000.;
+            let end = (path.length() / step) as u64;
+
+            for i in 0..end {
+                let dist = i as f32 * step;
+                let sample = path.sample(dist);
+                // get a random target
+                let target_offset = Vec3A::new(rng.gen_range(-100_f32..100.), rng.gen_range(-100_f32..100.), 0.);
+                let target = Vec3A::new(sample[0], sample[1], 0.) + target_offset;
+                let (_, _) = shot.get_distance_along_shot_and_index(target);
+            }
+        }
+    }
+}

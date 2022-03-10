@@ -23,8 +23,11 @@ dubins_paths = "1.2"
 lazy_static = "1.4"
 
 [dependencies.pyo3]
-version = "0.15"
+version = "0.16"
 features = ["extension-module"]
+
+[dev-dependencies]
+rand = "0.8"
 
 [profile.release]
 codegen-units = 2
