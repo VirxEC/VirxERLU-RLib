@@ -109,7 +109,7 @@ print(repr(data))
 print()
 rlru.print_targets()
 
-# exit()
+exit()
 print()
 
 print("Benchmarking...")

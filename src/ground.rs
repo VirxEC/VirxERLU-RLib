@@ -111,8 +111,7 @@ impl Analyzer {
             Err(DubinsError::NoPath)
         }?;
 
-        // will also be used to set offsets for jumps
-        let offset_distance = car_front_length + {
+        let end_distance = {
             let distance = 320.;
             if (0_f32..distance).contains(&car.forward.dot(ball.location)) && car.right.dot(ball.location) < car.hitbox.width / 2. && angle_2d(car.forward, shot_vector) < 0.02
             {
@@ -122,8 +121,11 @@ impl Analyzer {
             }
         };
 
-        let end_distance = offset_distance - car_front_length;
-        let exit_turn_target = offset_target - (shot_vector * offset_distance);
+        // will also be used to set offsets for jumps
+        let offset_distance = end_distance - car_front_length;
+
+        let exit_turn_target = offset_target - (shot_vector * end_distance);
+        // dbg!(offset_target, exit_turn_target);
 
         if !car.field.is_point_in(&[exit_turn_target.x, exit_turn_target.y, 0.]) {
             return Err(DubinsError::NoPath);
@@ -136,7 +138,7 @@ impl Analyzer {
 
         let path = shortest_path_in_validate(q0, q1, self.max_turn_radius, &car.field, max_distance)?;
 
-        let distances = [path.segment_length(0), path.segment_length(1), path.segment_length(2), end_distance];
+        let distances = [path.segment_length(0), path.segment_length(1), path.segment_length(2), offset_distance];
 
         Ok(if self.get_target {
             let distance = car.local_velocity.x.max(500.) * STEER_REACTION_TIME;
