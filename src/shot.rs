@@ -220,8 +220,9 @@ mod tests {
 
     #[test]
     fn shot_search() {
-        // create a random path
         let mut rng = thread_rng();
+
+        let ball = Ball::initialize_soccar();
 
         loop {
             // random q0, q1 and rho
@@ -234,11 +235,8 @@ mod tests {
                 Err(_) => continue,
             };
 
-            // print path to the console with a carriage return at the end
             print!("{:?}\r", path);
             std::io::stdout().flush().unwrap();
-
-            let ball = Ball::initialize_soccar();
 
             let distances = [path.segment_length(0), path.segment_length(1), path.segment_length(2), 320.];
 

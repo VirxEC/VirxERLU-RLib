@@ -201,10 +201,11 @@ pub fn can_reach_target(car: &Car, max_time: f32, distances: [f32; 4], path_type
                 let final_d = total_d - distances[1] - distances[0];
                 let delta_d = final_d - d;
 
-                d = final_d;
-                t_r -= delta_d / r;
-
-                continue;
+                if delta_d > 0. {
+                    d = final_d;
+                    t_r -= delta_d / r;
+                    continue;
+                }
             }
         }
 
@@ -301,7 +302,10 @@ impl AdvancedShotInfo {
 // test can_reach_target
 #[cfg(test)]
 mod tests {
-    use dubins_paths::DubinsPathType;
+    use std::{f32::consts::PI, io::Write};
+
+    use dubins_paths::DubinsPath;
+    use rand::{thread_rng, Rng};
 
     #[test]
     fn test_can_reach_target() {
@@ -309,18 +313,44 @@ mod tests {
 
         let max_time = 10.;
 
-        let distances = [1000., 500., 1000., 320.];
+        // let q0 = [420.21252, -379.7674, 1.564512];
+        // let q1 = [-992.23553, -966.20526, -0.596395];
+        // let rho = 876.15331833841;
 
-        let path_type = DubinsPathType::LRL;
-        let rho = 500.;
+        // let path = match DubinsPath::shortest_from(q0, q1, rho) {
+        //     Ok(path) => path,
+        //     Err(_) => panic!(),
+        // };
 
-        let is_forwards = true;
+        // println!("{:?} {:?} {}", &q0, &q1, rho);
 
-        let result = super::can_reach_target(&car, max_time, distances, path_type, rho, is_forwards);
+        // let distances = [path.segment_length(0), path.segment_length(1), path.segment_length(2), 320.];
 
-        match result {
-            Ok(t) => println!("{}", t),
-            Err(e) => dbg!(e),
+        // let is_forwards = true;
+
+        // let _ = super::can_reach_target(&car, max_time, distances, path.type_, rho, is_forwards);
+
+        let mut rng = thread_rng();
+
+        loop {
+            // random q0, q1 and rho
+            let q0 = [rng.gen_range(-1000_f32..2000.), rng.gen_range(-1000_f32..2000.), rng.gen_range(-PI..PI)];
+            let q1 = [rng.gen_range(-1000_f32..2000.), rng.gen_range(-1000_f32..2000.), rng.gen_range(-PI..PI)];
+            let rho = rng.gen_range(100_f32..1300.);
+
+            let path = match DubinsPath::shortest_from(q0, q1, rho) {
+                Ok(path) => path,
+                Err(_) => continue,
+            };
+
+            print!("{:?} {:?} {}\r", &q0, &q1, rho);
+            std::io::stdout().flush().unwrap();
+
+            let distances = [path.segment_length(0), path.segment_length(1), path.segment_length(2), 320.];
+
+            let is_forwards = true;
+
+            let _ = super::can_reach_target(&car, max_time, distances, path.type_, rho, is_forwards);
         }
     }
 }
