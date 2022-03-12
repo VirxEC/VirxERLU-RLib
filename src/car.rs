@@ -4,6 +4,7 @@ use pyo3::{PyAny, PyResult};
 
 use crate::{
     constants::*,
+    ground::get_throttle_and_boost,
     utils::{flatten, get_landing_time, get_vec3_named},
 };
 
@@ -103,7 +104,7 @@ impl CarFieldRect {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct Car {
     pub location: Vec3A,
     pub velocity: Vec3A,
@@ -123,15 +124,15 @@ pub struct Car {
     pub airborne: bool,
     pub jumped: bool,
     pub doublejumped: bool,
-    pub max_speed: f32,
+    pub max_speed: Vec<f32>,
     /// turn radius at calculated max speed
-    pub ctrms: f32,
+    pub ctrms: Vec<f32>,
     pub landing_time: f32,
     pub landing_location: Vec3A,
 }
 
 impl Car {
-    pub fn update(&mut self, py_car: &PyAny, gravity: f32) -> PyResult<()> {
+    pub fn update(&mut self, py_car: &PyAny, gravity: f32, max_ball_slice: usize) -> PyResult<()> {
         let py_car_physics = py_car.getattr("physics")?;
 
         self.location = get_vec3_named(py_car_physics.getattr("location")?)?;
@@ -161,7 +162,7 @@ impl Car {
         self.doublejumped = py_car.getattr("double_jumped")?.extract()?;
 
         self.calculate_orientation_matrix();
-        self.calculate_max_values();
+        self.calculate_max_values(max_ball_slice);
         self.calculate_local_values();
         self.calculate_field();
         self.calculate_landing_info(gravity);
@@ -234,9 +235,13 @@ impl Car {
         self.up.z = c_p * c_r;
     }
 
-    pub fn calculate_max_values(&mut self) {
-        self.max_speed = self.get_max_speed();
-        self.ctrms = turn_radius(self.max_speed);
+    pub fn calculate_max_values(&mut self, max_ball_slice: usize) {
+        self.get_max_speed(max_ball_slice);
+
+        self.ctrms = Vec::with_capacity(max_ball_slice);
+        for v in &self.max_speed {
+            self.ctrms.push(turn_radius(v.abs()));
+        }
     }
 
     pub fn calculate_local_values(&mut self) {
@@ -267,30 +272,44 @@ impl Car {
     //     car.forward * vec.x + car.right * vec.y + car.up * vec.z + car.location
     // }
 
-    fn get_max_speed(&mut self) -> f32 {
+    fn get_max_speed(&mut self, max_ball_slice: usize) {
         let mut b = self.boost as f32;
         let mut v = self.velocity.dot(self.forward);
+        let mut fast_forward = false;
+        self.max_speed = Vec::with_capacity(max_ball_slice);
+        self.max_speed.push(v);
 
-        loop {
-            if v >= MAX_SPEED {
-                return MAX_SPEED;
+        for _ in 1..max_ball_slice {
+            if fast_forward {
+                self.max_speed.push(v);
+                continue;
             }
 
-            if b < BOOST_CONSUMPTION_DT {
-                if v < MAX_SPEED_NO_BOOST {
-                    return MAX_SPEED_NO_BOOST;
-                } else {
-                    return v;
-                }
-            }
+            let t = MAX_SPEED - v;
+            let throttle_accel = throttle_acceleration(v);
+            let (throttle, boost) = get_throttle_and_boost(throttle_accel, b, t);
+            let mut accel = 0.;
 
-            if v.signum() == -1. {
-                v += BRAKE_ACC_DT;
+            if throttle == 0. {
+                accel += COAST_ACC * SIMULATION_DT * -v.signum();
+            } else if throttle.signum() == v.signum() {
+                accel += throttle_accel * SIMULATION_DT * throttle;
             } else {
-                v += throttle_acceleration(v) * SIMULATION_DT;
-                v += BOOST_ACCEL_DT;
+                accel += BRAKE_ACC_DT.copysign(throttle);
+            }
+
+            if boost {
+                accel += BOOST_ACCEL_DT;
                 b -= BOOST_CONSUMPTION_DT;
             }
+
+            if accel.abs() < f32::EPSILON {
+                fast_forward = true;
+            }
+
+            v += accel;
+
+            self.max_speed.push(v);
         }
     }
 }
@@ -320,7 +339,7 @@ pub fn get_a_car() -> Car {
     car.doublejumped = false;
 
     car.calculate_orientation_matrix();
-    car.calculate_max_values();
+    car.calculate_max_values(720);
     car.calculate_local_values();
     car.calculate_field();
 

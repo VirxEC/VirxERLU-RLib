@@ -28,7 +28,7 @@ lazy_static! {
 }
 
 lazy_static! {
-    static ref CARS: Mutex<[Car; 64]> = Mutex::new([Car::default(); 64]);
+    static ref CARS: Mutex<[Car; 64]> = Mutex::new([(); 64].map(|_| Car::default()));
 }
 
 lazy_static! {
@@ -193,7 +193,7 @@ fn tick(py: Python, packet: PyObject, prediction_time: Option<f32>) -> PyResult<
     let py_game_cars = packet.getattr("game_cars")?;
 
     for (i, car) in cars.iter_mut().enumerate().take(num_cars) {
-        car.update(py_game_cars.get_item(i)?, game.gravity.z)?;
+        car.update(py_game_cars.get_item(i)?, game.gravity.z, (prediction_time * TPS).round() as usize + 1)?;
     }
 
     Ok(())
@@ -204,7 +204,7 @@ fn get_slice(slice_time: f32) -> BallSlice {
     let game_time = GAME_TIME.lock().unwrap();
     let ball_struct = BALL_STRUCT.lock().unwrap();
 
-    let slice_num = ((slice_time - *game_time) * 120.).round() as usize;
+    let slice_num = ((slice_time - *game_time) * TPS).round() as usize;
     let ball = ball_struct.slices[slice_num.clamp(1, ball_struct.num_slices) - 1];
 
     BallSlice::from(&ball)
@@ -327,14 +327,11 @@ fn get_shot_with_target(target_index: usize, temporary: Option<bool>, may_ground
         return Ok(BasicShotInfo::not_found());
     }
 
-    let max_speed = if target.options.use_absolute_max_values { MAX_SPEED } else { car.max_speed };
+    let analyzer = {
+        let max_speed = if target.options.use_absolute_max_values { Some(MAX_SPEED) } else { None };
+        let max_turn_radius = if target.options.use_absolute_max_values { Some(turn_radius(MAX_SPEED)) } else { None };
 
-    let max_turn_radius = if target.options.use_absolute_max_values { turn_radius(MAX_SPEED) } else { car.ctrms };
-
-    let analyzer = Analyzer {
-        max_speed,
-        max_turn_radius,
-        get_target: false,
+        Analyzer::new(max_speed, max_turn_radius)
     };
 
     let temporary = temporary.unwrap_or(false);
@@ -429,7 +426,7 @@ fn get_data_for_shot_with_target(target_index: usize) -> PyResult<AdvancedShotIn
     } else {
         let shot_info = AdvancedShotInfo::get(car, shot);
 
-        if car.max_speed * (time_remaining + 0.2) >= shot_info.get_distance_remaining() {
+        if car.max_speed[(time_remaining * TPS).round() as usize] * (time_remaining + 0.2) >= shot_info.get_distance_remaining() {
             Ok(shot_info)
         } else {
             Err(PyErr::new::<BadAccelerationPyErr, _>(BAD_ACCELERATION_ERR))

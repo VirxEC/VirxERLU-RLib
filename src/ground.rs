@@ -53,38 +53,34 @@ fn shortest_path_in_validate(q0: [f32; 3], q1: [f32; 3], rho: f32, car_field: &C
 pub struct TargetInfo {
     pub distances: [f32; 4],
     pub path: DubinsPath,
-    pub target: Option<Vec3A>,
     pub shot_type: usize,
 }
 
 impl TargetInfo {
     pub const fn from(distances: [f32; 4], shot_type: usize, path: DubinsPath) -> Self {
-        Self {
-            distances,
-            path,
-            shot_type,
-            target: None,
-        }
-    }
-
-    pub const fn from_target(distances: [f32; 4], shot_type: usize, target: Vec3A, path: DubinsPath) -> Self {
-        Self {
-            distances,
-            path,
-            shot_type,
-            target: Some(target),
-        }
+        Self { distances, path, shot_type }
     }
 }
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Analyzer {
-    pub max_speed: f32,
-    pub max_turn_radius: f32,
-    pub get_target: bool,
+    max_speed: Option<f32>,
+    max_turn_radius: Option<f32>,
 }
 
 impl Analyzer {
+    pub fn new(max_speed: Option<f32>, max_turn_radius: Option<f32>) -> Self {
+        Self { max_speed, max_turn_radius }
+    }
+
+    fn get_max_speed(&self, car: &Car, time_remaining: f32) -> f32 {
+        self.max_speed.unwrap_or_else(|| car.max_speed[(time_remaining * TPS).round() as usize])
+    }
+
+    fn get_max_turn_radius(&self, car: &Car, time_remaining: f32) -> f32 {
+        self.max_turn_radius.unwrap_or_else(|| car.ctrms[(time_remaining * TPS).round() as usize])
+    }
+
     pub fn target(&self, ball: &Ball, car: &Car, shot_vector: Vec3A, time_remaining: f32) -> DubinsResult<TargetInfo> {
         let offset_target = ball.location - (shot_vector * ball.radius);
         let shot_vector = flatten(shot_vector).try_normalize().unwrap();
@@ -98,7 +94,7 @@ impl Analyzer {
 
         let car_location = car.landing_location;
 
-        let max_distance = time_remaining * self.max_speed + car_front_length;
+        let max_distance = time_remaining * self.get_max_speed(car, time_remaining) + car_front_length;
 
         if flatten(car_location).distance(flatten(offset_target)) > max_distance {
             return Err(DubinsError::NoPath);
@@ -136,27 +132,11 @@ impl Analyzer {
         let q0 = [car_location.x, car_location.y, car.yaw];
         let q1 = [exit_turn_target.x, exit_turn_target.y, target_angle];
 
-        let path = shortest_path_in_validate(q0, q1, self.max_turn_radius, &car.field, max_distance)?;
+        let path = shortest_path_in_validate(q0, q1, self.get_max_turn_radius(car, time_remaining), &car.field, max_distance)?;
 
         let distances = [path.segment_length(0), path.segment_length(1), path.segment_length(2), offset_distance];
 
-        Ok(if self.get_target {
-            let distance = car.local_velocity.x.max(500.) * STEER_REACTION_TIME;
-            let max_path_distance = path.length();
-
-            let target = if distance > max_path_distance {
-                let distance_remaining = distance - max_path_distance;
-                let additional_space = shot_vector * distance_remaining;
-
-                path_point_to_vec3(path.sample(max_path_distance)) + additional_space
-            } else {
-                path_point_to_vec3(path.sample(distance))
-            };
-
-            TargetInfo::from_target(distances, shot_type, target, path)
-        } else {
-            TargetInfo::from(distances, shot_type, path)
-        })
+        Ok(TargetInfo::from(distances, shot_type, path))
     }
 }
 
@@ -243,7 +223,7 @@ pub fn can_reach_target(car: &Car, max_time: f32, distances: [f32; 4], path_type
         }
 
         if !(is_middle_straight || d < distances[3]) {
-            accel -= turn_rad / 2. * SIMULATION_DT;
+            accel -= turn_rad / 2.5 * SIMULATION_DT;
             accel = accel.min(2295. - v);
         }
 
@@ -257,7 +237,7 @@ pub fn can_reach_target(car: &Car, max_time: f32, distances: [f32; 4], path_type
     Ok(t_r)
 }
 
-fn get_throttle_and_boost(throttle_accel: f32, b: f32, t: f32) -> (f32, bool) {
+pub fn get_throttle_and_boost(throttle_accel: f32, b: f32, t: f32) -> (f32, bool) {
     let acceleration = t / REACTION_TIME;
     let throttle_boost_transition = throttle_accel + 0.5 * BOOST_ACCEL;
 
@@ -268,8 +248,8 @@ fn get_throttle_and_boost(throttle_accel: f32, b: f32, t: f32) -> (f32, bool) {
     } else if COASTING_THROTTLE_TRANSITION <= acceleration && acceleration <= throttle_boost_transition {
         let throttle = if throttle_accel == 0. { 1. } else { (acceleration / throttle_accel).clamp(0.02, 1.) };
         (throttle, false)
-    } else if b >= MIN_BOOST_CONSUMPTION && throttle_boost_transition < acceleration {
-        (1., t > 0.)
+    } else if throttle_boost_transition < acceleration {
+        (1., b >= MIN_BOOST_CONSUMPTION && t > 0.)
     } else {
         (0., false)
     }

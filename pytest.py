@@ -109,7 +109,6 @@ print(repr(data))
 print()
 rlru.print_targets()
 
-exit()
 print()
 
 print("Benchmarking...")
@@ -177,7 +176,7 @@ print()
 
 print("new_target():")
 print(f"Total test time: {round(sum(times[7]) / 1000000000, 6)}s")
-print(f"Avg. time of execution: {round(sum(times[7]) / len(times[0]) / 1000000 / 4, 5)}ms")
+print(f"Avg. time of execution: {round(sum(times[7]) / len(times[0]) / 4, 5)}ns")
 
 print()
 
