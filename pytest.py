@@ -109,6 +109,7 @@ print(repr(data))
 print()
 rlru.print_targets()
 
+# exit()
 print()
 
 print("Benchmarking...")
@@ -166,7 +167,7 @@ for _ in range(5000):
 
     times[3].append(time_ns() - start)
 
-rlru.print_targets()
+print()
 
 print("tick():")
 print(f"Total test time: {round(sum(times[0]) / 1000000000, 4)}s")
@@ -176,7 +177,7 @@ print()
 
 print("new_target():")
 print(f"Total test time: {round(sum(times[7]) / 1000000000, 6)}s")
-print(f"Avg. time of execution: {round(sum(times[7]) / len(times[0]) / 4, 5)}ns")
+print(f"Avg. time of execution: {round(sum(times[7]) / len(times[0]) / 4, 1)}ns")
 
 print()
 
@@ -212,6 +213,6 @@ print()
 
 print("get_data_for_shot_with_target():")
 print(f"Total test time: {round(sum(times[3]) / 1000000000, 6)}s")
-print(f"Avg. time of execution: {round(sum(times[3]) / len(times[3]), 3)}ns")
+print(f"Avg. time of execution: {round(sum(times[3]) / len(times[3]), 1)}ns")
 
 print()

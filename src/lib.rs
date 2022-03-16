@@ -339,7 +339,7 @@ fn get_shot_with_target(target_index: usize, temporary: Option<bool>, may_ground
 
     let temporary = temporary.unwrap_or(false);
 
-    for ball in &ball_prediction.slices[target.options.min_slice..target.options.max_slice] {
+    for (i, ball) in ball_prediction.slices[target.options.min_slice..target.options.max_slice].iter().enumerate() {
         if ball.location.y.abs() > 5120. + ball.collision_radius {
             break;
         }
@@ -352,7 +352,7 @@ fn get_shot_with_target(target_index: usize, temporary: Option<bool>, may_ground
 
         let shot_vector = get_shot_vector_target(car.location, ball.location, post_info.target_left, post_info.target_right);
         let max_time_remaining = ball.time - *game_time;
-        let result = match analyzer.target(ball, car, shot_vector, max_time_remaining) {
+        let result = match analyzer.target(ball, car, shot_vector, max_time_remaining, i) {
             Ok(r) => r,
             Err(_) => continue,
         };
@@ -418,18 +418,15 @@ fn get_data_for_shot_with_target(target_index: usize) -> PyResult<AdvancedShotIn
     let car = cars_guard.get(target.car_index).ok_or_else(|| PyErr::new::<NoCarPyErr, _>(NO_CAR_ERR))?;
 
     let ball_struct = BALL_STRUCT.lock().unwrap();
-    let ball = {
-        let slice_num = (time_remaining * 120.).round() as usize;
-
-        &ball_struct.slices[slice_num.clamp(1, ball_struct.num_slices) - 1]
-    };
+    let slice_num = ((time_remaining * TPS).round() as usize).clamp(1, ball_struct.num_slices) - 1;
+    let ball = &ball_struct.slices[slice_num];
 
     if ball.location.distance(shot.ball_location) > car.hitbox.width {
         Err(PyErr::new::<BallChangedPyErr, _>(BALL_CHANGED_ERR))
     } else {
         let shot_info = AdvancedShotInfo::get(car, shot);
 
-        if car.max_speed[(time_remaining * TPS).round() as usize] * (time_remaining + 0.2) >= shot_info.get_distance_remaining() {
+        if car.max_speed[slice_num] * (time_remaining + 0.2) >= shot_info.get_distance_remaining() {
             Ok(shot_info)
         } else {
             Err(PyErr::new::<BadAccelerationPyErr, _>(BAD_ACCELERATION_ERR))

@@ -73,15 +73,15 @@ impl Analyzer {
         Self { max_speed, max_turn_radius }
     }
 
-    fn get_max_speed(&self, car: &Car, time_remaining: f32) -> f32 {
-        self.max_speed.unwrap_or_else(|| car.max_speed[(time_remaining * TPS).round() as usize])
+    fn get_max_speed(&self, car: &Car, slice_num: usize) -> f32 {
+        self.max_speed.unwrap_or_else(|| car.max_speed[slice_num])
     }
 
-    fn get_max_turn_radius(&self, car: &Car, time_remaining: f32) -> f32 {
-        self.max_turn_radius.unwrap_or_else(|| car.ctrms[(time_remaining * TPS).round() as usize])
+    fn get_max_turn_radius(&self, car: &Car, slice_num: usize) -> f32 {
+        self.max_turn_radius.unwrap_or_else(|| car.ctrms[slice_num])
     }
 
-    pub fn target(&self, ball: &Ball, car: &Car, shot_vector: Vec3A, time_remaining: f32) -> DubinsResult<TargetInfo> {
+    pub fn target(&self, ball: &Ball, car: &Car, shot_vector: Vec3A, time_remaining: f32, slice_num: usize) -> DubinsResult<TargetInfo> {
         let offset_target = ball.location - (shot_vector * ball.radius);
         let shot_vector = flatten(shot_vector).try_normalize().unwrap();
         let car_front_length = (car.hitbox_offset.x + car.hitbox.length) / 2.;
@@ -94,7 +94,7 @@ impl Analyzer {
 
         let car_location = car.landing_location;
 
-        let max_distance = time_remaining * self.get_max_speed(car, time_remaining) + car_front_length;
+        let max_distance = time_remaining * self.get_max_speed(car, slice_num) + car_front_length;
 
         if flatten(car_location).distance(flatten(offset_target)) > max_distance {
             return Err(DubinsError::NoPath);
@@ -132,7 +132,7 @@ impl Analyzer {
         let q0 = [car_location.x, car_location.y, car.yaw];
         let q1 = [exit_turn_target.x, exit_turn_target.y, target_angle];
 
-        let path = shortest_path_in_validate(q0, q1, self.get_max_turn_radius(car, time_remaining), &car.field, max_distance)?;
+        let path = shortest_path_in_validate(q0, q1, self.get_max_turn_radius(car, slice_num), &car.field, max_distance)?;
 
         let distances = [path.segment_length(0), path.segment_length(1), path.segment_length(2), offset_distance];
 

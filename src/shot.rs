@@ -24,17 +24,15 @@ impl Shot {
     pub const ALL_STEP: usize = 3;
 
     pub fn from(ball: &Ball, path: DubinsPath, distances: [f32; 4], direction: Vec3A, shot_type: usize) -> Self {
-        let time = ball.time;
-        let ball_location = ball.location;
-
-        // the distance of each segment
-        let segment_distances = [path.segment_length(0), path.segment_length(0) + path.segment_length(1), path.length()];
         let path_endpoint = get_vec3_from_array(path.endpoint());
 
-        let all_samples;
-        let samples;
+        // let all_samples;
+        // let samples;
 
-        {
+        let (all_samples, samples) = {
+            // the distance of each segment
+            let segment_distances = [path.segment_length(0), path.segment_length(0) + path.segment_length(1), path.length()];
+
             // the samples for each subpath
             let raw_samples = [
                 get_samples_from_path(&path, 0., segment_distances[0], Self::STEP_DISTANCE),
@@ -43,26 +41,27 @@ impl Shot {
                 get_samples_from_line(path_endpoint, direction, distances[3], Self::STEP_DISTANCE),
             ];
 
-            all_samples = raw_samples[0]
-                .iter()
-                .map(|x| (x[0], x[1]))
-                .chain(raw_samples[1].iter().map(|x| (x[0], x[1])))
-                .chain(raw_samples[2].iter().map(|x| (x[0], x[1])))
-                .chain(raw_samples[3].iter().map(|x| (x[0], x[1])))
-                .step_by(Self::ALL_STEP)
-                .collect();
-
-            samples = [
-                raw_samples[0].iter().map(|v| Vec3A::new(v[0], v[1], 0.)).collect(),
-                raw_samples[1].iter().map(|v| Vec3A::new(v[0], v[1], 0.)).collect(),
-                raw_samples[2].iter().map(|v| Vec3A::new(v[0], v[1], 0.)).collect(),
-                raw_samples[3].iter().map(|v| Vec3A::new(v[0], v[1], 0.)).collect(),
-            ];
-        }
+            (
+                raw_samples[0]
+                    .iter()
+                    .map(|x| (x[0], x[1]))
+                    .chain(raw_samples[1].iter().map(|x| (x[0], x[1])))
+                    .chain(raw_samples[2].iter().map(|x| (x[0], x[1])))
+                    .chain(raw_samples[3].iter().map(|x| (x[0], x[1])))
+                    .step_by(Self::ALL_STEP)
+                    .collect(),
+                [
+                    raw_samples[0].iter().map(|v| Vec3A::new(v[0], v[1], 0.)).collect(),
+                    raw_samples[1].iter().map(|v| Vec3A::new(v[0], v[1], 0.)).collect(),
+                    raw_samples[2].iter().map(|v| Vec3A::new(v[0], v[1], 0.)).collect(),
+                    raw_samples[3].iter().map(|v| Vec3A::new(v[0], v[1], 0.)).collect(),
+                ],
+            )
+        };
 
         Self {
-            time,
-            ball_location,
+            time: ball.time,
+            ball_location: ball.location,
             direction,
             distances,
             all_samples,

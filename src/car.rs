@@ -4,7 +4,6 @@ use pyo3::{PyAny, PyResult};
 
 use crate::{
     constants::*,
-    ground::get_throttle_and_boost,
     utils::{flatten, get_landing_time, get_vec3_named},
 };
 
@@ -236,11 +235,119 @@ impl Car {
     }
 
     pub fn calculate_max_values(&mut self, max_ball_slice: usize) {
-        self.get_max_speed(max_ball_slice);
+        let mut b = self.boost as f32;
+        let mut v = self.velocity.dot(self.forward);
+        let mut fast_forward = false;
+
+        self.max_speed = Vec::with_capacity(max_ball_slice);
+        self.max_speed.push(v);
 
         self.ctrms = Vec::with_capacity(max_ball_slice);
-        for v in &self.max_speed {
+        self.ctrms.push(turn_radius(v.abs()));
+
+        let mut end = 1;
+
+        for i in 1..max_ball_slice {
+            end = i;
+
+            if fast_forward {
+                self.max_speed.push(v);
+                self.ctrms.push(turn_radius(v.abs()));
+                continue;
+            }
+
+            if b < BOOST_CONSUMPTION_DT {
+                break;
+            }
+
+            let throttle_accel = throttle_acceleration(v);
+            let mut accel = 0.;
+
+            if 1. == v.signum() {
+                accel += throttle_accel * SIMULATION_DT;
+            } else {
+                accel += BRAKE_ACC_DT;
+            }
+
+            if b > BOOST_CONSUMPTION_DT {
+                accel += BOOST_ACCEL_DT;
+                b -= BOOST_CONSUMPTION_DT;
+            }
+
+            accel = accel.min(MAX_SPEED - v);
+
+            if accel.abs() < f32::EPSILON {
+                fast_forward = true;
+            }
+
+            v += accel;
+
+            self.max_speed.push(v);
             self.ctrms.push(turn_radius(v.abs()));
+        }
+
+        if end == max_ball_slice {
+            return;
+        }
+
+        let mut v1 = v;
+
+        for _ in end..max_ball_slice {
+            if fast_forward {
+                self.max_speed.push(v1);
+                continue;
+            }
+
+            let throttle_accel = throttle_acceleration(v1);
+            let mut accel = 0.;
+
+            if 1 == v1.signum() as usize {
+                accel += throttle_accel * SIMULATION_DT;
+            } else {
+                accel += BRAKE_ACC_DT;
+            }
+
+            accel = accel.min(MAX_SPEED - v1);
+
+            if accel.abs() < f32::EPSILON {
+                fast_forward = true;
+            }
+
+            v1 += accel;
+
+            self.max_speed.push(v1);
+        }
+
+        let mut v2 = v;
+
+        for _ in end..max_ball_slice {
+            if fast_forward {
+                self.ctrms.push(turn_radius(v2.abs()));
+                continue;
+            }
+
+            if b < BOOST_CONSUMPTION_DT {
+                break;
+            }
+
+            let throttle_accel = throttle_acceleration(v2);
+            let mut accel = 0.;
+
+            if 1. == v.signum() {
+                accel += throttle_accel * SIMULATION_DT;
+            } else {
+                accel += BRAKE_ACC_DT;
+            }
+
+            accel = accel.min(MAX_SPEED - v2);
+
+            if accel.abs() < f32::EPSILON {
+                fast_forward = true;
+            }
+
+            v2 += accel;
+
+            self.ctrms.push(turn_radius(v2.abs()));
         }
     }
 
@@ -271,47 +378,6 @@ impl Car {
     // pub fn globalize(car: &Car, vec: Vec3A) -> Vec3A {
     //     car.forward * vec.x + car.right * vec.y + car.up * vec.z + car.location
     // }
-
-    fn get_max_speed(&mut self, max_ball_slice: usize) {
-        let mut b = self.boost as f32;
-        let mut v = self.velocity.dot(self.forward);
-        let mut fast_forward = false;
-        self.max_speed = Vec::with_capacity(max_ball_slice);
-        self.max_speed.push(v);
-
-        for _ in 1..max_ball_slice {
-            if fast_forward {
-                self.max_speed.push(v);
-                continue;
-            }
-
-            let t = MAX_SPEED - v;
-            let throttle_accel = throttle_acceleration(v);
-            let (throttle, boost) = get_throttle_and_boost(throttle_accel, b, t);
-            let mut accel = 0.;
-
-            if throttle == 0. {
-                accel += COAST_ACC * SIMULATION_DT * -v.signum();
-            } else if throttle.signum() == v.signum() {
-                accel += throttle_accel * SIMULATION_DT * throttle;
-            } else {
-                accel += BRAKE_ACC_DT.copysign(throttle);
-            }
-
-            if boost {
-                accel += BOOST_ACCEL_DT;
-                b -= BOOST_CONSUMPTION_DT;
-            }
-
-            if accel.abs() < f32::EPSILON {
-                fast_forward = true;
-            }
-
-            v += accel;
-
-            self.max_speed.push(v);
-        }
-    }
 }
 
 #[allow(clippy::field_reassign_with_default)]
