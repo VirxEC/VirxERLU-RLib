@@ -111,10 +111,13 @@ fn tick(py: Python, packet: PyObject, prediction_time: Option<f32>) -> PyResult<
     // simulate max double jump height
     // add option for max path time
 
-    targets.retain(|target| match target {
-        Some(t) => t.is_confirmed(),
-        None => true,
-    });
+    for target in targets.iter_mut() {
+        if let Some(t) = target {
+            if !t.is_confirmed() {
+                *target = None;
+            }
+        }
+    }
 
     /*
     Example GameTickPacket<
