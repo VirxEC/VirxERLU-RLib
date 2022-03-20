@@ -247,8 +247,8 @@ impl Car {
 
         let mut end = 1;
 
-        for i in 1..max_ball_slice {
-            end = i;
+        for _ in 1..max_ball_slice {
+            end += 1;
 
             if fast_forward {
                 self.max_speed.push(v);
@@ -333,7 +333,7 @@ impl Car {
             let throttle_accel = throttle_acceleration(v2);
             let mut accel = 0.;
 
-            if 1. == v.signum() {
+            if 1. == v2.signum() {
                 accel += throttle_accel * SIMULATION_DT;
             } else {
                 accel += BRAKE_ACC_DT;
