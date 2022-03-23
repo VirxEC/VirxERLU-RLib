@@ -96,31 +96,6 @@ fn clamp_index(s: Vec3A, start: Vec3A, end: Vec3A) -> usize {
     }
 }
 
-pub fn get_shot_vector_target(car_location: Vec3A, ball_location: Vec3A, target_left: Vec3A, target_right: Vec3A) -> Vec3A {
-    let left_vector = (target_left - ball_location).normalize_or_zero();
-    let left_vector_flat = flatten(left_vector);
-    let right_vector = (target_right - ball_location).normalize_or_zero();
-    let right_vector_flat = flatten(right_vector);
-    let car_to_ball_flat = flatten(ball_location - car_location).normalize_or_zero();
-
-    // All of this is so that the returned vector will always point towards the target z
-    match clamp_index(car_to_ball_flat, left_vector_flat, right_vector_flat) {
-        0 => {
-            // angle_between between uses acos, will always be between 0 and pi
-            let car_to_left_angle = left_vector_flat.angle_between(car_to_ball_flat);
-            let left_to_right_angle = left_vector_flat.angle_between(right_vector);
-
-            // convert angles to a value between 0 and 1
-            let t = car_to_left_angle / left_to_right_angle;
-
-            (lerp(target_left, target_right, t) - ball_location).normalize_or_zero()
-        }
-        1 => left_vector,
-        2 => right_vector,
-        _ => unreachable!(),
-    }
-}
-
 pub fn flatten(vec: Vec3A) -> Vec3A {
     Vec3A::new(vec.x, vec.y, 0.)
 }
@@ -140,40 +115,67 @@ pub struct PostCorrection {
     pub fits: bool,
 }
 
-pub fn correct_for_posts(ball_location: Vec3A, ball_radius: f32, target_left: Vec3A, target_right: Vec3A) -> PostCorrection {
-    let goal_line_perp = (target_right - target_left).cross(Vec3A::Z);
+impl PostCorrection {
+    pub fn from(ball_location: Vec3A, ball_radius: f32, target_left: Vec3A, target_right: Vec3A) -> Self {
+        let goal_line_perp = (target_right - target_left).cross(Vec3A::Z);
 
-    let left_adjusted = target_left + (target_left - ball_location).normalize_or_zero().cross(-Vec3A::Z) * ball_radius;
-    let right_adjusted = target_right + (target_right - ball_location).normalize_or_zero().cross(Vec3A::Z) * ball_radius;
+        let left_adjusted = target_left + (target_left - ball_location).normalize_or_zero().cross(-Vec3A::Z) * ball_radius;
+        let right_adjusted = target_right + (target_right - ball_location).normalize_or_zero().cross(Vec3A::Z) * ball_radius;
 
-    let left_corrected = if (left_adjusted - target_left).dot(goal_line_perp) > 0. {
-        target_left
-    } else {
-        left_adjusted
-    };
+        let left_corrected = if (left_adjusted - target_left).dot(goal_line_perp) > 0. {
+            target_left
+        } else {
+            left_adjusted
+        };
 
-    let right_corrected = if (right_adjusted - target_right).dot(goal_line_perp) > 0. {
-        target_right
-    } else {
-        right_adjusted
-    };
+        let right_corrected = if (right_adjusted - target_right).dot(goal_line_perp) > 0. {
+            target_right
+        } else {
+            right_adjusted
+        };
 
-    let left_to_right = right_corrected - left_corrected;
-    let new_goal_line = left_to_right.normalize_or_zero();
-    let new_goal_width = left_to_right.length();
+        let left_to_right = right_corrected - left_corrected;
+        let new_goal_line = left_to_right.normalize_or_zero();
+        let new_goal_width = left_to_right.length();
 
-    let new_goal_perp = new_goal_line.cross(Vec3A::Z);
-    let goal_center = left_corrected + new_goal_line * new_goal_width * 0.5;
-    let ball_to_goal = (goal_center - ball_location).normalize_or_zero();
+        let new_goal_perp = new_goal_line.cross(Vec3A::Z);
+        let goal_center = left_corrected + new_goal_line * new_goal_width * 0.5;
+        let ball_to_goal = (goal_center - ball_location).normalize_or_zero();
 
-    PostCorrection {
-        target_left: left_corrected,
-        target_right: right_corrected,
-        fits: new_goal_width * new_goal_perp.dot(ball_to_goal).abs() > ball_radius * 2.,
+        Self {
+            target_left: left_corrected,
+            target_right: right_corrected,
+            fits: new_goal_width * new_goal_perp.dot(ball_to_goal).abs() > ball_radius * 2.,
+        }
+    }
+
+    pub fn get_shot_vector_target(&self, car_location: Vec3A, ball_location: Vec3A) -> Vec3A {
+        let left_vector = (self.target_left - ball_location).normalize_or_zero();
+        let left_vector_flat = flatten(left_vector);
+        let right_vector = (self.target_right - ball_location).normalize_or_zero();
+        let right_vector_flat = flatten(right_vector);
+        let car_to_ball_flat = flatten(ball_location - car_location).normalize_or_zero();
+
+        // All of this is so that the returned vector will always point towards the target z
+        match clamp_index(car_to_ball_flat, left_vector_flat, right_vector_flat) {
+            0 => {
+                // angle_between between uses acos, will always be between 0 and pi
+                let car_to_left_angle = left_vector_flat.angle_between(car_to_ball_flat);
+                let left_to_right_angle = left_vector_flat.angle_between(right_vector);
+
+                // convert angles to a value between 0 and 1
+                let t = car_to_left_angle / left_to_right_angle;
+
+                (lerp(self.target_left, self.target_right, t) - ball_location).normalize_or_zero()
+            }
+            1 => left_vector,
+            2 => right_vector,
+            _ => unreachable!(),
+        }
     }
 }
 
-fn minimum_non_negative(x1: f32, x2: f32) -> f32 {
+pub fn minimum_non_negative(x1: f32, x2: f32) -> f32 {
     // get the smallest, non-negative value
     if x1 < 0. {
         x2
@@ -190,23 +192,13 @@ fn minimum_non_negative(x1: f32, x2: f32) -> f32 {
 // (y - k) / a = (x - h)^2
 // sqrt((y - k) / a) = x - h
 // sqrt((y - k) / a) + h = x
-fn vertex_quadratic_solve_for_x(a: f32, h: f32, k: f32, y: f32) -> (f32, f32) {
+pub fn vertex_quadratic_solve_for_x(a: f32, h: f32, k: f32, y: f32) -> (f32, f32) {
     if a == 0. {
         return (0., 0.);
     }
 
     let v_sqrt = ((y - k) / a).sqrt();
     (h + v_sqrt, h - v_sqrt)
-}
-
-pub fn get_landing_time(fall_distance: f32, time_until_terminal_velocity: f32, distance_until_terminal_velocity: f32, terminal_velocity: f32, k: f32, h: f32, g: f32) -> f32 {
-    let op_g_sign = (-g).signum();
-    if fall_distance * op_g_sign <= distance_until_terminal_velocity * op_g_sign {
-        let (x1, x2) = vertex_quadratic_solve_for_x(g, h, k, fall_distance);
-        minimum_non_negative(x1, x2)
-    } else {
-        time_until_terminal_velocity + ((fall_distance - distance_until_terminal_velocity) / terminal_velocity)
-    }
 }
 
 #[cfg(test)]

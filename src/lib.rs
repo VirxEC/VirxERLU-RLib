@@ -344,15 +344,15 @@ fn get_shot_with_target(target_index: usize, temporary: Option<bool>, may_ground
             break;
         }
 
-        let post_info = correct_for_posts(ball.location, ball.collision_radius, target.target_left, target.target_right);
+        let post_info = PostCorrection::from(ball.location, ball.collision_radius, target.target_left, target.target_right);
 
         if !post_info.fits {
             continue;
         }
 
-        let shot_vector = get_shot_vector_target(car.location, ball.location, post_info.target_left, post_info.target_right);
+        let shot_vector = post_info.get_shot_vector_target(car.landing_location, ball.location);
         let max_time_remaining = ball.time - *game_time;
-        let result = match analyzer.target(ball, car, shot_vector, max_time_remaining, i) {
+        let target_info = match analyzer.target(ball, car, shot_vector, max_time_remaining, i) {
             Ok(r) => r,
             Err(_) => continue,
         };
@@ -360,16 +360,16 @@ fn get_shot_with_target(target_index: usize, temporary: Option<bool>, may_ground
         let is_forwards = true;
 
         // will be used to calculate if there's enough time left to jump after accelerating
-        let _time_remaining = match can_reach_target(car, max_time_remaining, result.distances, result.path.type_, result.path.rho, is_forwards) {
+        let _time_remaining = match target_info.can_reach(car, max_time_remaining, is_forwards) {
             Ok(t_r) => t_r,
             Err(_) => continue,
         };
 
         if found_shot.is_none() {
-            basic_shot_info = Some(BasicShotInfo::found(ball.time, result.shot_type));
+            basic_shot_info = Some(target_info.get_basic_shot_info(ball.time));
 
             if !temporary {
-                found_shot = Some(Shot::from(ball, result.path, result.distances, shot_vector, result.shot_type));
+                found_shot = Some(Shot::from(ball, &target_info, shot_vector));
             }
 
             if !target.options.all {

@@ -4,7 +4,7 @@ use pyo3::{PyAny, PyResult};
 
 use crate::{
     constants::*,
-    utils::{flatten, get_landing_time, get_vec3_named},
+    utils::{flatten, get_vec3_named, minimum_non_negative, vertex_quadratic_solve_for_x},
 };
 
 pub fn throttle_acceleration(forward_velocity: f32) -> f32 {
@@ -23,6 +23,8 @@ pub fn throttle_acceleration(forward_velocity: f32) -> f32 {
 }
 
 pub fn curvature(v: f32) -> f32 {
+    let v = v.abs();
+
     if (0. ..500.).contains(&v) {
         return 0.0069 - 5.84e-6 * v;
     }
@@ -43,7 +45,7 @@ pub fn curvature(v: f32) -> f32 {
         return 0.0018 - 4e-7 * v;
     }
 
-    panic!("Invalid input velocity");
+    panic!("Invalid input velocity: {}", v);
 }
 
 pub fn turn_radius(v: f32) -> f32 {
@@ -123,11 +125,12 @@ pub struct Car {
     pub airborne: bool,
     pub jumped: bool,
     pub doublejumped: bool,
+    pub landing_time: f32,
+    pub landing_location: Vec3A,
+    pub landing_velocity: Vec3A,
     pub max_speed: Vec<f32>,
     /// turn radius at calculated max speed
     pub ctrms: Vec<f32>,
-    pub landing_time: f32,
-    pub landing_location: Vec3A,
 }
 
 impl Car {
@@ -161,56 +164,76 @@ impl Car {
         self.doublejumped = py_car.getattr("double_jumped")?.extract()?;
 
         self.calculate_orientation_matrix();
-        self.calculate_max_values(max_ball_slice);
-        self.calculate_local_values();
         self.calculate_field();
         self.calculate_landing_info(gravity);
+        self.calculate_local_values();
+        self.calculate_max_values(max_ball_slice);
 
         Ok(())
     }
 
     pub fn calculate_landing_info(&mut self, gravity: f32) {
+        self.landing_time = 0.;
+        self.landing_location = self.location;
+        self.landing_velocity = self.velocity;
+
         if !self.airborne {
-            self.landing_time = 0.;
-            self.landing_location = self.location;
+            return;
         }
 
-        // it's impossible to set get true 0 gravity in RL
+        // it's impossible to get true 0 gravity in RL
         // best you can get is a very small value
         // so we'll just ignore that edge case
 
         // this is the vertex of the equation, which also happens to be the apex of the trajectory
-        let h = self.velocity.z / -gravity; // time to apex
-        let k = self.velocity.z * self.velocity.z / -gravity; // vertical height at apex
+        let h = self.velocity.z / -gravity;
+        let k = self.velocity.z * self.velocity.z / -gravity;
 
-        // solves for hitting the local ceiling
-        // we just want to solve for the time landing on the local floor, though
-        // if gravity < 0. && car.location.z + k >= 2030.  {
-        //     let (x1, x2) = vertex_quadratic_solve_for_x(gravity, h, k, 2030. - car.location.z);
-        //     return minimum_non_negative(x1, x2);
-        // } else if gravity > 0. && car.location.z + k <= 20. {
-        //     let (x1, x2) = vertex_quadratic_solve_for_x(gravity, h, k, 17. - car.location.z);
-        //     return minimum_non_negative(x1, x2);
-        // }
+        let normal_gravity = gravity < 0.;
+        let fall_distance = if normal_gravity { self.location.z - 17. } else { 2030. - self.location.z };
 
-        // this is necessary because after we reach our terminal velocity, the equation becomes linear (distance_remaining / terminal_velocity)
-        let terminal_velocity = (2300. - flatten(self.velocity).length()).copysign(gravity);
-        let time_until_terminal_velocity = (terminal_velocity - self.velocity.z) / gravity;
-        let falling_distance_until_terminal_velocity =
-            self.velocity.z * time_until_terminal_velocity + -gravity * (time_until_terminal_velocity * time_until_terminal_velocity) / 2.;
+        let terminal_velocity = 2300. - flatten(self.velocity).length();
+        let time_until_tv = terminal_velocity / -gravity;
+        let distance_until_tv = self.velocity.z * time_until_tv + -gravity * (time_until_tv * time_until_tv) / 2.;
 
-        let fall_distance = -self.location.z + if gravity < 0. { 17. } else { 2030. };
+        if fall_distance <= distance_until_tv {
+            let (time1, time2) = vertex_quadratic_solve_for_x(gravity, h, k, -fall_distance);
+            self.landing_time = minimum_non_negative(time1, time2);
+            self.landing_velocity.z += gravity * self.landing_time;
+            self.landing_location += Vec3A::new(
+                self.velocity.x * self.landing_time,
+                self.velocity.y * self.landing_time,
+                gravity * (self.landing_time - h).powi(2) + k,
+            );
+        } else {
+            self.landing_time = time_until_tv;
 
-        self.landing_time = get_landing_time(
-            fall_distance,
-            time_until_terminal_velocity,
-            falling_distance_until_terminal_velocity,
-            terminal_velocity,
-            k,
-            h,
-            gravity,
-        );
-        self.landing_location = self.location + flatten(self.velocity) * self.landing_time + Vec3A::new(0., 0., fall_distance);
+            let dt = 1. / 120.;
+            self.landing_velocity.z += gravity * time_until_tv;
+            self.landing_location += Vec3A::new(
+                self.velocity.x * self.landing_time,
+                self.velocity.y * self.landing_time,
+                gravity * (self.landing_time - h).powi(2) + k,
+            );
+            let g_dt = Vec3A::new(0., 0., gravity * dt);
+
+            loop {
+                let v_t = (self.landing_velocity + g_dt).normalize() * 2300.;
+                let l_t = self.landing_location + self.landing_velocity * dt;
+
+                let l_z = if normal_gravity { l_t[2] - 17. } else { 2030. - l_t[2] };
+
+                if l_z <= 0. {
+                    break;
+                }
+
+                self.landing_velocity = v_t;
+                self.landing_location = l_t;
+                self.landing_time += dt;
+            }
+
+            self.landing_location.z = if normal_gravity { 17. } else { 2300. };
+        }
     }
 
     pub fn calculate_orientation_matrix(&mut self) {
@@ -236,23 +259,30 @@ impl Car {
 
     pub fn calculate_max_values(&mut self, max_ball_slice: usize) {
         let mut b = self.boost as f32;
-        let mut v = self.velocity.dot(self.forward);
+        let mut v = self.landing_velocity.dot(self.forward);
         let mut fast_forward = false;
 
         self.max_speed = Vec::with_capacity(max_ball_slice);
         self.max_speed.push(v);
 
         self.ctrms = Vec::with_capacity(max_ball_slice);
-        self.ctrms.push(turn_radius(v.abs()));
+        self.ctrms.push(turn_radius(v));
 
-        let mut end = 1;
+        let end_1 = (self.landing_time * 120.).round() as usize;
 
-        for _ in 1..max_ball_slice {
+        for _ in 0..end_1 {
+            self.max_speed.push(v);
+            self.ctrms.push(turn_radius(v));
+        }
+
+        let mut end = end_1;
+
+        for _ in end_1..max_ball_slice {
             end += 1;
 
             if fast_forward {
                 self.max_speed.push(v);
-                self.ctrms.push(turn_radius(v.abs()));
+                self.ctrms.push(turn_radius(v));
                 continue;
             }
 
@@ -283,7 +313,7 @@ impl Car {
             v += accel;
 
             self.max_speed.push(v);
-            self.ctrms.push(turn_radius(v.abs()));
+            self.ctrms.push(turn_radius(v));
         }
 
         if end == max_ball_slice {
@@ -291,6 +321,7 @@ impl Car {
         }
 
         let mut v1 = v;
+        let mut v2 = v;
 
         for _ in end..max_ball_slice {
             if fast_forward {
@@ -318,22 +349,16 @@ impl Car {
             self.max_speed.push(v1);
         }
 
-        let mut v2 = v;
-
         for _ in end..max_ball_slice {
             if fast_forward {
-                self.ctrms.push(turn_radius(v2.abs()));
+                self.ctrms.push(turn_radius(v2));
                 continue;
-            }
-
-            if b < BOOST_CONSUMPTION_DT {
-                break;
             }
 
             let throttle_accel = throttle_acceleration(v2);
             let mut accel = 0.;
 
-            if 1. == v2.signum() {
+            if 1 == v2.signum() as usize {
                 accel += throttle_accel * SIMULATION_DT;
             } else {
                 accel += BRAKE_ACC_DT;
@@ -347,7 +372,7 @@ impl Car {
 
             v2 += accel;
 
-            self.ctrms.push(turn_radius(v2.abs()));
+            self.ctrms.push(turn_radius(v2));
         }
     }
 
