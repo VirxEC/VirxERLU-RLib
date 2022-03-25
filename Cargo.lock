@@ -282,7 +282,7 @@ checksum = "514672a55d7380da379785a4d70ca8386c8883ff7eaae877be4d2081cebe73d8"
 
 [[package]]
 name = "virx_erlu_rlib"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "dubins_paths",
  "glam",
