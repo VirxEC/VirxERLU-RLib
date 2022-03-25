@@ -1,7 +1,6 @@
 @echo off
-cargo update
-set rlpy="%localappdata%\RLBotGUIX\Python37\python.exe"
-%rlpy% -m pip install -U setuptools wheel setuptools-rust twine --no-warn-script-location
-%rlpy% setup.py sdist bdist_wheel
-%rlpy% -m twine upload dist/*
+python -m pip install -U maturin twine
+maturin build --release -i "%localappdata%\RLBotGUIX\Python37\python.exe"
+maturin build --release -i "%localappdata%\programs\Python\Python39\python.exe"
+twine upload target\wheels\*.whl
 pause

@@ -1,7 +1,7 @@
-#!/bin/zsh
-
-cargo update
-source ~/.RLBotGUI/env/bin/activate
-python -m pip install -U setuptools wheel setuptools-rust twine --no-warn-script-location
-python setup.py sdist bdist_wheel
-python -m twine upload dist/*
+set +v
+source $HOME/.cargo/env
+source venv37/bin/activate
+maturin build --release -i $(which python)
+source venv39/bin/activate
+maturin build --release -i $(which python)
+twine upload -r pypi target/wheels/*

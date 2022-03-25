@@ -1,113 +1,122 @@
-extern crate cpython;
-extern crate rl_ball_sym;
-
+mod car;
+mod constants;
+mod ground;
+mod pytypes;
+mod shot;
 mod utils;
 
-use cpython::{exc, py_fn, py_module_initializer, ObjectProtocol, PyDict, PyErr, PyFloat, PyInt, PyObject, PyResult, PyTuple, Python, PythonObject};
-use dubins_paths::path_sample_many;
-use glam::Vec3A;
+use car::{turn_radius, Car};
+use constants::*;
+use ground::*;
+use lazy_static::{initialize, lazy_static};
+use pyo3::{prelude::*, PyErr};
+use pytypes::*;
 use rl_ball_sym::simulation::{
     ball::{Ball, BallPrediction},
     game::Game,
 };
+use shot::{Options, Shot, Target};
+use std::sync::Mutex;
 use utils::*;
 
-static mut GAME_TIME: f32 = 0.;
+lazy_static! {
+    static ref GAME_TIME: Mutex<f32> = Mutex::new(0.);
+}
 
-static mut GAME: Option<Game> = None;
-const NO_GAME_ERR: &str = "GAME is unset. Call a function like load_soccar first.";
+lazy_static! {
+    static ref GAME: Mutex<Option<Game>> = Mutex::new(None);
+}
 
-static mut CARS: Option<Vec<Car>> = None;
-const NO_CARS_ERR: &str = "CAR is unset. Call a function like load_soccar first.";
+lazy_static! {
+    static ref CARS: Mutex<[Car; 64]> = Mutex::new([(); 64].map(|_| Car::default()));
+}
 
-static mut BALL_STRUCT: Option<BallPrediction> = None;
-const NO_BALL_STRUCT_ERR: &str = "BALL_STRUCT is unset. Call the function tick and pass in game information first.";
+lazy_static! {
+    static ref BALL_STRUCT: Mutex<BallPrediction> = Mutex::new(BallPrediction::default());
+}
 
-py_module_initializer!(virxrlru, |py, m| {
-    m.add(py, "__doc__", "VirxERLU-RLib is written in Rust with Python bindings to make analyzing the ball prediction struct much faster.")?;
-    m.add(py, "load_soccar", py_fn!(py, load_soccar()))?;
-    m.add(py, "load_dropshot", py_fn!(py, load_dropshot()))?;
-    m.add(py, "load_hoops", py_fn!(py, load_hoops()))?;
-    m.add(py, "set_gravity", py_fn!(py, set_gravity(gravity: PyDict)))?;
-    m.add(py, "tick", py_fn!(py, tick(packet: PyObject)))?;
-    m.add(py, "tick_dict", py_fn!(py, tick_dict(time: PyFloat, ball: PyDict, car: PyDict)))?;
-    m.add(py, "get_slice", py_fn!(py, get_slice(time: PyFloat)))?;
-    m.add(py, "get_data_for_shot_with_target", py_fn!(py, get_data_for_shot_with_target(target_left: PyTuple, target_right: PyTuple, time: PyFloat, py_index: PyInt)))?;
-    m.add(py, "get_shot_with_target", py_fn!(py, get_shot_with_target(target_left: PyTuple, target_right: PyTuple, py_index: PyInt, options: PyDict)))?;
+lazy_static! {
+    static ref TARGETS: Mutex<Vec<Option<Target>>> = Mutex::new(Vec::new());
+}
+
+/// VirxERLU-RLib is written in Rust with Python bindings to make analyzing the ball prediction struct much faster.
+#[pymodule]
+fn virx_erlu_rlib(_py: Python, m: &PyModule) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(load_soccar, m)?)?;
+    m.add_function(wrap_pyfunction!(load_dropshot, m)?)?;
+    m.add_function(wrap_pyfunction!(load_hoops, m)?)?;
+    m.add_function(wrap_pyfunction!(load_soccar_throwback, m)?)?;
+    m.add_function(wrap_pyfunction!(tick, m)?)?;
+    m.add_function(wrap_pyfunction!(get_slice, m)?)?;
+    m.add_function(wrap_pyfunction!(new_target, m)?)?;
+    m.add_function(wrap_pyfunction!(confirm_target, m)?)?;
+    m.add_function(wrap_pyfunction!(remove_target, m)?)?;
+    m.add_function(wrap_pyfunction!(print_targets, m)?)?;
+    m.add_function(wrap_pyfunction!(get_targets_length, m)?)?;
+    m.add_function(wrap_pyfunction!(get_shot_with_target, m)?)?;
+    m.add_function(wrap_pyfunction!(get_data_for_shot_with_target, m)?)?;
+    m.add_class::<TargetOptions>()?;
+    m.add_class::<ShotType>()?;
     Ok(())
-});
-
-fn load_soccar(py: Python) -> PyResult<PyObject> {
-    unsafe {
-        GAME = Some(rl_ball_sym::load_soccar());
-        CARS = Some(vec![Car::default(); 64]);
-        BALL_STRUCT = Some(BallPrediction::default());
-    }
-
-    Ok(py.None())
 }
 
-fn load_dropshot(py: Python) -> PyResult<PyObject> {
-    unsafe {
-        GAME = Some(rl_ball_sym::load_dropshot());
-        CARS = Some(vec![Car::default(); 64]);
-        BALL_STRUCT = Some(BallPrediction::default());
-    }
-
-    Ok(py.None())
+fn init() {
+    initialize(&GAME_TIME);
+    initialize(&TARGETS);
+    initialize(&BALL_STRUCT);
+    initialize(&CARS);
 }
 
-fn load_hoops(py: Python) -> PyResult<PyObject> {
-    unsafe {
-        GAME = Some(rl_ball_sym::load_hoops());
-        CARS = Some(vec![Car::default(); 64]);
-        BALL_STRUCT = Some(BallPrediction::default());
-    }
+#[pyfunction]
+fn load_soccar() {
+    init();
 
-    Ok(py.None())
+    let mut game_guard = GAME.lock().unwrap();
+    *game_guard = Some(rl_ball_sym::load_soccar());
 }
 
-fn set_gravity(py: Python, py_gravity: PyDict) -> PyResult<PyObject> {
-    let mut game: &mut Game;
+#[pyfunction]
+fn load_dropshot() {
+    init();
 
-    unsafe {
-        game = match GAME.as_mut() {
-            Some(game) => game,
-            None => {
-                return Err(PyErr::new::<exc::NameError, _>(py, NO_GAME_ERR));
-            }
-        };
-    }
-
-    game.gravity = get_vec3(py, py_gravity.as_object(), "Key 'gravity' needs to be a list of exactly 3 numbers")?;
-
-    Ok(py.None())
+    let mut game_guard = GAME.lock().unwrap();
+    *game_guard = Some(rl_ball_sym::load_dropshot());
 }
 
-fn tick(py: Python, py_packet: PyObject) -> PyResult<PyObject> {
-    let mut game: &mut Game;
-    let cars: &mut Vec<Car>;
+#[pyfunction]
+fn load_hoops() {
+    init();
 
-    // maybe multithreading will actually become useful
+    let mut game_guard = GAME.lock().unwrap();
+    *game_guard = Some(rl_ball_sym::load_hoops());
+}
+
+#[pyfunction]
+fn load_soccar_throwback() {
+    init();
+
+    let mut game_guard = GAME.lock().unwrap();
+    *game_guard = Some(rl_ball_sym::load_soccar_throwback());
+}
+
+#[pyfunction]
+fn tick(py: Python, packet: PyObject, prediction_time: Option<f32>) -> PyResult<()> {
+    let mut game_guard = GAME.lock().unwrap();
+    let game = game_guard.as_mut().ok_or_else(|| PyErr::new::<NoGamePyErr, _>(NO_GAME_ERR))?;
+
+    let mut cars = CARS.lock().unwrap();
+    let mut targets = TARGETS.lock().unwrap();
+
     // simulate max jump height
     // simulate max double jump height
-    // add options to individual shots like min/max time
     // add option for max path time
 
-    unsafe {
-        game = match GAME.as_mut() {
-            Some(game) => game,
-            None => {
-                return Err(PyErr::new::<exc::NameError, _>(py, NO_GAME_ERR));
+    for target in targets.iter_mut() {
+        if let Some(t) = target {
+            if !t.is_confirmed() {
+                *target = None;
             }
-        };
-
-        cars = match &mut CARS {
-            Some(cars) => cars,
-            None => {
-                return Err(PyErr::new::<exc::NameError, _>(py, NO_CARS_ERR));
-            }
-        };
+        }
     }
 
     /*
@@ -152,357 +161,275 @@ fn tick(py: Python, py_packet: PyObject) -> PyResult<PyObject> {
         num_teams: 2
     >
     */
-    let py_game_info = py_packet.getattr(py, "game_info")?;
+    let packet = packet.as_ref(py);
 
-    game.ball.time = py_game_info.getattr(py, "seconds_elapsed")?.extract(py)?;
+    let py_game_info = packet.getattr("game_info")?;
 
-    unsafe {
-        GAME_TIME = game.ball.time.clone();
-    }
+    let mut time = GAME_TIME.lock().unwrap();
+    *time = py_game_info.getattr("seconds_elapsed")?.extract::<f32>()?;
 
-    game.gravity.z = py_game_info.getattr(py, "world_gravity_z")?.extract(py)?;
+    game.gravity.z = py_game_info.getattr("world_gravity_z")?.extract()?;
 
-    let py_ball = py_packet.getattr(py, "game_ball")?;
-    let py_ball_physics = py_ball.getattr(py, "physics")?;
+    let py_ball = packet.getattr("game_ball")?;
+    let py_ball_physics = py_ball.getattr("physics")?;
 
-    game.ball.location = get_vec3_named(py, py_ball_physics.getattr(py, "location")?)?;
-    game.ball.velocity = get_vec3_named(py, py_ball_physics.getattr(py, "velocity")?)?;
-    game.ball.angular_velocity = get_vec3_named(py, py_ball_physics.getattr(py, "angular_velocity")?)?;
+    game.ball.update(
+        *time,
+        get_vec3_named(py_ball_physics.getattr("location")?)?,
+        get_vec3_named(py_ball_physics.getattr("velocity")?)?,
+        get_vec3_named(py_ball_physics.getattr("angular_velocity")?)?,
+    );
 
-    let py_ball_shape = py_ball.getattr(py, "collision_shape")?;
+    let py_ball_shape = py_ball.getattr("collision_shape")?;
 
-    game.ball.radius = py_ball_shape.getattr(py, "sphere")?.getattr(py, "diameter")?.extract::<f32>(py)? / 2.;
-    game.ball.collision_radius = game.ball.radius + 0.9;
+    game.ball.radius = py_ball_shape.getattr("sphere")?.getattr("diameter")?.extract::<f32>()? / 2.;
+    game.ball.collision_radius = game.ball.radius + 1.9;
     game.ball.calculate_moi();
 
-    let py_game_cars = py_packet.getattr(py, "game_cars")?;
-    let num_cars = py_packet.getattr(py, "num_cars")?.extract::<usize>(py)?;
+    let prediction_time = prediction_time.unwrap_or(6.);
+    let ball_struct = Ball::get_ball_prediction_struct_for_time(game, &prediction_time);
 
-    for i in 0..num_cars {
-        let py_car = py_game_cars.get_item(py, i)?;
+    let mut ball_struct_guard = BALL_STRUCT.lock().unwrap();
+    *ball_struct_guard = ball_struct;
 
-        let py_car_physics = py_car.getattr(py, "physics")?;
+    let num_cars = packet.getattr("num_cars")?.extract::<usize>()?;
+    let py_game_cars = packet.getattr("game_cars")?;
 
-        cars[i].location = get_vec3_named(py, py_car_physics.getattr(py, "location")?)?;
-        cars[i].velocity = get_vec3_named(py, py_car_physics.getattr(py, "velocity")?)?;
-        cars[i].angular_velocity = get_vec3_named(py, py_car_physics.getattr(py, "angular_velocity")?)?;
-
-        let py_car_rotator = py_car_physics.getattr(py, "rotation")?;
-
-        cars[i].pitch = py_car_rotator.getattr(py, "pitch")?.extract(py)?;
-        cars[i].yaw = py_car_rotator.getattr(py, "yaw")?.extract(py)?;
-        cars[i].roll = py_car_rotator.getattr(py, "roll")?.extract(py)?;
-
-        let py_car_hitbox = py_car.getattr(py, "hitbox")?;
-
-        cars[i].hitbox = Hitbox {
-            length: py_car_hitbox.getattr(py, "length")?.extract(py)?,
-            width: py_car_hitbox.getattr(py, "width")?.extract(py)?,
-            height: py_car_hitbox.getattr(py, "height")?.extract(py)?,
-        };
-
-        cars[i].hitbox_offset = get_vec3_named(py, py_car.getattr(py, "hitbox_offset")?)?;
-
-        cars[i].boost = py_car.getattr(py, "boost")?.extract(py)?;
-        cars[i].demolished = py_car.getattr(py, "is_demolished")?.extract(py)?;
-        cars[i].airborne = !py_car.getattr(py, "has_wheel_contact")?.extract(py)?;
-        cars[i].jumped = py_car.getattr(py, "jumped")?.extract(py)?;
-        cars[i].doublejumped = py_car.getattr(py, "double_jumped")?.extract(py)?;
-
-        cars[i].calculate_orientation_matrix();
-        cars[i].calculate_max_values();
-        cars[i].calculate_local_values();
-        cars[i].calculate_field();
+    for (i, car) in cars.iter_mut().enumerate().take(num_cars) {
+        car.update(py_game_cars.get_item(i)?, game.gravity.z, (prediction_time * TPS).round() as usize + 1)?;
     }
 
-    unsafe {
-        BALL_STRUCT = Some(Ball::get_ball_prediction_struct_for_time(game, &6.));
-    }
-
-    Ok(py.None())
+    Ok(())
 }
 
-fn tick_dict(py: Python, py_time: PyFloat, py_ball: PyDict, py_car: PyDict) -> PyResult<PyObject> {
-    let mut game: &mut Game;
-    let cars: &mut Vec<Car>;
+#[pyfunction]
+fn get_slice(slice_time: f32) -> BallSlice {
+    let game_time = GAME_TIME.lock().unwrap();
+    let ball_struct = BALL_STRUCT.lock().unwrap();
 
-    unsafe {
-        game = match GAME.as_mut() {
-            Some(game) => game,
-            None => {
-                return Err(PyErr::new::<exc::NameError, _>(py, NO_GAME_ERR));
-            }
-        };
+    let slice_num = ((slice_time - *game_time) * TPS).round() as usize;
+    let ball = ball_struct.slices[slice_num.clamp(1, ball_struct.num_slices) - 1];
 
-        cars = match &mut CARS {
-            Some(cars) => cars,
-            None => {
-                return Err(PyErr::new::<exc::NameError, _>(py, NO_CARS_ERR));
-            }
-        };
-    }
-
-    game.ball.time = py_time.value(py) as f32;
-
-    unsafe {
-        GAME_TIME = game.ball.time.clone();
-    }
-
-    game.ball.location = get_vec3_from_dict(py, &py_ball, "location", "ball")?;
-    game.ball.velocity = get_vec3_from_dict(py, &py_ball, "velocity", "ball")?;
-    game.ball.angular_velocity = get_vec3_from_dict(py, &py_ball, "angular_velocity", "ball")?;
-
-    if let Some(radius) = py_ball.get_item(py, "radius") {
-        game.ball.radius = radius.extract(py)?;
-        game.ball.calculate_moi();
-    }
-
-    if let Some(collision_radius) = py_ball.get_item(py, "collision_radius") {
-        game.ball.collision_radius = collision_radius.extract(py)?;
-    }
-
-    let index = get_usize_from_dict(py, &py_car, "index", "car")?;
-
-    cars[index].location = get_vec3_from_dict(py, &py_car, "location", "car")?;
-    cars[index].velocity = get_vec3_from_dict(py, &py_car, "velocity", "car")?;
-    cars[index].angular_velocity = get_vec3_from_dict(py, &py_car, "angular_velocity", "car")?;
-    cars[index].hitbox = Hitbox::from_vec3(get_vec3_from_dict(py, &py_car, "hitbox", "car")?);
-    cars[index].hitbox_offset = get_vec3_from_dict(py, &py_car, "hitbox_offset", "car")?;
-    cars[index].pitch = get_f32_from_dict(py, &py_car, "pitch", "car")?;
-    cars[index].yaw = get_f32_from_dict(py, &py_car, "yaw", "car")?;
-    cars[index].roll = get_f32_from_dict(py, &py_car, "roll", "car")?;
-    cars[index].boost = get_u8_from_dict(py, &py_car, "boost", "car")?;
-    cars[index].demolished = get_bool_from_dict(py, &py_car, "demolished", "car")?;
-    cars[index].airborne = get_bool_from_dict(py, &py_car, "airborne", "car")?;
-    cars[index].jumped = get_bool_from_dict(py, &py_car, "jumped", "car")?;
-    cars[index].doublejumped = get_bool_from_dict(py, &py_car, "doublejumped", "car")?;
-    cars[index].calculate_orientation_matrix();
-    cars[index].calculate_max_values();
-    cars[index].calculate_local_values();
-    cars[index].calculate_field();
-
-    unsafe {
-        BALL_STRUCT = Some(Ball::get_ball_prediction_struct_for_time(game, &6.));
-    }
-
-    Ok(py.None())
+    BallSlice::from(&ball)
 }
 
-fn get_slice(py: Python, py_slice_time: PyFloat) -> PyResult<PyObject> {
-    let game_time: &f32;
-    let ball_struct: &BallPrediction;
+#[pyfunction]
+fn new_target(left_target: Vec<f32>, right_target: Vec<f32>, car_index: usize, options: Option<TargetOptions>) -> PyResult<usize> {
+    let num_slices = BALL_STRUCT.lock().unwrap().num_slices;
 
-    unsafe {
-        game_time = &GAME_TIME;
-
-        ball_struct = match BALL_STRUCT.as_ref() {
-            Some(ball_struct) => ball_struct,
-            None => {
-                return Err(PyErr::new::<exc::NameError, _>(py, NO_BALL_STRUCT_ERR));
-            }
-        };
+    if num_slices == 0 {
+        return Err(PyErr::new::<NoSlicesPyErr, _>(NO_SLICES_ERR));
     }
 
-    let py_slice = PyDict::new(py);
-    let slice_num = ((py_slice_time.value(py) as f32 - game_time) * 120.).round() as usize;
+    let target_left = get_vec3_from_vec(left_target, "target_left")?;
+    let target_right = get_vec3_from_vec(right_target, "target_right")?;
+    let options = Options::from(options, num_slices);
 
-    let slice = ball_struct.slices[slice_num.clamp(1, ball_struct.num_slices) - 1].clone();
+    let target = Some(Target::new(target_left, target_right, car_index, options));
+    let mut targets = TARGETS.lock().unwrap();
 
-    py_slice.set_item(py, "time", slice.time)?;
-    py_slice.set_item(py, "location", get_vec_from_vec3(slice.location))?;
-    py_slice.set_item(py, "velocity", get_vec_from_vec3(slice.velocity))?;
-    py_slice.set_item(py, "angular_velocity", get_vec_from_vec3(slice.angular_velocity))?;
-
-    Ok(py_slice.into_object())
-}
-
-fn get_data_for_shot_with_target(py: Python, py_target_left: PyTuple, py_target_right: PyTuple, py_slice_time: PyFloat, py_index: PyInt) -> PyResult<PyObject> {
-    let game_time: &f32;
-    let _gravity: &Vec3A;
-    let car: &Car;
-    let ball: &Ball;
-
-    unsafe {
-        game_time = &GAME_TIME;
-    }
-
-    let slice_num = ((py_slice_time.value(py) as f32 - game_time) * 120.).round() as usize;
-
-    unsafe {
-        match GAME.as_ref() {
-            Some(game) => {
-                _gravity = &game.gravity;
-            }
-            None => {
-                return Err(PyErr::new::<exc::NameError, _>(py, NO_GAME_ERR));
-            }
+    let target_index = match targets.iter().position(|x| x.is_none()) {
+        Some(i) => {
+            targets[i] = target;
+            i
         }
-
-        car = match &mut CARS {
-            Some(cars) => cars.get_mut(py_index.into_object().extract::<usize>(py).unwrap()).unwrap(),
-            None => {
-                return Err(PyErr::new::<exc::NameError, _>(py, NO_CARS_ERR));
-            }
-        };
-
-        ball = match BALL_STRUCT.as_ref() {
-            Some(ball_struct) => &ball_struct.slices[slice_num.clamp(1, ball_struct.num_slices) - 1],
-            None => {
-                return Err(PyErr::new::<exc::NameError, _>(py, NO_BALL_STRUCT_ERR));
-            }
-        };
-    }
-
-    let target_left = get_vec3(py, py_target_left.as_object(), "Key 'target_left' needs to be a list of exactly 3 numbers")?;
-    let target_right = get_vec3(py, py_target_right.as_object(), "Key 'target_right' needs to be a list of exactly 3 numbers")?;
-
-    let car_to_ball = ball.location - car.location;
-    let post_info = correct_for_posts(ball.location, ball.collision_radius, target_left, target_right);
-    let shot_vector = get_shot_vector_2d(flatten(car_to_ball).normalize_or_zero(), flatten(ball.location), flatten(post_info.target_left), flatten(post_info.target_right));
-
-    let (distance_parts, final_target, face_shot_vector, path) = match analyze_target(ball, car, shot_vector, 0., true, false) {
-        Ok(result) => (result.0, result.1.unwrap(), result.2, result.3),
-        Err(duberr) => {
-            return Err(PyErr::new::<exc::Exception, _>(py, format!("{:?} - Couldn't calculate path", duberr)));
+        None => {
+            targets.push(target);
+            targets.len() - 1
         }
     };
 
-    let result = PyDict::new(py);
-
-    // dbg!(distance_parts);
-
-    let distance_remaining: f32 = distance_parts.iter().sum();
-
-    result.set_item(py, "distance_remaining", distance_remaining)?;
-    result.set_item(py, "final_target", get_vec_from_vec3(final_target))?;
-    result.set_item(py, "shot_vector", get_vec_from_vec3(shot_vector))?;
-    result.set_item(py, "face_shot_vector", face_shot_vector)?;
-
-    match path {
-        Some(path_) => {
-            let path_samples = match path_sample_many(&path_, 50.) {
-                Ok(raw_samples) => {
-                    let mut samples = Vec::with_capacity(raw_samples.len());
-                    for sample in raw_samples {
-                        samples.push(vec![sample[0], sample[1]]);
-                    }
-                    samples
-                }
-                Err(duberr) => {
-                    return Err(PyErr::new::<exc::Exception, _>(py, format!("{:?} - Couldn't calculate samples", duberr)));
-                }
-            };
-            result.set_item(py, "path_samples", path_samples)?;
-        }
-        None => {
-            result.set_item(py, "path_samples", vec![get_vec_from_vec3(car.location), get_vec_from_vec3(ball.location)])?;
-        }
-    }
-
-    Ok(result.into_object())
+    Ok(target_index)
 }
 
-fn get_shot_with_target(py: Python, py_target_left: PyTuple, py_target_right: PyTuple, py_index: PyInt, py_options: PyDict) -> PyResult<PyObject> {
-    let game_time: &f32;
-    let _gravity: &Vec3A;
-    let radius: &f32;
-    let car: &Car;
-    let ball_prediction: &BallPrediction;
+#[pyfunction]
+fn confirm_target(target_index: usize) -> PyResult<()> {
+    let mut targets = TARGETS.lock().unwrap();
+    let target = targets
+        .get_mut(target_index)
+        .ok_or_else(|| PyErr::new::<NoTargetPyErr, _>(NO_TARGET_ERR))?
+        .as_mut()
+        .ok_or_else(|| PyErr::new::<NoTargetPyErr, _>(NO_TARGET_ERR))?;
 
-    unsafe {
-        match GAME.as_ref() {
-            Some(game) => {
-                _gravity = &game.gravity;
-                radius = &game.ball.radius;
-            }
+    if target.shot.is_none() {
+        return Err(PyErr::new::<NoShotPyErr, _>(NO_SHOT_ERR));
+    }
+
+    target.confirm();
+    Ok(())
+}
+
+#[pyfunction]
+fn remove_target(target_index: usize) {
+    let mut targets = TARGETS.lock().unwrap();
+    if targets.get(target_index).is_none() {
+        return;
+    }
+
+    targets[target_index] = None;
+}
+
+#[pyfunction]
+fn print_targets() {
+    let targets = TARGETS.lock().unwrap();
+    let mut out = Vec::with_capacity(targets.len());
+
+    for target in targets.iter() {
+        match target {
+            Some(t) => match &t.shot {
+                Some(s) => out.push(format!("{}", s.time)),
+                None => out.push(String::from("No shot")),
+            },
             None => {
-                return Err(PyErr::new::<exc::NameError, _>(py, NO_GAME_ERR));
+                out.push(String::from("None"));
             }
         }
-
-        car = match &mut CARS {
-            Some(cars) => cars.get_mut(py_index.into_object().extract::<usize>(py).unwrap()).unwrap(),
-            None => {
-                return Err(PyErr::new::<exc::NameError, _>(py, NO_CARS_ERR));
-            }
-        };
-
-        ball_prediction = match BALL_STRUCT.as_ref() {
-            Some(ball_struct) => ball_struct,
-            None => {
-                return Err(PyErr::new::<exc::NameError, _>(py, NO_BALL_STRUCT_ERR));
-            }
-        };
-
-        game_time = &GAME_TIME;
     }
 
-    let target_left = get_vec3(py, py_target_left.as_object(), "Key 'target_left' needs to be a list of exactly 3 numbers")?;
-    let target_right = get_vec3(py, py_target_right.as_object(), "Key 'target_right' needs to be a list of exactly 3 numbers")?;
+    println!("[{}]", out.join(", "));
+}
 
-    let options = get_options_from_dict(py, py_options, ball_prediction.num_slices)?;
+#[pyfunction]
+fn get_targets_length() -> usize {
+    TARGETS.lock().unwrap().len()
+}
 
-    let dist_from_side = radius + car.hitbox.height;
+#[pyfunction]
+fn get_shot_with_target(target_index: usize, temporary: Option<bool>, may_ground_shot: Option<bool>, only: Option<bool>) -> PyResult<BasicShotInfo> {
+    let only = only.unwrap_or(false);
+    let may_ground_shot = may_ground_shot.unwrap_or(!only);
 
-    let mut found_ball = None;
-
-    if ball_prediction.num_slices == 0 || car.demolished || car.airborne {
-        let result = PyDict::new(py);
-        result.set_item(py, "found", false)?;
-        return Ok(result.into_object());
+    if !may_ground_shot {
+        return Err(PyErr::new::<NoShotSelectedPyErr, _>(NO_SHOT_SELECTED_ERR));
     }
 
-    for ball in &ball_prediction.slices[options.min_slice..options.max_slice] {
+    let _gravity = {
+        let game_guard = GAME.lock().unwrap();
+        let game = game_guard.as_ref().ok_or_else(|| PyErr::new::<NoGamePyErr, _>(NO_GAME_ERR))?;
+
+        game.gravity.z
+    };
+
+    let game_time = GAME_TIME.lock().unwrap();
+    let ball_prediction = BALL_STRUCT.lock().unwrap();
+
+    let mut targets_gaurd = TARGETS.lock().unwrap();
+    let target = targets_gaurd
+        .get_mut(target_index)
+        .ok_or_else(|| PyErr::new::<NoTargetPyErr, _>(NO_TARGET_ERR))?
+        .as_mut()
+        .ok_or_else(|| PyErr::new::<NoTargetPyErr, _>(NO_TARGET_ERR))?;
+
+    let mut cars = CARS.lock().unwrap();
+    let car = cars.get_mut(target.car_index).ok_or_else(|| PyErr::new::<NoCarPyErr, _>(NO_CAR_ERR))?;
+
+    let mut found_shot = None;
+    let mut basic_shot_info = None;
+
+    if ball_prediction.num_slices == 0 || car.demolished || car.landing_time >= ball_prediction.slices[ball_prediction.num_slices - 1].time {
+        return Ok(BasicShotInfo::not_found());
+    }
+
+    let analyzer = {
+        let max_speed = if target.options.use_absolute_max_values { Some(MAX_SPEED) } else { None };
+        let max_turn_radius = if target.options.use_absolute_max_values { Some(turn_radius(MAX_SPEED)) } else { None };
+
+        Analyzer::new(max_speed, max_turn_radius)
+    };
+
+    let temporary = temporary.unwrap_or(false);
+
+    for (i, ball) in ball_prediction.slices[target.options.min_slice..target.options.max_slice].iter().enumerate() {
         if ball.location.y.abs() > 5120. + ball.collision_radius {
             break;
         }
 
-        if ball.location.z > dist_from_side {
-            continue;
-        }
-
-        let car_to_ball = ball.location - car.location;
-
-        let post_info = correct_for_posts(ball.location, ball.collision_radius, target_left, target_right);
+        let post_info = PostCorrection::from(ball.location, ball.collision_radius, target.target_left, target.target_right);
 
         if !post_info.fits {
             continue;
         }
 
-        let shot_vector = get_shot_vector_2d(flatten(car_to_ball).normalize_or_zero(), flatten(ball.location), flatten(post_info.target_left), flatten(post_info.target_right));
-        let time_remaining = ball.time - game_time;
-        let distance_parts = match analyze_target(ball, car, shot_vector, time_remaining, false, true) {
-            Ok(result) => result.0,
+        let shot_vector = post_info.get_shot_vector_target(car.landing_location, ball.location);
+        let max_time_remaining = ball.time - *game_time;
+        let target_info = match analyzer.target(ball, car, shot_vector, max_time_remaining, i) {
+            Ok(r) => r,
             Err(_) => continue,
         };
 
+        let is_forwards = true;
+
         // will be used to calculate if there's enough time left to jump after accelerating
-        let _time_remaining = match can_reach_target(car, time_remaining, distance_parts.iter().sum(), true) {
+        let _time_remaining = match target_info.can_reach(car, max_time_remaining, is_forwards) {
             Ok(t_r) => t_r,
             Err(_) => continue,
         };
 
-        if !options.all {
-            found_ball = Some(ball.clone());
-            break;
-        } else if found_ball.is_none() {
-            // for worst-case benchmarking only
-            // returns accurate numbers, but analyzes all slices
-            found_ball = Some(ball.clone());
+        if found_shot.is_none() {
+            basic_shot_info = Some(target_info.get_basic_shot_info(ball.time));
+
+            if !temporary {
+                found_shot = Some(Shot::from(ball, &target_info, shot_vector));
+            }
+
+            if !target.options.all {
+                break;
+            }
         }
     }
 
-    let result = PyDict::new(py);
-
-    match found_ball {
-        Some(box_slice) => {
-            result.set_item(py, "found", true)?;
-            result.set_item(py, "time", box_slice.time)?;
-        }
-        None => {
-            result.set_item(py, "found", false)?;
-        }
+    if !temporary {
+        target.shot = found_shot;
     }
 
-    Ok(result.into_object())
+    Ok(match basic_shot_info {
+        Some(bsi) => bsi,
+        None => BasicShotInfo::not_found(),
+    })
+}
+
+#[pyfunction]
+fn get_data_for_shot_with_target(target_index: usize) -> PyResult<AdvancedShotInfo> {
+    let _gravity = {
+        let game_guard = GAME.lock().unwrap();
+        let game = game_guard.as_ref().ok_or_else(|| PyErr::new::<NoGamePyErr, _>(NO_GAME_ERR))?;
+
+        game.gravity.z
+    };
+
+    let targets_gaurd = TARGETS.lock().unwrap();
+    let target = targets_gaurd
+        .get(target_index)
+        .ok_or_else(|| PyErr::new::<NoTargetPyErr, _>(NO_TARGET_ERR))?
+        .as_ref()
+        .ok_or_else(|| PyErr::new::<NoTargetPyErr, _>(NO_TARGET_ERR))?;
+    let shot = target.shot.as_ref().ok_or_else(|| PyErr::new::<NoShotPyErr, _>(NO_SHOT_ERR))?;
+
+    let time_remaining = {
+        let game_time = GAME_TIME.lock().unwrap();
+        shot.time - *game_time
+    };
+
+    if time_remaining < 0. {
+        return Err(PyErr::new::<NoTimeRemainingPyErr, _>(NO_TIME_REMAINING_ERR));
+    }
+
+    let cars_guard = CARS.lock().unwrap();
+    let car = cars_guard.get(target.car_index).ok_or_else(|| PyErr::new::<NoCarPyErr, _>(NO_CAR_ERR))?;
+
+    let ball_struct = BALL_STRUCT.lock().unwrap();
+    let slice_num = ((time_remaining * TPS).round() as usize).clamp(1, ball_struct.num_slices) - 1;
+    let ball = &ball_struct.slices[slice_num];
+
+    if ball.location.distance(shot.ball_location) > car.hitbox.width {
+        Err(PyErr::new::<BallChangedPyErr, _>(BALL_CHANGED_ERR))
+    } else {
+        let shot_info = AdvancedShotInfo::get(car, shot);
+
+        if car.max_speed[slice_num] * (time_remaining + 0.2) >= shot_info.get_distance_remaining() {
+            Ok(shot_info)
+        } else {
+            Err(PyErr::new::<BadAccelerationPyErr, _>(BAD_ACCELERATION_ERR))
+        }
+    }
 }

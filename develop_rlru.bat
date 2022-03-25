@@ -1,5 +1,5 @@
 @echo off
 set rlpy="%localappdata%\RLBotGUIX\Python37\python.exe"
 cargo fmt
-%rlpy% -m pip install .
-pause
+maturin build --release -i %rlpy%
+%rlpy% -m pip install VirxERLU-RLib --find-links=target\wheels --force-reinstall

@@ -1,24 +1,35 @@
 [package]
 name = "virx_erlu_rlib"
-version = "0.1.0"
+version = "0.8.0"
 edition = "2021"
+authors = ["VirxEC <virx@virxcase.dev>"]
+readme = "README.md"
+description = "Rust modules for VirxERLU"
+homepage = "https://github.com/VirxEC/VirxERLU-RLib"
+license = "MIT"
+include = ["/src", "pyproject.toml", "virx_erlu_rlib.pyi", "README.md"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
+name = "virx_erlu_rlib"
 crate-type = ["cdylib"]
 path = "src/lib.rs"
 
 [dependencies]
-glam = "0.20.1"
-rl_ball_sym = "0.7"
-dubins_paths = "^1.0.3"
+glam = "0.20"
+rl_ball_sym = "1.0"
+dubins_paths = "1.2"
+lazy_static = "1.4"
 
-[dependencies.cpython]
-version = "0.6"
+[dependencies.pyo3]
+version = "0.16"
 features = ["extension-module"]
 
+[dev-dependencies]
+rand = "0.8"
+
 [profile.release]
-codegen-units = 2
+codegen-units = 1
 lto = "fat"
 panic = "abort"
