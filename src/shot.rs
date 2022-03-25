@@ -27,9 +27,6 @@ impl Shot {
     pub fn from(ball: &Ball, target: &TargetInfo, direction: Vec3A) -> Self {
         let path_endpoint = get_vec3_from_array(target.path.endpoint());
 
-        // let all_samples;
-        // let samples;
-
         let (all_samples, samples) = {
             // the distance of each segment
             let segment_distances = [

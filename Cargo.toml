@@ -30,6 +30,6 @@ features = ["extension-module"]
 rand = "0.8"
 
 [profile.release]
-codegen-units = 2
+codegen-units = 1
 lto = "fat"
-# panic = "abort"
+panic = "abort"
