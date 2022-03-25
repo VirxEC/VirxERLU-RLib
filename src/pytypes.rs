@@ -161,6 +161,8 @@ impl BallSlice {
 #[allow(dead_code)]
 pub struct AdvancedShotInfo {
     #[pyo3(get)]
+    shot_vector: (f32, f32, f32),
+    #[pyo3(get)]
     final_target: (f32, f32, f32),
     #[pyo3(get)]
     distance_remaining: f32,
@@ -191,8 +193,9 @@ impl AdvancedShotInfo {
 }
 
 impl AdvancedShotInfo {
-    pub fn from(target: Vec3A, distance_remaining: f32, path_samples: Vec<(f32, f32)>) -> Self {
+    pub fn from(shot_vector: Vec3A, target: Vec3A, distance_remaining: f32, path_samples: Vec<(f32, f32)>) -> Self {
         AdvancedShotInfo {
+            shot_vector: get_tuple_from_vec3(shot_vector),
             final_target: (target.x, target.y, 0.),
             distance_remaining,
             path_samples,

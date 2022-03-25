@@ -41,11 +41,13 @@ pub fn curvature(v: f32) -> f32 {
         return 0.003025 - 1.1e-6 * v;
     }
 
-    if (1750. ..2500.).contains(&v) {
+    if (1750. ..2301.).contains(&v) {
         return 0.0018 - 4e-7 * v;
     }
 
-    panic!("Invalid input velocity: {}", v);
+    println!("Invalid input velocity: {}", v);
+
+    -1.
 }
 
 pub fn turn_radius(v: f32) -> f32 {

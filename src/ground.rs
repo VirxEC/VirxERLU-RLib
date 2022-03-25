@@ -281,6 +281,6 @@ impl AdvancedShotInfo {
         // get all the samples from the vec after index
         let samples = shot.all_samples.iter().skip(index / Shot::ALL_STEP).cloned().collect();
 
-        Self::from(target, distance_to_ball, samples)
+        Self::from(shot.direction, target, distance_to_ball, samples)
     }
 }

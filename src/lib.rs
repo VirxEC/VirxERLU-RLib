@@ -42,9 +42,11 @@ lazy_static! {
 /// VirxERLU-RLib is written in Rust with Python bindings to make analyzing the ball prediction struct much faster.
 #[pymodule]
 fn virx_erlu_rlib(_py: Python, m: &PyModule) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(load_soccer, m)?)?;
     m.add_function(wrap_pyfunction!(load_soccar, m)?)?;
     m.add_function(wrap_pyfunction!(load_dropshot, m)?)?;
     m.add_function(wrap_pyfunction!(load_hoops, m)?)?;
+    m.add_function(wrap_pyfunction!(load_soccer_throwback, m)?)?;
     m.add_function(wrap_pyfunction!(load_soccar_throwback, m)?)?;
     m.add_function(wrap_pyfunction!(tick, m)?)?;
     m.add_function(wrap_pyfunction!(get_slice, m)?)?;
@@ -76,6 +78,11 @@ fn load_soccar() {
 }
 
 #[pyfunction]
+fn load_soccer() {
+    load_soccar();
+}
+
+#[pyfunction]
 fn load_dropshot() {
     init();
 
@@ -97,6 +104,11 @@ fn load_soccar_throwback() {
 
     let mut game_guard = GAME.lock().unwrap();
     *game_guard = Some(rl_ball_sym::load_soccar_throwback());
+}
+
+#[pyfunction]
+fn load_soccer_throwback() {
+    load_soccar_throwback();
 }
 
 #[pyfunction]
@@ -426,7 +438,7 @@ fn get_data_for_shot_with_target(target_index: usize) -> PyResult<AdvancedShotIn
     } else {
         let shot_info = AdvancedShotInfo::get(car, shot);
 
-        if car.max_speed[slice_num] * (time_remaining + 0.2) >= shot_info.get_distance_remaining() {
+        if car.max_speed[slice_num] * (time_remaining + 0.1) >= shot_info.get_distance_remaining() {
             Ok(shot_info)
         } else {
             Err(PyErr::new::<BadAccelerationPyErr, _>(BAD_ACCELERATION_ERR))

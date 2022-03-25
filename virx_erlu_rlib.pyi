@@ -10,6 +10,12 @@ def load_soccar() -> None:
     """
 
 
+def load_soccer() -> None:
+    """
+    Loads the geometry of a standard soccer field
+    """
+
+
 def load_dropshot() -> None:
     """
     Loads the geometry of a standard dropshot field
@@ -23,6 +29,12 @@ def load_hoops() -> None:
 
 
 def load_soccar_throwback() -> None:
+    """
+    Loads the geometry of the field Throwback Stadium
+    """
+
+
+def load_soccer_throwback() -> None:
     """
     Loads the geometry of the field Throwback Stadium
     """
@@ -138,6 +150,7 @@ def get_shot_with_target(target_id: int, temporary: bool=False, may_ground_shot:
 
 
 class AdvancedShotInfo:
+    shot_vector: tuple[float, float, float]
     final_target: tuple[float, float, float]
     distance_remaining: float
     path_samples: list[tuple[float, float]]
