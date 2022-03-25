@@ -1,8 +1,6 @@
 @echo off
-cargo update
-cargo fmt
-set rlpy="%localappdata%\RLBotGUIX\Python37\python.exe"
-%rlpy% -m pip install -U maturin --no-warn-script-location
-maturin build --release -i %rlpy%
-%rlpy% -m twine upload target\wheels\*.whl
+python -m pip install -U maturin twine
+maturin build --release -i "%localappdata%\RLBotGUIX\Python37\python.exe"
+maturin build --release -i "%localappdata%\programs\Python\Python39\python.exe"
+twine upload target\wheels\*.whl
 pause

@@ -9,7 +9,6 @@ COPY . .
 RUN chmod +x ./publish_rlru.sh && \
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
 source $HOME/.cargo/env && \
-cargo fmt && \
 /opt/python/cp37-cp37m/bin/python -m venv venv37 && \
 source venv37/bin/activate && \
 pip install maturin && \
