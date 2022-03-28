@@ -133,7 +133,8 @@ def get_targets_length() -> int:
 
 class BasicShotInfo:
     found: bool
-    time: Optional[float]
+    time: float
+    shot_type: Optional[ShotType]
 
     def __str__(self) -> str: ...
     def __repr__(self) -> str: ...
@@ -154,6 +155,7 @@ class AdvancedShotInfo:
     final_target: tuple[float, float, float]
     distance_remaining: float
     path_samples: list[tuple[float, float]]
+    may_jump: bool
 
     def __str__(self) -> str: ...
     def __repr__(self) -> str: ...

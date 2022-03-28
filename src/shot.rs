@@ -99,7 +99,7 @@ impl Shot {
         (start_index, min_distance)
     }
 
-    fn find_min_distance_index(&self, target: Vec3A) -> (usize, usize) {
+    pub fn find_min_distance_index(&self, target: Vec3A) -> (usize, usize) {
         let mut min_distance = f32::MAX;
         let mut min_distance_index = 0;
         let mut min_distance_index_in_section = 0;
@@ -117,9 +117,7 @@ impl Shot {
         (min_distance_index, min_distance_index_in_section)
     }
 
-    pub fn get_distance_along_shot_and_index(&self, target: Vec3A) -> (Vec3A, f32, usize) {
-        let (segment, index) = self.find_min_distance_index(target);
-
+    pub fn get_distance_along_shot_and_index(&self, segment: usize, index: usize) -> (f32, usize) {
         let pre_distance = match segment {
             0 => 0.,
             1 => self.distances[0],
@@ -136,7 +134,7 @@ impl Shot {
             _ => unreachable!(),
         };
 
-        (self.samples[segment][index], pre_distance + index as f32 * Self::STEP_DISTANCE, pre_index + index)
+        (pre_distance + index as f32 * Self::STEP_DISTANCE, pre_index + index)
     }
 }
 

@@ -3,7 +3,6 @@ use glam::Vec3A;
 use pyo3::{PyAny, PyResult};
 
 use crate::{
-    air::max_jump_height,
     constants::*,
     utils::{flatten, get_vec3_named, minimum_non_negative, vertex_quadratic_solve_for_x},
 };
@@ -167,15 +166,42 @@ impl Car {
         self.jumped = py_car.getattr("jumped")?.extract()?;
         self.doublejumped = py_car.getattr("double_jumped")?.extract()?;
 
-        self.max_jump_height = max_jump_height(gravity);
-
         self.calculate_orientation_matrix();
         self.calculate_field();
         self.calculate_landing_info(gravity);
         self.calculate_local_values();
         self.calculate_max_values(max_ball_slice);
+        self.calculate_max_jump_height(gravity);
 
         Ok(())
+    }
+
+    pub fn calculate_max_jump_height(&mut self, gravity: f32) {
+        let g = gravity * SIMULATION_DT;
+
+        let mut t = 0.;
+        let mut v_z = self.landing_velocity.z;
+        let mut l_z = self.landing_location.z;
+
+        while v_z > 0. || t < MAX_HOLD_TME {
+            if t <= f32::EPSILON {
+                v_z += JUMP_IMPULSE;
+            }
+
+            if t < MAX_HOLD_TME {
+                v_z += HOLD_BONUS;
+            }
+
+            if t < STICKY_TIMER {
+                v_z += STICKY_FORCE * SIMULATION_DT;
+            }
+
+            t += SIMULATION_DT;
+            v_z += g;
+            l_z += v_z * SIMULATION_DT;
+        }
+
+        self.max_jump_height = l_z;
     }
 
     pub fn calculate_landing_info(&mut self, gravity: f32) {
@@ -299,7 +325,7 @@ impl Car {
             let throttle_accel = throttle_acceleration(v);
             let mut accel = 0.;
 
-            if 1. == v.signum() {
+            if v.is_sign_positive() {
                 accel += throttle_accel * SIMULATION_DT;
             } else {
                 accel += BRAKE_ACC_DT;
@@ -409,6 +435,34 @@ impl Car {
     // pub fn globalize(car: &Car, vec: Vec3A) -> Vec3A {
     //     car.forward * vec.x + car.right * vec.y + car.up * vec.z + car.location
     // }
+
+    pub fn jump_time_to_height(&self, gravity: f32, height_goal: f32) -> f32 {
+        let g = gravity * SIMULATION_DT;
+
+        let mut t = 0.;
+        let mut v_z = self.landing_velocity.z;
+        let mut l_z = self.landing_location.z;
+
+        while l_z < height_goal && (v_z > 0. || t < MAX_HOLD_TME) {
+            if t <= f32::EPSILON {
+                v_z += JUMP_IMPULSE;
+            }
+
+            if t < MAX_HOLD_TME {
+                v_z += HOLD_BONUS * SIMULATION_DT;
+            }
+
+            if t < STICKY_TIMER {
+                v_z += STICKY_FORCE * SIMULATION_DT;
+            }
+
+            t += SIMULATION_DT;
+            v_z += g;
+            l_z += v_z * SIMULATION_DT;
+        }
+
+        t
+    }
 }
 
 #[allow(clippy::field_reassign_with_default)]

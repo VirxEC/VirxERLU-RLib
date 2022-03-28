@@ -53,5 +53,5 @@ pub const STRAYED_FROM_PATH_ERR: &str = "Car has strayed from the path.";
 pub const JUMP_IMPULSE: f32 = 292.;
 pub const STICKY_FORCE: f32 = -325.;
 pub const STICKY_TIMER: f32 = SIMULATION_DT * 3.;
-pub const HOLD_BONUS: f32 = (292. * 5.) * SIMULATION_DT;
+pub const HOLD_BONUS: f32 = 292. * 5.;
 pub const MAX_HOLD_TME: f32 = 0.2;

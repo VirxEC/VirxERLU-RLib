@@ -2,15 +2,14 @@ use std::f32::INFINITY;
 
 use dubins_paths::{DubinsError, DubinsIntermediateResults, DubinsPath, DubinsPathType, DubinsResult};
 use glam::Vec3A;
-use rl_ball_sym::simulation::ball::Ball;
 
 use crate::car::{throttle_acceleration, Car, CarFieldRect};
 use crate::constants::*;
-use crate::pytypes::{AdvancedShotInfo, BasicShotInfo, ShotType};
+use crate::pytypes::{AdvancedShotInfo, BasicShotInfo};
 use crate::shot::Shot;
 use crate::utils::*;
 
-fn angle_2d(vec1: Vec3A, vec2: Vec3A) -> f32 {
+pub fn angle_2d(vec1: Vec3A, vec2: Vec3A) -> f32 {
     flatten(vec1).dot(flatten(vec2)).clamp(-1., 1.).acos()
 }
 
@@ -18,7 +17,7 @@ pub fn path_point_to_vec3(endpoint: [f32; 3]) -> Vec3A {
     Vec3A::new(endpoint[0], endpoint[1], 0.)
 }
 
-fn shortest_path_in_validate(q0: [f32; 3], q1: [f32; 3], rho: f32, car_field: &CarFieldRect, max_distance: f32) -> DubinsResult<DubinsPath> {
+pub fn shortest_path_in_validate(q0: [f32; 3], q1: [f32; 3], rho: f32, car_field: &CarFieldRect, max_distance: f32) -> DubinsResult<DubinsPath> {
     let mut best_cost = INFINITY;
     let mut best_path = None;
 
@@ -79,7 +78,7 @@ impl TargetInfo {
         let mut b = car.boost as f32 - b_s;
         let mut v = car.landing_velocity.dot(car.forward);
 
-        let direction = is_forwards as u8 as f32;
+        let direction = if is_forwards { 1. } else { -1. };
 
         loop {
             if self.distances[3] < f32::EPSILON && d < 1. {
@@ -158,90 +157,12 @@ impl TargetInfo {
         Ok(t_r)
     }
 
-    pub fn get_basic_shot_info(&self, time: f32) -> BasicShotInfo {
+    pub const fn get_basic_shot_info(&self, time: f32) -> BasicShotInfo {
         BasicShotInfo::found(time, self.shot_type)
     }
 }
 
-#[derive(Clone, Copy, Debug, Default)]
-pub struct Analyzer {
-    max_speed: Option<f32>,
-    max_turn_radius: Option<f32>,
-}
-
-impl Analyzer {
-    pub fn new(max_speed: Option<f32>, max_turn_radius: Option<f32>) -> Self {
-        Self { max_speed, max_turn_radius }
-    }
-
-    fn get_max_speed(&self, car: &Car, slice_num: usize) -> f32 {
-        self.max_speed.unwrap_or_else(|| car.max_speed[slice_num])
-    }
-
-    fn get_max_turn_radius(&self, car: &Car, slice_num: usize) -> f32 {
-        self.max_turn_radius.unwrap_or_else(|| car.ctrms[slice_num])
-    }
-
-    pub fn target(&self, ball: &Ball, car: &Car, shot_vector: Vec3A, time_remaining: f32, slice_num: usize) -> DubinsResult<TargetInfo> {
-        let offset_target = ball.location - (shot_vector * ball.radius);
-        let shot_vector = flatten(shot_vector).try_normalize().unwrap();
-        let car_front_length = (car.hitbox_offset.x + car.hitbox.length) / 2.;
-
-        let time_remaining = time_remaining - car.landing_time;
-
-        if time_remaining <= 0. {
-            return Err(DubinsError::NoPath);
-        }
-
-        let car_location = car.landing_location;
-
-        let max_distance = time_remaining * self.get_max_speed(car, slice_num) + car_front_length;
-
-        if flatten(car_location).distance(flatten(offset_target)) > max_distance {
-            return Err(DubinsError::NoPath);
-        }
-
-        // One jump shots are added, remove the + ball.radius
-        let shot_type = if offset_target.z < car.hitbox.height + 17. + ball.radius {
-            Ok(ShotType::GROUND)
-        } else {
-            Err(DubinsError::NoPath)
-        }?;
-
-        let end_distance = {
-            let distance = 320.;
-            if (0_f32..distance).contains(&car.forward.dot(ball.location)) && car.right.dot(ball.location) < car.hitbox.width / 2. && angle_2d(car.forward, shot_vector) < 0.02
-            {
-                0. // for pre-aligned ground shots
-            } else {
-                distance // for non-aligned ground shots
-            }
-        };
-
-        // will also be used to set offsets for jumps
-        let offset_distance = end_distance - car_front_length;
-
-        let exit_turn_target = offset_target - (shot_vector * end_distance);
-        // dbg!(offset_target, exit_turn_target);
-
-        if !car.field.is_point_in(&[exit_turn_target.x, exit_turn_target.y, 0.]) {
-            return Err(DubinsError::NoPath);
-        }
-
-        let target_angle = shot_vector.y.atan2(shot_vector.x);
-
-        let q0 = [car_location.x, car_location.y, car.yaw];
-        let q1 = [exit_turn_target.x, exit_turn_target.y, target_angle];
-
-        let path = shortest_path_in_validate(q0, q1, self.get_max_turn_radius(car, slice_num), &car.field, max_distance)?;
-
-        let distances = [path.segment_length(0), path.segment_length(1), path.segment_length(2), offset_distance];
-
-        Ok(TargetInfo::from(distances, shot_type, path))
-    }
-}
-
-pub fn get_throttle_and_boost(throttle_accel: f32, b: f32, t: f32) -> (f32, bool) {
+fn get_throttle_and_boost(throttle_accel: f32, b: f32, t: f32) -> (f32, bool) {
     let acceleration = t / REACTION_TIME;
     let throttle_boost_transition = throttle_accel + 0.5 * BOOST_ACCEL;
 
@@ -261,9 +182,12 @@ pub fn get_throttle_and_boost(throttle_accel: f32, b: f32, t: f32) -> (f32, bool
 
 impl AdvancedShotInfo {
     pub fn get(car: &Car, shot: &Shot) -> Option<Self> {
-        let (car_loc, distance_along, index) = shot.get_distance_along_shot_and_index(car.location);
+        let (segment, index) = shot.find_min_distance_index(car.location);
+        let (distance_along, index) = shot.get_distance_along_shot_and_index(segment, index);
 
-        if car_loc.distance(flatten(car.location)) > car.hitbox.length / 2. {
+        let may_jump = segment == shot.samples.len() - 1;
+
+        if shot.samples[segment][index].distance(flatten(car.location)) > car.hitbox.length / 2. {
             return None;
         }
 
@@ -285,6 +209,6 @@ impl AdvancedShotInfo {
         // get all the samples from the vec after index
         let samples = shot.all_samples.iter().skip(index / Shot::ALL_STEP).cloned().collect();
 
-        Some(Self::from(shot.direction, target, distance_to_ball, samples))
+        Some(Self::from(shot.direction, target, distance_to_ball, samples, may_jump))
     }
 }

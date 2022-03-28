@@ -35,62 +35,6 @@ use crate::constants::*;
 //     }
 // }
 
-pub fn max_jump_height(gravity: f32) -> f32 {
-    let g = gravity * SIMULATION_DT;
-
-    let mut t = 0.;
-    let mut v_z = 0.;
-    let mut l_z = 17.;
-
-    while v_z > 0. {
-        if t <= f32::EPSILON {
-            v_z += JUMP_IMPULSE;
-        }
-
-        if t < MAX_HOLD_TME {
-            v_z += HOLD_BONUS;
-        }
-
-        if t < STICKY_TIMER {
-            v_z += STICKY_FORCE * SIMULATION_DT;
-        }
-
-        t += SIMULATION_DT;
-        v_z += g;
-        l_z += v_z * SIMULATION_DT;
-    }
-
-    l_z
-}
-
-pub fn _jump_time_to_height(gravity: f32, height_goal: f32) -> f32 {
-    let g = gravity * SIMULATION_DT;
-
-    let mut t = 0.;
-    let mut v_z = 0.;
-    let mut l_z = 17.;
-
-    while l_z < height_goal {
-        if t <= f32::EPSILON {
-            v_z += JUMP_IMPULSE;
-        }
-
-        if t < MAX_HOLD_TME {
-            v_z += HOLD_BONUS;
-        }
-
-        if t < STICKY_TIMER {
-            v_z += STICKY_FORCE * SIMULATION_DT;
-        }
-
-        t += SIMULATION_DT;
-        v_z += g;
-        l_z += v_z * SIMULATION_DT;
-    }
-
-    t
-}
-
 pub fn _double_jump_time_to_height(gravity: f32, height_goal: f32) -> f32 {
     let g = gravity * SIMULATION_DT;
 
@@ -99,7 +43,7 @@ pub fn _double_jump_time_to_height(gravity: f32, height_goal: f32) -> f32 {
     let mut l_z = 17.;
     let mut double_jumped = false;
 
-    while l_z < height_goal {
+    while l_z < height_goal && (v_z > 0. || t < MAX_HOLD_TME) {
         if t <= f32::EPSILON {
             v_z += JUMP_IMPULSE;
         } else if t > MAX_HOLD_TME + SIMULATION_DT && !double_jumped {

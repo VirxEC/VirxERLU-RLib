@@ -1,4 +1,5 @@
 mod air;
+mod analyzer;
 mod car;
 mod constants;
 mod ground;
@@ -6,9 +7,9 @@ mod pytypes;
 mod shot;
 mod utils;
 
+use analyzer::*;
 use car::{turn_radius, Car};
 use constants::*;
-use ground::*;
 use lazy_static::{initialize, lazy_static};
 use pyo3::{prelude::*, PyErr};
 use pytypes::*;
@@ -316,7 +317,7 @@ fn get_shot_with_target(target_index: usize, temporary: Option<bool>, may_ground
         return Err(PyErr::new::<NoShotSelectedPyErr, _>(NO_SHOT_SELECTED_ERR));
     }
 
-    let _gravity = {
+    let gravity = {
         let game_guard = GAME.lock().unwrap();
         let game = game_guard.as_ref().ok_or_else(|| PyErr::new::<NoGamePyErr, _>(NO_GAME_ERR))?;
 
@@ -347,7 +348,7 @@ fn get_shot_with_target(target_index: usize, temporary: Option<bool>, may_ground
         let max_speed = if target.options.use_absolute_max_values { Some(MAX_SPEED) } else { None };
         let max_turn_radius = if target.options.use_absolute_max_values { Some(turn_radius(MAX_SPEED)) } else { None };
 
-        Analyzer::new(max_speed, max_turn_radius)
+        Analyzer::new(max_speed, max_turn_radius, gravity)
     };
 
     let temporary = temporary.unwrap_or(false);

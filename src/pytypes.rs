@@ -16,6 +16,14 @@ impl ShotType {
     pub const JUMP: usize = 1;
 }
 
+fn get_str_from_shot_type(type_: usize) -> String {
+    match type_ {
+        ShotType::GROUND => String::from("GROUND"),
+        ShotType::JUMP => String::from("JUMP"),
+        _ => unreachable!(),
+    }
+}
+
 #[pyclass]
 #[derive(Clone, Copy, Debug, Default)]
 pub struct TargetOptions {
@@ -73,7 +81,7 @@ pub struct BasicShotInfo {
     #[pyo3(get)]
     found: bool,
     #[pyo3(get)]
-    time: Option<f32>,
+    time: f32,
     #[pyo3(get)]
     shot_type: Option<usize>,
 }
@@ -82,7 +90,7 @@ impl BasicShotInfo {
     pub const fn not_found() -> Self {
         BasicShotInfo {
             found: false,
-            time: None,
+            time: -1.,
             shot_type: None,
         }
     }
@@ -90,7 +98,7 @@ impl BasicShotInfo {
     pub const fn found(time: f32, shot_type: usize) -> Self {
         BasicShotInfo {
             found: true,
-            time: Some(time),
+            time,
             shot_type: Some(shot_type),
         }
     }
@@ -99,15 +107,15 @@ impl BasicShotInfo {
 #[pymethods]
 impl BasicShotInfo {
     fn __str__(&self) -> String {
-        match self.time {
-            Some(time) => format!("Found at time: {:.2}", time),
+        match self.shot_type {
+            Some(shot_type) => format!("{} found at time: {:.2}", get_str_from_shot_type(shot_type), self.time),
             None => String::from("Not found"),
         }
     }
 
     fn __repr__(&self) -> String {
-        match self.time {
-            Some(time) => format!("BasicShotInfo(found=True, time={})", time),
+        match self.shot_type {
+            Some(shot_type) => format!("BasicShotInfo(found=True, time={}, type={})", self.time, get_str_from_shot_type(shot_type)),
             None => String::from("BasicShotInfo(found=False)"),
         }
     }
@@ -170,6 +178,8 @@ pub struct AdvancedShotInfo {
     distance_remaining: f32,
     #[pyo3(get)]
     path_samples: Vec<(f32, f32)>,
+    #[pyo3(get)]
+    may_jump: bool,
 }
 
 impl AdvancedShotInfo {
@@ -181,7 +191,10 @@ impl AdvancedShotInfo {
 #[pymethods]
 impl AdvancedShotInfo {
     fn __str__(&self) -> String {
-        format!("Final target: {:?}, distance remaining: {:.2}", self.final_target, self.distance_remaining)
+        format!(
+            "Final target: {:?}, distance remaining: {:.2}, may_jump: {}",
+            self.final_target, self.distance_remaining, self.may_jump
+        )
     }
 
     fn __repr__(&self) -> String {
@@ -195,12 +208,13 @@ impl AdvancedShotInfo {
 }
 
 impl AdvancedShotInfo {
-    pub fn from(shot_vector: Vec3A, target: Vec3A, distance_remaining: f32, path_samples: Vec<(f32, f32)>) -> Self {
+    pub fn from(shot_vector: Vec3A, target: Vec3A, distance_remaining: f32, path_samples: Vec<(f32, f32)>, may_jump: bool) -> Self {
         AdvancedShotInfo {
             shot_vector: get_tuple_from_vec3(shot_vector),
             final_target: (target.x, target.y, 0.),
             distance_remaining,
             path_samples,
+            may_jump,
         }
     }
 }

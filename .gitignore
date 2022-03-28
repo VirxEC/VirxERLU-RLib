@@ -114,7 +114,8 @@ ENV/
 .vscode/
 
 # Rust
-/target
+target/
+.cargo/
 
 # pip
 .pypirc
