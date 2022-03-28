@@ -1,3 +1,4 @@
+mod air;
 mod car;
 mod constants;
 mod ground;
@@ -436,7 +437,7 @@ fn get_data_for_shot_with_target(target_index: usize) -> PyResult<AdvancedShotIn
     if ball.location.distance(shot.ball_location) > car.hitbox.width {
         Err(PyErr::new::<BallChangedPyErr, _>(BALL_CHANGED_ERR))
     } else {
-        let shot_info = AdvancedShotInfo::get(car, shot);
+        let shot_info = AdvancedShotInfo::get(car, shot).ok_or_else(|| PyErr::new::<StrayedFromPathPyErr, _>(STRAYED_FROM_PATH_ERR))?;
 
         if car.max_speed[slice_num] * (time_remaining + 0.1) >= shot_info.get_distance_remaining() {
             Ok(shot_info)

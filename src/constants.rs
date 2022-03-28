@@ -47,3 +47,11 @@ pub type NoTimeRemainingPyErr = exceptions::PyValueError;
 pub const NO_TIME_REMAINING_ERR: &str = "Time expired for the shot.";
 pub type BadAccelerationPyErr = exceptions::PyAssertionError;
 pub const BAD_ACCELERATION_ERR: &str = "Acceleration is slower than expected.";
+pub type StrayedFromPathPyErr = exceptions::PyAssertionError;
+pub const STRAYED_FROM_PATH_ERR: &str = "Car has strayed from the path.";
+
+pub const JUMP_IMPULSE: f32 = 292.;
+pub const STICKY_FORCE: f32 = -325.;
+pub const STICKY_TIMER: f32 = SIMULATION_DT * 3.;
+pub const HOLD_BONUS: f32 = (292. * 5.) * SIMULATION_DT;
+pub const MAX_HOLD_TME: f32 = 0.2;

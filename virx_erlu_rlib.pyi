@@ -56,7 +56,7 @@ def tick(packet: GameTickPacket, prediction_time: float=6.) -> None:
 
 class ShotType:
     GROUND: int = 0
-    # JUMP: int = 1
+    JUMP: int = 1
     # DOUBLE_JUMP: int = 2
     # AERIAL: int = 3
 

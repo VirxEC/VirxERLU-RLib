@@ -3,6 +3,7 @@ use glam::Vec3A;
 use pyo3::{PyAny, PyResult};
 
 use crate::{
+    air::max_jump_height,
     constants::*,
     utils::{flatten, get_vec3_named, minimum_non_negative, vertex_quadratic_solve_for_x},
 };
@@ -133,6 +134,7 @@ pub struct Car {
     pub max_speed: Vec<f32>,
     /// turn radius at calculated max speed
     pub ctrms: Vec<f32>,
+    pub max_jump_height: f32,
 }
 
 impl Car {
@@ -164,6 +166,8 @@ impl Car {
         self.airborne = !py_car.getattr("has_wheel_contact")?.extract()?;
         self.jumped = py_car.getattr("jumped")?.extract()?;
         self.doublejumped = py_car.getattr("double_jumped")?.extract()?;
+
+        self.max_jump_height = max_jump_height(gravity);
 
         self.calculate_orientation_matrix();
         self.calculate_field();

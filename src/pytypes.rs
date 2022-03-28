@@ -12,6 +12,8 @@ pub struct ShotType;
 impl ShotType {
     #[classattr]
     pub const GROUND: usize = 0;
+    #[classattr]
+    pub const JUMP: usize = 1;
 }
 
 #[pyclass]

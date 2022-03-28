@@ -260,8 +260,12 @@ pub fn get_throttle_and_boost(throttle_accel: f32, b: f32, t: f32) -> (f32, bool
 }
 
 impl AdvancedShotInfo {
-    pub fn get(car: &Car, shot: &Shot) -> Self {
-        let (distance_along, index) = shot.get_distance_along_shot_and_index(car.location);
+    pub fn get(car: &Car, shot: &Shot) -> Option<Self> {
+        let (car_loc, distance_along, index) = shot.get_distance_along_shot_and_index(car.location);
+
+        if car_loc.distance(flatten(car.location)) > car.hitbox.length / 2. {
+            return None;
+        }
 
         let distance = car.local_velocity.x.max(500.) * STEER_REACTION_TIME;
 
@@ -281,6 +285,6 @@ impl AdvancedShotInfo {
         // get all the samples from the vec after index
         let samples = shot.all_samples.iter().skip(index / Shot::ALL_STEP).cloned().collect();
 
-        Self::from(shot.direction, target, distance_to_ball, samples)
+        Some(Self::from(shot.direction, target, distance_to_ball, samples))
     }
 }
