@@ -309,11 +309,18 @@ fn get_targets_length() -> usize {
 }
 
 #[pyfunction]
-fn get_shot_with_target(target_index: usize, temporary: Option<bool>, may_ground_shot: Option<bool>, only: Option<bool>) -> PyResult<BasicShotInfo> {
+fn get_shot_with_target(
+    target_index: usize,
+    temporary: Option<bool>,
+    may_ground_shot: Option<bool>,
+    may_jump_shot: Option<bool>,
+    only: Option<bool>,
+) -> PyResult<BasicShotInfo> {
     let only = only.unwrap_or(false);
     let may_ground_shot = may_ground_shot.unwrap_or(!only);
+    let may_jump_shot = may_jump_shot.unwrap_or(!only);
 
-    if !may_ground_shot {
+    if !may_ground_shot && !may_jump_shot {
         return Err(PyErr::new::<NoShotSelectedPyErr, _>(NO_SHOT_SELECTED_ERR));
     }
 
@@ -348,7 +355,7 @@ fn get_shot_with_target(target_index: usize, temporary: Option<bool>, may_ground
         let max_speed = if target.options.use_absolute_max_values { Some(MAX_SPEED) } else { None };
         let max_turn_radius = if target.options.use_absolute_max_values { Some(turn_radius(MAX_SPEED)) } else { None };
 
-        Analyzer::new(max_speed, max_turn_radius, gravity)
+        Analyzer::new(max_speed, max_turn_radius, gravity, may_ground_shot, may_jump_shot)
     };
 
     let temporary = temporary.unwrap_or(false);

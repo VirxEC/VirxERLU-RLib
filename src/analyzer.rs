@@ -14,14 +14,18 @@ pub struct Analyzer {
     max_speed: Option<f32>,
     max_turn_radius: Option<f32>,
     gravity: f32,
+    may_ground_shot: bool,
+    may_jump_shot: bool,
 }
 
 impl Analyzer {
-    pub const fn new(max_speed: Option<f32>, max_turn_radius: Option<f32>, gravity: f32) -> Self {
+    pub const fn new(max_speed: Option<f32>, max_turn_radius: Option<f32>, gravity: f32, may_ground_shot: bool, may_jump_shot: bool) -> Self {
         Self {
             max_speed,
             max_turn_radius,
             gravity,
+            may_ground_shot,
+            may_jump_shot,
         }
     }
 
@@ -52,9 +56,15 @@ impl Analyzer {
 
         let base_height = car.hitbox.height / 2. + 17.;
         let shot_type = if offset_target.z < base_height {
-            Ok(ShotType::GROUND)
+            match self.may_ground_shot {
+                true => Ok(ShotType::GROUND),
+                false => Err(DubinsError::NoPath),
+            }
         } else if offset_target.z < base_height + car.max_jump_height {
-            Ok(ShotType::JUMP)
+            match self.may_jump_shot {
+                true => Ok(ShotType::JUMP),
+                false => Err(DubinsError::NoPath),
+            }
         } else {
             Err(DubinsError::NoPath)
         }?;
