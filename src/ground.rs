@@ -82,7 +82,7 @@ impl TargetInfo {
         let mut t_r = max_time;
         let b_s = car.boost.min(12) as f32;
         let mut b = car.boost as f32 - b_s;
-        let mut v = car.landing_velocity.dot(car.forward);
+        let mut v = flatten(car.landing_velocity).length();
 
         let direction = if is_forwards { 1. } else { -1. };
 
