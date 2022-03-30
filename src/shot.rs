@@ -18,6 +18,7 @@ pub struct Shot {
     pub path: DubinsPath,
     pub path_endpoint: Vec3A,
     pub shot_type: usize,
+    pub jump_time: Option<f32>,
 }
 
 impl Shot {
@@ -71,6 +72,7 @@ impl Shot {
             path: target.path,
             path_endpoint,
             shot_type: target.shot_type,
+            jump_time: target.jump_time,
         }
     }
 

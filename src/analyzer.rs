@@ -68,6 +68,12 @@ impl Analyzer {
             Err(DubinsError::NoPath)
         }?;
 
+        let jump_time = match shot_type {
+            ShotType::GROUND => None,
+            ShotType::JUMP => Some(car.jump_time_to_height(self.gravity, offset_target.z - car.hitbox.height / 2.)),
+            _ => unreachable!(),
+        };
+
         let end_distance = match shot_type {
             ShotType::GROUND => {
                 let distance = 320.;
@@ -104,6 +110,6 @@ impl Analyzer {
 
         let distances = [path.segment_length(0), path.segment_length(1), path.segment_length(2), offset_distance];
 
-        Ok(TargetInfo::from(distances, shot_type, path))
+        Ok(TargetInfo::from(distances, shot_type, path, jump_time))
     }
 }

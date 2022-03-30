@@ -53,11 +53,17 @@ pub struct TargetInfo {
     pub distances: [f32; 4],
     pub path: DubinsPath,
     pub shot_type: usize,
+    pub jump_time: Option<f32>,
 }
 
 impl TargetInfo {
-    pub const fn from(distances: [f32; 4], shot_type: usize, path: DubinsPath) -> Self {
-        Self { distances, path, shot_type }
+    pub const fn from(distances: [f32; 4], shot_type: usize, path: DubinsPath, jump_time: Option<f32>) -> Self {
+        Self {
+            distances,
+            path,
+            shot_type,
+            jump_time,
+        }
     }
 
     pub fn can_reach(&self, car: &Car, max_time: f32, is_forwards: bool) -> Result<f32, ()> {
@@ -185,7 +191,16 @@ impl AdvancedShotInfo {
         let (segment, index) = shot.find_min_distance_index(car.location);
         let (distance_along, index) = shot.get_distance_along_shot_and_index(segment, index);
 
-        let may_jump = segment == shot.samples.len() - 1;
+        let may_jump = match shot.jump_time {
+            Some(jump_time) => {
+                if segment == shot.samples.len() - 1 {
+                    Some(jump_time)
+                } else {
+                    None
+                }
+            }
+            None => None,
+        };
 
         if shot.samples[segment][index].distance(flatten(car.location)) > car.hitbox.length / 2. {
             return None;
