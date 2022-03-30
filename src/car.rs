@@ -225,6 +225,7 @@ impl Car {
             let (time1, time2) = vertex_quadratic_solve_for_x(gravity, h, k, -fall_distance);
             self.landing_time = minimum_non_negative(time1, time2);
             self.landing_velocity.z += gravity * self.landing_time;
+            self.landing_velocity = self.landing_velocity.normalize() * 2300.;
             self.landing_location += Vec3A::new(
                 self.velocity.x * self.landing_time,
                 self.velocity.y * self.landing_time,
@@ -235,6 +236,7 @@ impl Car {
 
             let dt = 1. / 120.;
             self.landing_velocity.z += gravity * time_until_tv;
+            self.landing_velocity = self.landing_velocity.normalize() * 2300.;
             self.landing_location += Vec3A::new(
                 self.velocity.x * self.landing_time,
                 self.velocity.y * self.landing_time,
