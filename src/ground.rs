@@ -188,8 +188,8 @@ fn get_throttle_and_boost(throttle_accel: f32, b: f32, t: f32) -> (f32, bool) {
 
 impl AdvancedShotInfo {
     pub fn get(car: &Car, shot: &Shot) -> Option<Self> {
-        let (segment, index) = shot.find_min_distance_index(car.location);
-        let (distance_along, index) = shot.get_distance_along_shot_and_index(segment, index);
+        let (segment, pre_index) = shot.find_min_distance_index(car.location);
+        let (distance_along, index) = shot.get_distance_along_shot_and_index(segment, pre_index);
 
         let may_jump = match shot.jump_time {
             Some(jump_time) => {
@@ -202,7 +202,7 @@ impl AdvancedShotInfo {
             None => None,
         };
 
-        if shot.samples[segment][index].distance(flatten(car.location)) > car.hitbox.length / 2. {
+        if shot.samples[segment][pre_index].distance(flatten(car.location)) > car.hitbox.length / 2. {
             return None;
         }
 

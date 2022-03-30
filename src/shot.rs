@@ -98,7 +98,7 @@ impl Shot {
             }
         }
 
-        (start_index, min_distance)
+        ((start_index + end_index) / 2, min_distance)
     }
 
     pub fn find_min_distance_index(&self, target: Vec3A) -> (usize, usize) {
