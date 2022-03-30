@@ -54,13 +54,12 @@ impl Analyzer {
             return Err(DubinsError::NoPath);
         }
 
-        let base_height = car.hitbox.height / 2. + 17.;
-        let shot_type = if offset_target.z < base_height {
+        let shot_type = if offset_target.z < car.hitbox.height / 2. + 17. {
             match self.may_ground_shot {
                 true => Ok(ShotType::GROUND),
                 false => Err(DubinsError::NoPath),
             }
-        } else if offset_target.z < base_height + car.max_jump_height {
+        } else if offset_target.z < car.max_jump_height {
             match self.may_jump_shot {
                 true => Ok(ShotType::JUMP),
                 false => Err(DubinsError::NoPath),
@@ -82,7 +81,7 @@ impl Analyzer {
                 }
             }
             ShotType::JUMP => {
-                let time = car.jump_time_to_height(self.gravity, offset_target.z - base_height);
+                let time = car.jump_time_to_height(self.gravity, offset_target.z - car.hitbox.height / 2.);
 
                 time * self.get_max_speed(car, slice_num) + 128.
             }
