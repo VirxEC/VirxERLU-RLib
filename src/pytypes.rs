@@ -177,9 +177,9 @@ pub struct AdvancedShotInfo {
     #[pyo3(get)]
     distance_remaining: f32,
     #[pyo3(get)]
-    path_samples: Vec<(f32, f32)>,
-    #[pyo3(get)]
     required_jump_time: Option<f32>,
+    #[pyo3(get)]
+    path_samples: Vec<(f32, f32)>,
 }
 
 impl AdvancedShotInfo {
@@ -193,16 +193,20 @@ impl AdvancedShotInfo {
     fn __str__(&self) -> String {
         match self.required_jump_time {
             Some(required_jump_time) => format!(
-                "Final target: {:?}, distance remaining: {:.2}, required jump time: {}",
-                self.final_target, self.distance_remaining, required_jump_time
+                "Shot vector: {:?}, Final target: {:?}, distance remaining: {:.2}, required jump time: {:.2}",
+                self.shot_vector, self.final_target, self.distance_remaining, required_jump_time
             ),
-            None => format!("Final target: {:?}, distance remaining: {:.2}", self.final_target, self.distance_remaining),
+            None => format!(
+                "Shot vector: {:?}, Final target: {:?}, distance remaining: {:.2}",
+                self.shot_vector, self.final_target, self.distance_remaining
+            ),
         }
     }
 
     fn __repr__(&self) -> String {
         format!(
-            "AdvancedShotInfo(final_target={:?}, distance_remaining={}, path_samples=[{} items])",
+            "AdvancedShotInfo(shot_vector={:?}, final_target={:?}, distance_remaining={}, path_samples=[{} items])",
+            self.shot_vector,
             self.final_target,
             self.distance_remaining,
             self.path_samples.len()

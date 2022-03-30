@@ -191,17 +191,6 @@ impl AdvancedShotInfo {
         let (segment, pre_index) = shot.find_min_distance_index(car.location);
         let (distance_along, index) = shot.get_distance_along_shot_and_index(segment, pre_index);
 
-        let required_jump_time = match shot.jump_time {
-            Some(jump_time) => {
-                if segment == shot.samples.len() - 1 {
-                    Some(jump_time)
-                } else {
-                    None
-                }
-            }
-            None => None,
-        };
-
         if shot.samples[segment][pre_index].distance(flatten(car.location)) > car.hitbox.length / 2. {
             return None;
         }
@@ -224,6 +213,6 @@ impl AdvancedShotInfo {
         // get all the samples from the vec after index
         let samples = shot.all_samples.iter().skip(index / Shot::ALL_STEP).cloned().collect();
 
-        Some(Self::from(shot.direction, target, distance_to_ball, samples, required_jump_time))
+        Some(Self::from(shot.direction, target, distance_to_ball, samples, shot.jump_time))
     }
 }

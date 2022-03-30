@@ -22,29 +22,27 @@ pub fn throttle_acceleration(forward_velocity: f32) -> f32 {
     END_THROTTLE_ACCEL_M * (x - THROTTLE_ACCEL_DIVISION) + END_THROTTLE_ACCEL_B
 }
 
-pub fn curvature(v: f32) -> Option<f32> {
+pub fn curvature(v: f32) -> f32 {
     let v = v.abs();
 
-    return if (0. ..500.).contains(&v) {
-        Some(0.0069 - 5.84e-6 * v)
+    if (0. ..500.).contains(&v) {
+        0.0069 - 5.84e-6 * v
     } else if (500. ..1000.).contains(&v) {
-        Some(0.00561 - 3.26e-6 * v)
+        0.00561 - 3.26e-6 * v
     } else if (1000. ..1500.).contains(&v) {
-        Some(0.0043 - 1.95e-6 * v)
+        0.0043 - 1.95e-6 * v
     } else if (1500. ..1750.).contains(&v) {
-        Some(0.003025 - 1.1e-6 * v)
-    } else if (1750. ..2301.).contains(&v) {
-        Some(0.0018 - 4e-7 * v)
+        0.003025 - 1.1e-6 * v
+    } else if (1750. ..2305.).contains(&v) {
+        0.0018 - 4e-7 * v
     } else {
         println!("Invalid input velocity: {}", v);
-        None
-    };
-
-
+        -1.
+    }
 }
 
-pub fn turn_radius(v: f32) -> Option<f32> {
-    curvature(v).map(|c| 1. / c)
+pub fn turn_radius(v: f32) -> f32 {
+    1. / curvature(v)
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -225,7 +223,6 @@ impl Car {
             let (time1, time2) = vertex_quadratic_solve_for_x(gravity, h, k, -fall_distance);
             self.landing_time = minimum_non_negative(time1, time2);
             self.landing_velocity.z += gravity * self.landing_time;
-            self.landing_velocity = self.landing_velocity.normalize() * 2300.;
             self.landing_location += Vec3A::new(
                 self.velocity.x * self.landing_time,
                 self.velocity.y * self.landing_time,
@@ -235,8 +232,7 @@ impl Car {
             self.landing_time = time_until_tv;
 
             let dt = 1. / 120.;
-            self.landing_velocity.z += gravity * time_until_tv;
-            self.landing_velocity = self.landing_velocity.normalize() * 2300.;
+            self.landing_velocity.z = terminal_velocity;
             self.landing_location += Vec3A::new(
                 self.velocity.x * self.landing_time,
                 self.velocity.y * self.landing_time,
@@ -293,13 +289,13 @@ impl Car {
         self.max_speed.push(v);
 
         self.ctrms = Vec::with_capacity(max_ball_slice);
-        self.ctrms.push(turn_radius(v).unwrap());
+        self.ctrms.push(turn_radius(v));
 
         let end_1 = (self.landing_time * 120.).round() as usize;
 
         for _ in 0..end_1 {
             self.max_speed.push(v);
-            self.ctrms.push(turn_radius(v).unwrap());
+            self.ctrms.push(turn_radius(v));
         }
 
         let mut end = end_1;
@@ -309,7 +305,7 @@ impl Car {
 
             if fast_forward {
                 self.max_speed.push(v);
-                self.ctrms.push(turn_radius(v).unwrap());
+                self.ctrms.push(turn_radius(v));
                 continue;
             }
 
@@ -340,7 +336,7 @@ impl Car {
             v += accel;
 
             self.max_speed.push(v);
-            self.ctrms.push(turn_radius(v).unwrap());
+            self.ctrms.push(turn_radius(v));
         }
 
         if end == max_ball_slice {
@@ -378,7 +374,7 @@ impl Car {
 
         for _ in end..max_ball_slice {
             if fast_forward {
-                self.ctrms.push(turn_radius(v2).unwrap());
+                self.ctrms.push(turn_radius(v2));
                 continue;
             }
 
@@ -399,7 +395,7 @@ impl Car {
 
             v2 += accel;
 
-            self.ctrms.push(turn_radius(v2).unwrap());
+            self.ctrms.push(turn_radius(v2));
         }
     }
 
