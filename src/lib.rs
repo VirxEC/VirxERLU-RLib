@@ -380,7 +380,6 @@ fn get_shot_with_target(
 
         let is_forwards = true;
 
-        // will be used to calculate if there's enough time left to jump after accelerating
         let _time_remaining = match target_info.can_reach(car, max_time_remaining, is_forwards) {
             Ok(t_r) => t_r,
             Err(_) => continue,
