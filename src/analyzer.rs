@@ -103,7 +103,7 @@ impl Analyzer {
 
         let target_angle = shot_vector.y.atan2(shot_vector.x);
 
-        let q0 = [car_location.x, car_location.y, car.yaw];
+        let q0 = [car_location.x, car_location.y, car.landing_velocity.y.atan2(car.landing_velocity.x)];
         let q1 = [exit_turn_target.x, exit_turn_target.y, target_angle];
 
         let path = shortest_path_in_validate(q0, q1, self.get_max_turn_radius(car, slice_num), &car.field, max_distance)?;
