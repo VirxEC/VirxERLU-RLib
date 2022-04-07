@@ -222,14 +222,14 @@ fn get_slice(slice_time: f32) -> BallSlice {
     let ball_struct = BALL_STRUCT.lock().unwrap();
 
     let slice_num = ((slice_time - *game_time) * TPS).round() as usize;
-    let ball = ball_struct.slices[slice_num.clamp(1, ball_struct.num_slices) - 1];
+    let ball = ball_struct[slice_num.clamp(1, ball_struct.len()) - 1];
 
     BallSlice::from(&ball)
 }
 
 #[pyfunction]
 fn new_target(left_target: Vec<f32>, right_target: Vec<f32>, car_index: usize, options: Option<TargetOptions>) -> PyResult<usize> {
-    let num_slices = BALL_STRUCT.lock().unwrap().num_slices;
+    let num_slices = BALL_STRUCT.lock().unwrap().len();
 
     if num_slices == 0 {
         return Err(PyErr::new::<NoSlicesPyErr, _>(NO_SLICES_ERR));
@@ -347,7 +347,7 @@ fn get_shot_with_target(
     let mut found_shot = None;
     let mut basic_shot_info = None;
 
-    if ball_prediction.num_slices == 0 || car.demolished || car.landing_time >= ball_prediction.slices[ball_prediction.num_slices - 1].time {
+    if ball_prediction.len() == 0 || car.demolished || car.landing_time >= ball_prediction[ball_prediction.len() - 1].time {
         return Ok(BasicShotInfo::not_found());
     }
 
@@ -360,7 +360,7 @@ fn get_shot_with_target(
 
     let temporary = temporary.unwrap_or(false);
 
-    for (i, ball) in ball_prediction.slices[target.options.min_slice..target.options.max_slice].iter().enumerate() {
+    for (i, ball) in ball_prediction[target.options.min_slice..target.options.max_slice].iter().enumerate() {
         if ball.location.y.abs() > 5120. + ball.collision_radius {
             break;
         }
@@ -438,8 +438,8 @@ fn get_data_for_shot_with_target(target_index: usize) -> PyResult<AdvancedShotIn
     let car = cars_guard.get(target.car_index).ok_or_else(|| PyErr::new::<NoCarPyErr, _>(NO_CAR_ERR))?;
 
     let ball_struct = BALL_STRUCT.lock().unwrap();
-    let slice_num = ((time_remaining * TPS).round() as usize).clamp(1, ball_struct.num_slices) - 1;
-    let ball = &ball_struct.slices[slice_num];
+    let slice_num = ((time_remaining * TPS).round() as usize).clamp(1, ball_struct.len()) - 1;
+    let ball = &ball_struct[slice_num];
 
     if ball.location.distance(shot.ball_location) > car.hitbox.width {
         Err(PyErr::new::<BallChangedPyErr, _>(BALL_CHANGED_ERR))
