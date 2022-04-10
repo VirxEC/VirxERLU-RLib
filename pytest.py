@@ -19,7 +19,7 @@ packet.num_cars = 6
 for i in range(packet.num_cars):
     packet.game_cars[i] = PlayerInfo(
         physics=Physics(
-            location=Vector3(3000, -3500, 100),
+            location=Vector3(3500, -3500, 100),
             # location=Vector3(0., -3500., 20.),
             rotation=Rotator(0, 1.1, 0),
             velocity=Vector3(0, 0, 0),
@@ -57,25 +57,6 @@ print()
 print("Testing...")
 
 print()
-
-# while packet.game_ball.physics.location.z < 1950:
-#     packet.game_ball.physics.location.z += 0.1
-#     rlru.tick(packet)
-#     use_abs = rlru.TargetOptions(use_absolute_max_values=True)
-#     use_all = rlru.TargetOptions(all=True)
-
-#     target_args = ((800, 5120, 0), (-800, 5120, 0), 0)
-#     t1 = rlru.new_target(*target_args, use_abs)
-#     t2 = rlru.new_target(*target_args)
-
-#     shot1 = rlru.get_shot_with_target(t1, may_jump_shot=True, only=True)
-#     shot2 = rlru.get_shot_with_target(t2, may_jump_shot=True, only=True)
-
-#     if shot1.found and shot2.found:
-#         print(packet.game_ball.physics.location.z)
-#         break
-
-# exit()
 
 rlru.tick(packet)
 

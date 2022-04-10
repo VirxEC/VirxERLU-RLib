@@ -121,6 +121,7 @@ pub struct Car {
     pub landing_time: f32,
     pub landing_location: Vec3A,
     pub landing_velocity: Vec3A,
+    pub landing_yaw: f32,
     pub max_speed: Vec<f32>,
     /// turn radius at calculated max speed
     pub ctrms: Vec<f32>,
@@ -171,16 +172,16 @@ impl Car {
         let g = gravity * SIMULATION_DT;
 
         let mut t = 0.;
-        let mut v_z = self.landing_velocity.z;
+        let mut v_z = 0.;
         let mut l_z = self.landing_location.z;
 
-        while v_z > 0. || t < MAX_HOLD_TME {
+        while v_z > 0. || t < MAX_HOLD_TIME {
             if t <= f32::EPSILON {
                 v_z += JUMP_IMPULSE;
             }
 
-            if t < MAX_HOLD_TME {
-                v_z += HOLD_BONUS;
+            if t < MAX_HOLD_TIME {
+                v_z += HOLD_BONUS * SIMULATION_DT;
             }
 
             if t < STICKY_TIMER {
@@ -257,6 +258,12 @@ impl Car {
 
             self.landing_location.z = if normal_gravity { 17. } else { 2300. };
         }
+
+        self.landing_yaw = if flatten(self.landing_velocity).length() == 0. {
+            self.yaw
+        } else {
+            self.landing_velocity.y.atan2(self.landing_velocity.x)
+        };
     }
 
     pub fn calculate_orientation_matrix(&mut self) {
@@ -434,12 +441,12 @@ impl Car {
         let mut v_z = self.landing_velocity.z;
         let mut l_z = self.landing_location.z;
 
-        while l_z < height_goal && (v_z > 0. || t < MAX_HOLD_TME) {
+        while l_z < height_goal && (v_z > 0. || t < MAX_HOLD_TIME) {
             if t <= f32::EPSILON {
                 v_z += JUMP_IMPULSE;
             }
 
-            if t < MAX_HOLD_TME {
+            if t < MAX_HOLD_TIME {
                 v_z += HOLD_BONUS * SIMULATION_DT;
             }
 

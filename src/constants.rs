@@ -54,4 +54,4 @@ pub const JUMP_IMPULSE: f32 = 292.;
 pub const STICKY_FORCE: f32 = -325.;
 pub const STICKY_TIMER: f32 = SIMULATION_DT * 3.;
 pub const HOLD_BONUS: f32 = 292. * 5.;
-pub const MAX_HOLD_TME: f32 = 0.2;
+pub const MAX_HOLD_TIME: f32 = 0.2;

@@ -43,15 +43,15 @@ pub fn _double_jump_time_to_height(gravity: f32, height_goal: f32) -> f32 {
     let mut l_z = 17.;
     let mut double_jumped = false;
 
-    while l_z < height_goal && (v_z > 0. || t < MAX_HOLD_TME) {
+    while l_z < height_goal && (v_z > 0. || t < MAX_HOLD_TIME) {
         if t <= f32::EPSILON {
             v_z += JUMP_IMPULSE;
-        } else if t > MAX_HOLD_TME + SIMULATION_DT && !double_jumped {
+        } else if t > MAX_HOLD_TIME + SIMULATION_DT && !double_jumped {
             v_z += JUMP_IMPULSE;
             double_jumped = true;
         }
 
-        if t < MAX_HOLD_TME {
+        if t < MAX_HOLD_TIME {
             v_z += HOLD_BONUS;
         }
 
