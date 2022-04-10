@@ -205,10 +205,11 @@ impl AdvancedShotInfo {
 
     fn __repr__(&self) -> String {
         format!(
-            "AdvancedShotInfo(shot_vector={:?}, final_target={:?}, distance_remaining={}, path_samples=[{} items])",
+            "AdvancedShotInfo(shot_vector={:?}, final_target={:?}, distance_remaining={}, required_jump_time: {:?}, path_samples=[{} items])",
             self.shot_vector,
             self.final_target,
             self.distance_remaining,
+            self.required_jump_time,
             self.path_samples.len()
         )
     }

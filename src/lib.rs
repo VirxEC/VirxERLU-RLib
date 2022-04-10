@@ -177,6 +177,7 @@ fn tick(py: Python, packet: PyObject, prediction_time: Option<f32>) -> PyResult<
     */
     let packet = packet.as_ref(py);
 
+    // Get the general game information
     let py_game_info = packet.getattr("game_info")?;
 
     let mut time = GAME_TIME.lock().unwrap();
@@ -184,33 +185,42 @@ fn tick(py: Python, packet: PyObject, prediction_time: Option<f32>) -> PyResult<
 
     game.gravity.z = py_game_info.getattr("world_gravity_z")?.extract()?;
 
-    let py_ball = packet.getattr("game_ball")?;
-    let py_ball_physics = py_ball.getattr("physics")?;
+    // Get information about the ball
+    {
+        let py_ball = packet.getattr("game_ball")?;
+        let py_ball_physics = py_ball.getattr("physics")?;
+    
+        game.ball.update(
+            *time,
+            get_vec3_named(py_ball_physics.getattr("location")?)?,
+            get_vec3_named(py_ball_physics.getattr("velocity")?)?,
+            get_vec3_named(py_ball_physics.getattr("angular_velocity")?)?,
+        );
+    
+        let py_ball_shape = py_ball.getattr("collision_shape")?;
+    
+        game.ball.radius = py_ball_shape.getattr("sphere")?.getattr("diameter")?.extract::<f32>()? / 2.;
+        game.ball.collision_radius = game.ball.radius + 1.9;
+        game.ball.calculate_moi();
+    }
 
-    game.ball.update(
-        *time,
-        get_vec3_named(py_ball_physics.getattr("location")?)?,
-        get_vec3_named(py_ball_physics.getattr("velocity")?)?,
-        get_vec3_named(py_ball_physics.getattr("angular_velocity")?)?,
-    );
+    // Predict future information about the ball
+    {
+        let prediction_time = prediction_time.unwrap_or(6.);
+        let ball_struct = Ball::get_ball_prediction_struct_for_time(game, &prediction_time);
 
-    let py_ball_shape = py_ball.getattr("collision_shape")?;
+        let mut ball_struct_guard = BALL_STRUCT.lock().unwrap();
+        *ball_struct_guard = ball_struct;
+    }
 
-    game.ball.radius = py_ball_shape.getattr("sphere")?.getattr("diameter")?.extract::<f32>()? / 2.;
-    game.ball.collision_radius = game.ball.radius + 1.9;
-    game.ball.calculate_moi();
+    // Get information about the cars on the field
+    {
+        let num_cars = packet.getattr("num_cars")?.extract::<usize>()?;
+        let py_game_cars = packet.getattr("game_cars")?;
 
-    let prediction_time = prediction_time.unwrap_or(6.);
-    let ball_struct = Ball::get_ball_prediction_struct_for_time(game, &prediction_time);
-
-    let mut ball_struct_guard = BALL_STRUCT.lock().unwrap();
-    *ball_struct_guard = ball_struct;
-
-    let num_cars = packet.getattr("num_cars")?.extract::<usize>()?;
-    let py_game_cars = packet.getattr("game_cars")?;
-
-    for (i, car) in cars.iter_mut().enumerate().take(num_cars) {
-        car.update(py_game_cars.get_item(i)?, game.gravity.z, (prediction_time * TPS).round() as usize + 1)?;
+        for (i, car) in cars.iter_mut().enumerate().take(num_cars) {
+            car.update(py_game_cars.get_item(i)?)?;
+        }
     }
 
     Ok(())
@@ -238,6 +248,19 @@ fn new_target(left_target: Vec<f32>, right_target: Vec<f32>, car_index: usize, o
     let target_left = get_vec3_from_vec(left_target, "target_left")?;
     let target_right = get_vec3_from_vec(right_target, "target_right")?;
     let options = Options::from(options, num_slices);
+
+    {
+        let gravity = {
+            let game_guard = GAME.lock().unwrap();
+            let game = game_guard.as_ref().ok_or_else(|| PyErr::new::<NoGamePyErr, _>(NO_GAME_ERR))?;
+    
+            game.gravity.z
+        };
+
+        let mut cars = CARS.lock().unwrap();
+        let car = cars.get_mut(car_index).ok_or_else(|| PyErr::new::<NoCarPyErr, _>(NO_CAR_ERR))?;
+        car.init(gravity, num_slices);
+    }
 
     let target = Some(Target::new(target_left, target_right, car_index, options));
     let mut targets = TARGETS.lock().unwrap();

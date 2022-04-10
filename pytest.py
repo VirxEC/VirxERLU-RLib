@@ -15,7 +15,7 @@ rlru.load_soccar()
 packet = GameTickPacket()
 
 # set 6 cars to test the speed of tick()
-packet.num_cars = 6
+packet.num_cars = 64
 for i in range(packet.num_cars):
     packet.game_cars[i] = PlayerInfo(
         physics=Physics(

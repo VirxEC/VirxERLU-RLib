@@ -126,10 +126,11 @@ pub struct Car {
     /// turn radius at calculated max speed
     pub ctrms: Vec<f32>,
     pub max_jump_height: f32,
+    pub init: bool,
 }
 
 impl Car {
-    pub fn update(&mut self, py_car: &PyAny, gravity: f32, max_ball_slice: usize) -> PyResult<()> {
+    pub fn update(&mut self, py_car: &PyAny) -> PyResult<()> {
         let py_car_physics = py_car.getattr("physics")?;
 
         self.location = get_vec3_named(py_car_physics.getattr("location")?)?;
@@ -158,14 +159,22 @@ impl Car {
         self.jumped = py_car.getattr("jumped")?.extract()?;
         self.doublejumped = py_car.getattr("double_jumped")?.extract()?;
 
-        self.calculate_orientation_matrix();
-        self.calculate_field();
-        self.calculate_landing_info(gravity);
-        self.calculate_local_values();
-        self.calculate_max_values(max_ball_slice);
-        self.calculate_max_jump_height(gravity);
+        self.init = false;
 
         Ok(())
+    }
+
+    pub fn init(&mut self, gravity: f32, max_ball_slice: usize) {
+        if !self.init {
+            self.calculate_orientation_matrix();
+            self.calculate_field();
+            self.calculate_landing_info(gravity);
+            self.calculate_local_values();
+            self.calculate_max_values(max_ball_slice);
+            self.calculate_max_jump_height(gravity);
+            
+            self.init = true;
+        }
     }
 
     pub fn calculate_max_jump_height(&mut self, gravity: f32) {
@@ -173,7 +182,7 @@ impl Car {
 
         let mut t = 0.;
         let mut v_z = 0.;
-        let mut l_z = self.landing_location.z;
+        let mut l_z = 17.;
 
         while v_z > 0. || t < MAX_HOLD_TIME {
             if t <= f32::EPSILON {
