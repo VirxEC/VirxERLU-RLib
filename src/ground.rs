@@ -1,7 +1,7 @@
 use std::f32::INFINITY;
 
 use dubins_paths::{DubinsError, DubinsIntermediateResults, DubinsPath, DubinsPathType, DubinsResult};
-use glam::Vec3A;
+use glam::{Vec3A, vec3a};
 
 use crate::car::{throttle_acceleration, Car, CarFieldRect};
 use crate::constants::*;
@@ -14,7 +14,7 @@ pub fn angle_2d(vec1: Vec3A, vec2: Vec3A) -> f32 {
 }
 
 pub fn path_point_to_vec3(endpoint: [f32; 3]) -> Vec3A {
-    Vec3A::new(endpoint[0], endpoint[1], 0.)
+    vec3a(endpoint[0], endpoint[1], 0.)
 }
 
 pub fn shortest_path_in_validate(q0: [f32; 3], q1: [f32; 3], rho: f32, car_field: &CarFieldRect, max_distance: f32) -> DubinsResult<DubinsPath> {

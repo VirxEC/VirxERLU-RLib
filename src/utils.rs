@@ -3,7 +3,7 @@ use std::ops::{Add, Mul, Sub};
 use dubins_paths::DubinsPath;
 use pyo3::{exceptions, PyAny, PyErr, PyResult};
 
-use glam::Vec3A;
+use glam::{Vec3A, vec3a};
 
 /// Get a vec of samples from a path
 /// Starts at the given distance
@@ -40,7 +40,7 @@ pub fn get_samples_from_line(start: Vec3A, direction: Vec3A, distance: f32, step
 }
 
 pub fn get_vec3_named(py_vec: &PyAny) -> PyResult<Vec3A> {
-    Ok(Vec3A::new(
+    Ok(vec3a(
         py_vec.getattr("x")?.extract()?,
         py_vec.getattr("y")?.extract()?,
         py_vec.getattr("z")?.extract()?,
@@ -51,12 +51,12 @@ pub fn get_vec3_from_vec(vec: Vec<f32>, name: &str) -> PyResult<Vec3A> {
     if vec.len() != 3 {
         Err(PyErr::new::<exceptions::PyIndexError, _>(format!("Key '{}' needs to be a list of exactly 3 numbers", name)))
     } else {
-        Ok(Vec3A::new(vec[0], vec[1], vec[2]))
+        Ok(vec3a(vec[0], vec[1], vec[2]))
     }
 }
 
 pub fn get_vec3_from_array(arr: [f32; 3]) -> Vec3A {
-    Vec3A::new(arr[0], arr[1], arr[2])
+    vec3a(arr[0], arr[1], arr[2])
 }
 
 pub fn get_array_from_vec3(vec: Vec3A) -> [f32; 3] {
@@ -97,15 +97,15 @@ fn clamp_index(s: Vec3A, start: Vec3A, end: Vec3A) -> usize {
 }
 
 pub fn flatten(vec: Vec3A) -> Vec3A {
-    Vec3A::new(vec.x, vec.y, 0.)
+    vec3a(vec.x, vec.y, 0.)
 }
 
 // fn clockwise90_2d(vec: Vec3A) -> Vec3A {
-//     Vec3A::new(vec.y, -vec.x, 0.)
+//     vec3a(vec.y, -vec.x, 0.)
 // }
 
 // fn rotate_2d(vec: Vec3A, angle: f32) -> Vec3A {
-//     Vec3A::new(angle.cos() * vec.x - angle.sin() * vec.y, angle.sin() * vec.x + angle.cos() * vec.y, vec.z)
+//     vec3a(angle.cos() * vec.x - angle.sin() * vec.y, angle.sin() * vec.x + angle.cos() * vec.y, vec.z)
 // }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -203,7 +203,7 @@ pub fn vertex_quadratic_solve_for_x(a: f32, h: f32, k: f32, y: f32) -> (f32, f32
 
 #[cfg(test)]
 mod tests {
-    use glam::Vec3A;
+    use glam::vec3a;
 
     use crate::car::get_a_car;
 
@@ -212,7 +212,7 @@ mod tests {
         let mut car = get_a_car();
         car.location.z = 1000.;
         dbg!(car.location);
-        car.velocity = Vec3A::new(100., -100., 2000.);
+        car.velocity = vec3a(100., -100., 2000.);
 
         let gravity = -650.;
 

@@ -4,7 +4,7 @@ use crate::{
     utils::{get_samples_from_line, get_samples_from_path, get_vec3_from_array},
 };
 use dubins_paths::DubinsPath;
-use glam::Vec3A;
+use glam::{Vec3A, vec3a};
 use rl_ball_sym::simulation::ball::Ball;
 
 #[derive(Clone, Debug)]
@@ -54,10 +54,10 @@ impl Shot {
                     .step_by(Self::ALL_STEP)
                     .collect(),
                 [
-                    raw_samples[0].iter().map(|v| Vec3A::new(v[0], v[1], 0.)).collect(),
-                    raw_samples[1].iter().map(|v| Vec3A::new(v[0], v[1], 0.)).collect(),
-                    raw_samples[2].iter().map(|v| Vec3A::new(v[0], v[1], 0.)).collect(),
-                    raw_samples[3].iter().map(|v| Vec3A::new(v[0], v[1], 0.)).collect(),
+                    raw_samples[0].iter().map(|v| vec3a(v[0], v[1], 0.)).collect(),
+                    raw_samples[1].iter().map(|v| vec3a(v[0], v[1], 0.)).collect(),
+                    raw_samples[2].iter().map(|v| vec3a(v[0], v[1], 0.)).collect(),
+                    raw_samples[3].iter().map(|v| vec3a(v[0], v[1], 0.)).collect(),
                 ],
             )
         };
