@@ -1,4 +1,5 @@
 use std::f32::INFINITY;
+use std::f32::consts::E;
 
 use dubins_paths::{DubinsError, DubinsIntermediateResults, DubinsPath, DubinsPathType, DubinsResult};
 use glam::{Vec3A, vec3a};
@@ -149,7 +150,7 @@ impl TargetInfo {
             }
 
             if !(is_middle_straight || d < self.distances[3]) {
-                accel -= self.path.rho / 2.5 * SIMULATION_DT;
+                accel -= self.path.rho / E * SIMULATION_DT;
                 accel = accel.min(2295. - v);
             }
 
