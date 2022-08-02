@@ -1,5 +1,5 @@
-use dubins_paths::DubinsPath;
-use glam::{Vec3A, vec3a};
+use dubins_paths::{DubinsPath, PosRot};
+use glam::Vec3A;
 use pyo3::{PyAny, PyResult};
 
 use crate::{
@@ -90,8 +90,8 @@ impl CarFieldRect {
         true
     }
 
-    pub fn is_point_in(&self, p: &[f32; 3]) -> bool {
-        let p = [p[0].abs(), p[1].abs()];
+    pub fn is_point_in(&self, p: &PosRot) -> bool {
+        let p = [p.pos.x.abs(), p.pos.y.abs()];
 
         if p[0] > self.goal_x {
             p[0] < self.field_x && p[1] < self.field_y
@@ -175,7 +175,7 @@ impl Car {
             self.calculate_local_values();
             self.calculate_max_values(max_ball_slice);
             self.calculate_max_jump_height(gravity);
-            
+
             self.init = true;
         }
     }
@@ -236,7 +236,7 @@ impl Car {
             let (time1, time2) = vertex_quadratic_solve_for_x(gravity, h, k, -fall_distance);
             self.landing_time = minimum_non_negative(time1, time2);
             self.landing_velocity.z += gravity * self.landing_time;
-            self.landing_location += vec3a(
+            self.landing_location += Vec3A::new(
                 self.velocity.x * self.landing_time,
                 self.velocity.y * self.landing_time,
                 gravity * (self.landing_time - h).powi(2) + k,
@@ -246,12 +246,12 @@ impl Car {
 
             let dt = 1. / 120.;
             self.landing_velocity.z = terminal_velocity;
-            self.landing_location += vec3a(
+            self.landing_location += Vec3A::new(
                 self.velocity.x * self.landing_time,
                 self.velocity.y * self.landing_time,
                 gravity * (self.landing_time - h).powi(2) + k,
             );
-            let g_dt = vec3a(0., 0., gravity * dt);
+            let g_dt = Vec3A::new(0., 0., gravity * dt);
 
             loop {
                 let v_t = (self.landing_velocity + g_dt).normalize() * 2300.;
@@ -431,7 +431,7 @@ impl Car {
     // }
 
     // pub fn localize_2d(&self, vec: Vec3A) -> Vec3A {
-    //     vec3a(vec.dot(self.forward), vec.dot(self.right), 0.)
+    //     Vec3A::new(vec.dot(self.forward), vec.dot(self.right), 0.)
     // }
 
     // pub fn localize_location(car: &Car, vec: Vec3A) -> Vec3A {
@@ -439,7 +439,7 @@ impl Car {
     // }
 
     pub fn localize(&self, vec: Vec3A) -> Vec3A {
-        vec3a(vec.dot(self.forward), vec.dot(self.right), vec.dot(self.up))
+        Vec3A::new(vec.dot(self.forward), vec.dot(self.right), vec.dot(self.up))
     }
 
     // pub fn globalize(car: &Car, vec: Vec3A) -> Vec3A {
@@ -481,9 +481,9 @@ pub fn get_a_car() -> Car {
     let mut car = super::Car::default();
 
     // set all the values in the car
-    car.location = vec3a(-3000., 1500., 100.);
-    car.velocity = vec3a(0., 0., 0.);
-    car.angular_velocity = vec3a(0., 0., 0.);
+    car.location = Vec3A::new(-3000., 1500., 100.);
+    car.velocity = Vec3A::new(0., 0., 0.);
+    car.angular_velocity = Vec3A::new(0., 0., 0.);
     car.pitch = 0.;
     car.yaw = 0.5;
     car.roll = 0.;
@@ -492,7 +492,7 @@ pub fn get_a_car() -> Car {
         width: 84.2,
         height: 36.2,
     };
-    car.hitbox_offset = vec3a(13.9, 0., 20.8);
+    car.hitbox_offset = Vec3A::new(13.9, 0., 20.8);
     car.boost = 48;
     car.demolished = false;
     car.airborne = false;

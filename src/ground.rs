@@ -1,8 +1,7 @@
-use std::f32::INFINITY;
-use std::f32::consts::E;
+use std::f32::{consts::E, INFINITY};
 
-use dubins_paths::{DubinsError, DubinsIntermediateResults, DubinsPath, DubinsPathType, DubinsResult};
-use glam::{Vec3A, vec3a};
+use dubins_paths::{self, DubinsPath, Intermediate, NoPathError, PathType, PosRot};
+use glam::Vec3A;
 
 use crate::car::{throttle_acceleration, Car, CarFieldRect};
 use crate::constants::*;
@@ -14,39 +13,30 @@ pub fn angle_2d(vec1: Vec3A, vec2: Vec3A) -> f32 {
     flatten(vec1).dot(flatten(vec2)).clamp(-1., 1.).acos()
 }
 
-pub fn path_point_to_vec3(endpoint: [f32; 3]) -> Vec3A {
-    vec3a(endpoint[0], endpoint[1], 0.)
-}
-
-pub fn shortest_path_in_validate(q0: [f32; 3], q1: [f32; 3], rho: f32, car_field: &CarFieldRect, max_distance: f32) -> DubinsResult<DubinsPath> {
+pub fn shortest_path_in_validate(q0: PosRot, q1: PosRot, rho: f32, car_field: &CarFieldRect, max_distance: f32) -> dubins_paths::Result<DubinsPath> {
     let mut best_cost = INFINITY;
     let mut best_path = None;
 
-    let intermediate_results = DubinsIntermediateResults::from(q0, q1, rho);
+    let intermediate_results = Intermediate::from(q0, q1, rho);
 
-    for path_type in DubinsPathType::ALL {
-        if let Ok(param) = intermediate_results.word(path_type) {
-            let cost = param[0] + param[1] + param[2];
-            if cost < best_cost && cost * rho <= max_distance {
-                let path = DubinsPath {
-                    qi: q0,
-                    rho,
-                    param,
-                    type_: path_type,
-                };
+    for (i, param) in PathType::ALL.into_iter().flat_map(|path_type| intermediate_results.word(path_type)).enumerate() {
+        let cost = param[0] + param[1] + param[2];
+        if cost < best_cost && cost * rho <= max_distance {
+            let path = DubinsPath {
+                qi: q0,
+                rho,
+                param,
+                type_: PathType::ALL[i],
+            };
 
-                if car_field.is_path_in(&path) {
-                    best_cost = cost;
-                    best_path = Some(path);
-                }
+            if car_field.is_path_in(&path) {
+                best_cost = cost;
+                best_path = Some(path);
             }
         }
     }
 
-    match best_path {
-        Some(path) => Ok(path),
-        None => Err(DubinsError::NoPath),
-    }
+    best_path.ok_or(NoPathError)
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -68,7 +58,7 @@ impl TargetInfo {
     }
 
     pub fn can_reach(&self, car: &Car, max_time: f32, is_forwards: bool) -> Result<f32, ()> {
-        let is_curved = DubinsPathType::CCC.contains(&self.path.type_);
+        let is_curved = PathType::CCC.contains(&self.path.type_);
 
         let total_d = self.distances.iter().sum::<f32>();
 
@@ -206,9 +196,9 @@ impl AdvancedShotInfo {
             let distance_remaining = distance - max_path_distance;
             let additional_space = shot.direction * distance_remaining;
 
-            shot.path_endpoint + additional_space
+            shot.path_endpoint.pos + additional_space
         } else {
-            path_point_to_vec3(shot.path.sample(distance_along + distance))
+            shot.path.sample(distance_along + distance).pos
         };
 
         // get all the samples from the vec after index

@@ -1,11 +1,15 @@
 use crate::{
     ground::TargetInfo,
     pytypes::TargetOptions,
-    utils::{get_samples_from_line, get_samples_from_path, get_vec3_from_array},
+    utils::{get_samples_from_line, get_samples_from_path},
 };
-use dubins_paths::DubinsPath;
-use glam::{Vec3A, vec3a};
+use dubins_paths::{DubinsPath, PosRot};
+use glam::Vec3A;
 use rl_ball_sym::simulation::ball::Ball;
+
+fn posrot_to_xy_tuple(posrot: &PosRot) -> (f32, f32) {
+    (posrot.pos.x, posrot.pos.y)
+}
 
 #[derive(Clone, Debug)]
 pub struct Shot {
@@ -16,7 +20,7 @@ pub struct Shot {
     pub all_samples: Vec<(f32, f32)>,
     pub samples: [Vec<Vec3A>; 4],
     pub path: DubinsPath,
-    pub path_endpoint: Vec3A,
+    pub path_endpoint: PosRot,
     pub shot_type: usize,
     pub jump_time: Option<f32>,
 }
@@ -26,7 +30,7 @@ impl Shot {
     pub const ALL_STEP: usize = 3;
 
     pub fn from(ball: &Ball, target: &TargetInfo, direction: Vec3A) -> Self {
-        let path_endpoint = get_vec3_from_array(target.path.endpoint());
+        let path_endpoint = target.path.endpoint();
 
         let (all_samples, samples) = {
             // the distance of each segment
@@ -47,17 +51,17 @@ impl Shot {
             (
                 raw_samples[0]
                     .iter()
-                    .map(|x| (x[0], x[1]))
-                    .chain(raw_samples[1].iter().map(|x| (x[0], x[1])))
-                    .chain(raw_samples[2].iter().map(|x| (x[0], x[1])))
-                    .chain(raw_samples[3].iter().map(|x| (x[0], x[1])))
+                    .map(posrot_to_xy_tuple)
+                    .chain(raw_samples[1].iter().map(posrot_to_xy_tuple))
+                    .chain(raw_samples[2].iter().map(posrot_to_xy_tuple))
+                    .chain(raw_samples[3].iter().map(posrot_to_xy_tuple))
                     .step_by(Self::ALL_STEP)
                     .collect(),
                 [
-                    raw_samples[0].iter().map(|v| vec3a(v[0], v[1], 0.)).collect(),
-                    raw_samples[1].iter().map(|v| vec3a(v[0], v[1], 0.)).collect(),
-                    raw_samples[2].iter().map(|v| vec3a(v[0], v[1], 0.)).collect(),
-                    raw_samples[3].iter().map(|v| vec3a(v[0], v[1], 0.)).collect(),
+                    raw_samples[0].iter().map(|v| v.pos).collect(),
+                    raw_samples[1].iter().map(|v| v.pos).collect(),
+                    raw_samples[2].iter().map(|v| v.pos).collect(),
+                    raw_samples[3].iter().map(|v| v.pos).collect(),
                 ],
             )
         };

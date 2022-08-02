@@ -1,15 +1,13 @@
-use std::ops::{Add, Mul, Sub};
-
-use dubins_paths::DubinsPath;
+use dubins_paths::{DubinsPath, PosRot};
+use glam::Vec3A;
 use pyo3::{exceptions, PyAny, PyErr, PyResult};
-
-use glam::{Vec3A, vec3a};
+use std::ops::{Add, Mul, Sub};
 
 /// Get a vec of samples from a path
 /// Starts at the given distance
 /// Ends at the given distance
 /// Step size is given
-pub fn get_samples_from_path(path: &DubinsPath, start_distance: f32, end_distance: f32, step_distance: f32) -> Vec<[f32; 3]> {
+pub fn get_samples_from_path(path: &DubinsPath, start_distance: f32, end_distance: f32, step_distance: f32) -> Vec<PosRot> {
     let num_steps = ((end_distance - start_distance) / step_distance).ceil() as usize;
     let mut samples = Vec::with_capacity(num_steps);
     let mut distance = start_distance;
@@ -26,13 +24,13 @@ pub fn get_samples_from_path(path: &DubinsPath, start_distance: f32, end_distanc
 /// Starts at the given point
 /// Ends after the given distance
 /// Goes in the direction of the given vector
-pub fn get_samples_from_line(start: Vec3A, direction: Vec3A, distance: f32, step_distance: f32) -> Vec<[f32; 3]> {
+pub fn get_samples_from_line(start: PosRot, direction: Vec3A, distance: f32, step_distance: f32) -> Vec<PosRot> {
     let mut samples = Vec::with_capacity((distance / step_distance).ceil() as usize);
     let mut current_distance = 0.;
 
     while current_distance < distance {
-        let vec = start + direction * current_distance;
-        samples.push(get_array_from_vec3(vec));
+        let vec = start.pos + direction * current_distance;
+        samples.push(PosRot::new(vec, start.rot));
         current_distance += step_distance;
     }
 
@@ -40,7 +38,7 @@ pub fn get_samples_from_line(start: Vec3A, direction: Vec3A, distance: f32, step
 }
 
 pub fn get_vec3_named(py_vec: &PyAny) -> PyResult<Vec3A> {
-    Ok(vec3a(
+    Ok(Vec3A::new(
         py_vec.getattr("x")?.extract()?,
         py_vec.getattr("y")?.extract()?,
         py_vec.getattr("z")?.extract()?,
@@ -51,16 +49,8 @@ pub fn get_vec3_from_vec(vec: Vec<f32>, name: &str) -> PyResult<Vec3A> {
     if vec.len() != 3 {
         Err(PyErr::new::<exceptions::PyIndexError, _>(format!("Key '{}' needs to be a list of exactly 3 numbers", name)))
     } else {
-        Ok(vec3a(vec[0], vec[1], vec[2]))
+        Ok(Vec3A::new(vec[0], vec[1], vec[2]))
     }
-}
-
-pub fn get_vec3_from_array(arr: [f32; 3]) -> Vec3A {
-    vec3a(arr[0], arr[1], arr[2])
-}
-
-pub fn get_array_from_vec3(vec: Vec3A) -> [f32; 3] {
-    [vec.x, vec.y, vec.z]
 }
 
 pub fn get_tuple_from_vec3(vec: Vec3A) -> (f32, f32, f32) {
@@ -97,15 +87,15 @@ fn clamp_index(s: Vec3A, start: Vec3A, end: Vec3A) -> usize {
 }
 
 pub fn flatten(vec: Vec3A) -> Vec3A {
-    vec3a(vec.x, vec.y, 0.)
+    Vec3A::new(vec.x, vec.y, 0.)
 }
 
 // fn clockwise90_2d(vec: Vec3A) -> Vec3A {
-//     vec3a(vec.y, -vec.x, 0.)
+//     Vec3A::new(vec.y, -vec.x, 0.)
 // }
 
 // fn rotate_2d(vec: Vec3A, angle: f32) -> Vec3A {
-//     vec3a(angle.cos() * vec.x - angle.sin() * vec.y, angle.sin() * vec.x + angle.cos() * vec.y, vec.z)
+//     Vec3A::new(angle.cos() * vec.x - angle.sin() * vec.y, angle.sin() * vec.x + angle.cos() * vec.y, vec.z)
 // }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -203,7 +193,7 @@ pub fn vertex_quadratic_solve_for_x(a: f32, h: f32, k: f32, y: f32) -> (f32, f32
 
 #[cfg(test)]
 mod tests {
-    use glam::vec3a;
+    use glam::Vec3A;
 
     use crate::car::get_a_car;
 
@@ -212,7 +202,7 @@ mod tests {
         let mut car = get_a_car();
         car.location.z = 1000.;
         dbg!(car.location);
-        car.velocity = vec3a(100., -100., 2000.);
+        car.velocity = Vec3A::new(100., -100., 2000.);
 
         let gravity = -650.;
 

@@ -1,8 +1,7 @@
+use crate::utils::get_tuple_from_vec3;
 use glam::Vec3A;
 use pyo3::{pyclass, pymethods};
 use rl_ball_sym::simulation::ball::Ball;
-
-use crate::utils::get_tuple_from_vec3;
 
 #[pyclass]
 #[derive(Clone, Copy)]

@@ -22,22 +22,15 @@ use std::sync::Mutex;
 use utils::*;
 
 lazy_static! {
-    static ref GAME_TIME: Mutex<f32> = Mutex::new(0.);
-}
-
-lazy_static! {
-    static ref GAME: Mutex<Option<Game>> = Mutex::new(None);
-}
-
-lazy_static! {
     static ref CARS: Mutex<[Car; 64]> = Mutex::new([(); 64].map(|_| Car::default()));
-}
-
-lazy_static! {
     static ref BALL_STRUCT: Mutex<BallPrediction> = Mutex::new(BallPrediction::default());
 }
 
+// ready for 1.64 with const mutexs
 lazy_static! {
+    static ref GAME_TIME: Mutex<f32> = Mutex::new(0.);
+    static ref GAME: Mutex<Option<Game>> = Mutex::new(None);
+    static ref BALL: Mutex<Option<Ball>> = Mutex::new(None);
     static ref TARGETS: Mutex<Vec<Option<Target>>> = Mutex::new(Vec::new());
 }
 
@@ -75,8 +68,10 @@ fn init() {
 fn load_soccar() {
     init();
 
-    let mut game_guard = GAME.lock().unwrap();
-    *game_guard = Some(rl_ball_sym::load_soccar());
+    let (game, ball) = rl_ball_sym::load_soccar();
+
+    *GAME.lock().unwrap() = Some(game);
+    *BALL.lock().unwrap() = Some(ball);
 }
 
 #[pyfunction]
@@ -88,24 +83,30 @@ fn load_soccer() {
 fn load_dropshot() {
     init();
 
-    let mut game_guard = GAME.lock().unwrap();
-    *game_guard = Some(rl_ball_sym::load_dropshot());
+    let (game, ball) = rl_ball_sym::load_dropshot();
+
+    *GAME.lock().unwrap() = Some(game);
+    *BALL.lock().unwrap() = Some(ball);
 }
 
 #[pyfunction]
 fn load_hoops() {
     init();
 
-    let mut game_guard = GAME.lock().unwrap();
-    *game_guard = Some(rl_ball_sym::load_hoops());
+    let (game, ball) = rl_ball_sym::load_hoops();
+
+    *GAME.lock().unwrap() = Some(game);
+    *BALL.lock().unwrap() = Some(ball);
 }
 
 #[pyfunction]
 fn load_soccar_throwback() {
     init();
 
-    let mut game_guard = GAME.lock().unwrap();
-    *game_guard = Some(rl_ball_sym::load_soccar_throwback());
+    let (game, ball) = rl_ball_sym::load_soccar_throwback();
+
+    *GAME.lock().unwrap() = Some(game);
+    *BALL.lock().unwrap() = Some(ball);
 }
 
 #[pyfunction]
@@ -115,20 +116,18 @@ fn load_soccer_throwback() {
 
 #[pyfunction]
 fn tick(py: Python, packet: PyObject, prediction_time: Option<f32>) -> PyResult<()> {
-    let mut game_guard = GAME.lock().unwrap();
-    let game = game_guard.as_mut().ok_or_else(|| PyErr::new::<NoGamePyErr, _>(NO_GAME_ERR))?;
+    {
+        let mut targets = TARGETS.lock().unwrap();
 
-    let mut cars = CARS.lock().unwrap();
-    let mut targets = TARGETS.lock().unwrap();
+        // simulate max jump height
+        // simulate max double jump height
+        // add option for max path time
 
-    // simulate max jump height
-    // simulate max double jump height
-    // add option for max path time
-
-    for target in targets.iter_mut() {
-        if let Some(t) = target {
-            if !t.is_confirmed() {
-                *target = None;
+        for target in targets.iter_mut() {
+            if let Some(t) = target {
+                if !t.is_confirmed() {
+                    *target = None;
+                }
             }
         }
     }
@@ -175,39 +174,46 @@ fn tick(py: Python, packet: PyObject, prediction_time: Option<f32>) -> PyResult<
         num_teams: 2
     >
     */
+
+    let mut game_guard = GAME.lock().unwrap();
+    let game = game_guard.as_mut().ok_or_else(|| PyErr::new::<NoGamePyErr, _>(NO_GAME_ERR))?;
+
+    let mut ball = *BALL.lock().unwrap().as_ref().ok_or_else(|| PyErr::new::<NoBallPyErr, _>(NO_BALL_ERR))?;
+
     let packet = packet.as_ref(py);
 
-    // Get the general game information
-    let py_game_info = packet.getattr("game_info")?;
-
-    let mut time = GAME_TIME.lock().unwrap();
-    *time = py_game_info.getattr("seconds_elapsed")?.extract::<f32>()?;
-
-    game.gravity.z = py_game_info.getattr("world_gravity_z")?.extract()?;
-
-    // Get information about the ball
     {
+        // Get the general game information
+        let py_game_info = packet.getattr("game_info")?;
+
+        let mut time = GAME_TIME.lock().unwrap();
+        *time = py_game_info.getattr("seconds_elapsed")?.extract::<f32>()?;
+
+        game.gravity.z = py_game_info.getattr("world_gravity_z")?.extract()?;
+
+        // Get information about the ball
+
         let py_ball = packet.getattr("game_ball")?;
         let py_ball_physics = py_ball.getattr("physics")?;
-    
-        game.ball.update(
+
+        ball.update(
             *time,
             get_vec3_named(py_ball_physics.getattr("location")?)?,
             get_vec3_named(py_ball_physics.getattr("velocity")?)?,
             get_vec3_named(py_ball_physics.getattr("angular_velocity")?)?,
         );
-    
+
         let py_ball_shape = py_ball.getattr("collision_shape")?;
-    
-        game.ball.radius = py_ball_shape.getattr("sphere")?.getattr("diameter")?.extract::<f32>()? / 2.;
-        game.ball.collision_radius = game.ball.radius + 1.9;
-        game.ball.calculate_moi();
+
+        ball.radius = py_ball_shape.getattr("sphere")?.getattr("diameter")?.extract::<f32>()? / 2.;
+        ball.collision_radius = ball.radius + 1.9;
+        ball.calculate_moi();
     }
 
     // Predict future information about the ball
     {
         let prediction_time = prediction_time.unwrap_or(6.);
-        let ball_struct = Ball::get_ball_prediction_struct_for_time(game, &prediction_time);
+        let ball_struct = ball.get_ball_prediction_struct_for_time(game, &prediction_time);
 
         let mut ball_struct_guard = BALL_STRUCT.lock().unwrap();
         *ball_struct_guard = ball_struct;
@@ -215,6 +221,8 @@ fn tick(py: Python, packet: PyObject, prediction_time: Option<f32>) -> PyResult<
 
     // Get information about the cars on the field
     {
+        let mut cars = CARS.lock().unwrap();
+
         let num_cars = packet.getattr("num_cars")?.extract::<usize>()?;
         let py_game_cars = packet.getattr("game_cars")?;
 
@@ -253,7 +261,7 @@ fn new_target(left_target: Vec<f32>, right_target: Vec<f32>, car_index: usize, o
         let gravity = {
             let game_guard = GAME.lock().unwrap();
             let game = game_guard.as_ref().ok_or_else(|| PyErr::new::<NoGamePyErr, _>(NO_GAME_ERR))?;
-    
+
             game.gravity.z
         };
 
