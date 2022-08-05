@@ -1,13 +1,14 @@
-use std::f32::{consts::E, INFINITY};
-
+use crate::{
+    car::{throttle_acceleration, Car, CarFieldRect},
+    constants::*,
+    Mutators,
+    utils::*,
+    shot::Shot,
+    pytypes::{AdvancedShotInfo, BasicShotInfo}, BoostAmount,
+};
 use dubins_paths::{self, DubinsPath, Intermediate, NoPathError, PathType, PosRot};
 use glam::Vec3A;
-
-use crate::car::{throttle_acceleration, Car, CarFieldRect};
-use crate::constants::*;
-use crate::pytypes::{AdvancedShotInfo, BasicShotInfo};
-use crate::shot::Shot;
-use crate::utils::*;
+use std::f32::{consts::E, INFINITY};
 
 pub fn angle_2d(vec1: Vec3A, vec2: Vec3A) -> f32 {
     flatten(vec1).dot(flatten(vec2)).clamp(-1., 1.).acos()
@@ -57,7 +58,7 @@ impl TargetInfo {
         }
     }
 
-    pub fn can_reach(&self, car: &Car, max_time: f32, is_forwards: bool) -> Result<f32, ()> {
+    pub fn can_reach(&self, car: &Car, max_time: f32, is_forwards: bool, mutators: &Mutators) -> Result<f32, ()> {
         let is_curved = PathType::CCC.contains(&self.path.type_);
 
         let total_d = self.distances.iter().sum::<f32>();
@@ -134,9 +135,11 @@ impl TargetInfo {
                 accel += BRAKE_ACC_DT.copysign(throttle);
             }
 
-            if boost {
-                accel += BOOST_ACCEL_DT;
-                b -= BOOST_CONSUMPTION_DT;
+            if mutators.boost_amount != BoostAmount::NoBoost && boost {
+                accel += mutators.boost_accel * SIMULATION_DT;
+                if mutators.boost_amount != BoostAmount::Unlimited {
+                    b -= BOOST_CONSUMPTION_DT;
+                }
             }
 
             if !(is_middle_straight || d < self.distances[3]) {

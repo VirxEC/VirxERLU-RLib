@@ -1,3 +1,4 @@
+#[forbid(unsafe_code)]
 mod air;
 mod analyzer;
 mod car;
@@ -10,6 +11,7 @@ mod utils;
 use analyzer::*;
 use car::{turn_radius, Car};
 use constants::*;
+use glam::Vec3A;
 use lazy_static::{initialize, lazy_static};
 use pyo3::{prelude::*, PyErr};
 use pytypes::*;
@@ -26,11 +28,13 @@ lazy_static! {
     static ref BALL_STRUCT: Mutex<BallPrediction> = Mutex::new(BallPrediction::default());
 }
 
-// ready for 1.64 with const mutexs
+// ready for 1.63 with const mutexs
 lazy_static! {
+    static ref GRAVITY: Mutex<Vec3A> = Mutex::new(Vec3A::ZERO);
     static ref GAME_TIME: Mutex<f32> = Mutex::new(0.);
     static ref GAME: Mutex<Option<Game>> = Mutex::new(None);
     static ref BALL: Mutex<Option<Ball>> = Mutex::new(None);
+    static ref MUTATORS: Mutex<Mutators> = Mutex::new(Mutators::new());
     static ref TARGETS: Mutex<Vec<Option<Target>>> = Mutex::new(Vec::new());
 }
 
@@ -52,6 +56,7 @@ fn virx_erlu_rlib(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(get_targets_length, m)?)?;
     m.add_function(wrap_pyfunction!(get_shot_with_target, m)?)?;
     m.add_function(wrap_pyfunction!(get_data_for_shot_with_target, m)?)?;
+    m.add_function(wrap_pyfunction!(set_mutator_settings, m)?)?;
     m.add_class::<TargetOptions>()?;
     m.add_class::<ShotType>()?;
     Ok(())
@@ -112,6 +117,63 @@ fn load_soccar_throwback() {
 #[pyfunction]
 fn load_soccer_throwback() {
     load_soccar_throwback();
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BoostAmount {
+    Default,
+    Unlimited,
+    SlowRecharge,
+    FastRecharge,
+    NoBoost,
+}
+
+impl BoostAmount {
+    fn from(item: u8) -> BoostAmount {
+        match item {
+            0 => BoostAmount::Default,
+            1 => BoostAmount::Unlimited,
+            2 => BoostAmount::SlowRecharge,
+            3 => BoostAmount::FastRecharge,
+            4 => BoostAmount::NoBoost,
+            _ => BoostAmount::Default,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct Mutators {
+    boost_amount: BoostAmount,
+    boost_accel: f32,
+}
+
+impl Mutators {
+    pub const fn new() -> Self {
+        Mutators {
+            boost_amount: BoostAmount::Default,
+            boost_accel: BOOST_ACCEL,
+        }
+    }
+
+    pub fn from(mutators: &PyAny) -> PyResult<Self> {
+        Ok(Mutators {
+            boost_amount: BoostAmount::from(mutators.call_method("BoostOption", (), None)?.extract()?),
+            boost_accel: match mutators.call_method("BoostStrengthOption", (), None)?.extract()? {
+                0 => BOOST_ACCEL,
+                1 => BOOST_ACCEL * 1.5,
+                2 => BOOST_ACCEL * 2.,
+                3 => BOOST_ACCEL * 10.,
+                _ => BOOST_ACCEL,
+            },
+        })
+    }
+}
+
+#[pyfunction]
+fn set_mutator_settings(py: Python, mutators: PyObject) -> PyResult<()> {
+    *MUTATORS.lock().unwrap() = dbg!(Mutators::from(mutators.as_ref(py))?);
+
+    Ok(())
 }
 
 #[pyfunction]
@@ -191,6 +253,8 @@ fn tick(py: Python, packet: PyObject, prediction_time: Option<f32>) -> PyResult<
 
         game.gravity.z = py_game_info.getattr("world_gravity_z")?.extract()?;
 
+        *GRAVITY.lock().unwrap() = game.gravity;
+
         // Get information about the ball
 
         let py_ball = packet.getattr("game_ball")?;
@@ -258,16 +322,9 @@ fn new_target(left_target: Vec<f32>, right_target: Vec<f32>, car_index: usize, o
     let options = Options::from(options, num_slices);
 
     {
-        let gravity = {
-            let game_guard = GAME.lock().unwrap();
-            let game = game_guard.as_ref().ok_or_else(|| PyErr::new::<NoGamePyErr, _>(NO_GAME_ERR))?;
-
-            game.gravity.z
-        };
-
         let mut cars = CARS.lock().unwrap();
         let car = cars.get_mut(car_index).ok_or_else(|| PyErr::new::<NoCarPyErr, _>(NO_CAR_ERR))?;
-        car.init(gravity, num_slices);
+        car.init(GRAVITY.lock().unwrap().z, num_slices, &*MUTATORS.lock().unwrap());
     }
 
     let target = Some(Target::new(target_left, target_right, car_index, options));
@@ -355,14 +412,9 @@ fn get_shot_with_target(
         return Err(PyErr::new::<NoShotSelectedPyErr, _>(NO_SHOT_SELECTED_ERR));
     }
 
-    let gravity = {
-        let game_guard = GAME.lock().unwrap();
-        let game = game_guard.as_ref().ok_or_else(|| PyErr::new::<NoGamePyErr, _>(NO_GAME_ERR))?;
-
-        game.gravity.z
-    };
-
-    let game_time = GAME_TIME.lock().unwrap();
+    let mutators = *MUTATORS.lock().unwrap();
+    let gravity = GRAVITY.lock().unwrap().z;
+    let game_time = *GAME_TIME.lock().unwrap();
     let ball_prediction = BALL_STRUCT.lock().unwrap();
 
     let mut targets_gaurd = TARGETS.lock().unwrap();
@@ -403,7 +455,7 @@ fn get_shot_with_target(
         }
 
         let shot_vector = post_info.get_shot_vector_target(car.landing_location, ball.location);
-        let max_time_remaining = ball.time - *game_time;
+        let max_time_remaining = ball.time - game_time;
         let target_info = match analyzer.target(ball, car, shot_vector, max_time_remaining, i) {
             Ok(r) => r,
             Err(_) => continue,
@@ -411,7 +463,7 @@ fn get_shot_with_target(
 
         let is_forwards = true;
 
-        let _time_remaining = match target_info.can_reach(car, max_time_remaining, is_forwards) {
+        let _time_remaining = match target_info.can_reach(car, max_time_remaining, is_forwards, &mutators) {
             Ok(t_r) => t_r,
             Err(_) => continue,
         };
@@ -441,12 +493,7 @@ fn get_shot_with_target(
 
 #[pyfunction]
 fn get_data_for_shot_with_target(target_index: usize) -> PyResult<AdvancedShotInfo> {
-    let _gravity = {
-        let game_guard = GAME.lock().unwrap();
-        let game = game_guard.as_ref().ok_or_else(|| PyErr::new::<NoGamePyErr, _>(NO_GAME_ERR))?;
-
-        game.gravity.z
-    };
+    // let gravity = GRAVITY.lock().unwrap().z;
 
     let targets_gaurd = TARGETS.lock().unwrap();
     let target = targets_gaurd
@@ -456,10 +503,7 @@ fn get_data_for_shot_with_target(target_index: usize) -> PyResult<AdvancedShotIn
         .ok_or_else(|| PyErr::new::<NoTargetPyErr, _>(NO_TARGET_ERR))?;
     let shot = target.shot.as_ref().ok_or_else(|| PyErr::new::<NoShotPyErr, _>(NO_SHOT_ERR))?;
 
-    let time_remaining = {
-        let game_time = GAME_TIME.lock().unwrap();
-        shot.time - *game_time
-    };
+    let time_remaining = shot.time - *GAME_TIME.lock().unwrap();
 
     if time_remaining < 0. {
         return Err(PyErr::new::<NoTimeRemainingPyErr, _>(NO_TIME_REMAINING_ERR));

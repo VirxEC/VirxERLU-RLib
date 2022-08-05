@@ -42,6 +42,7 @@ def load_soccer_throwback() -> None:
 
 try:
     from rlbot.utils.structures.game_data_struct import GameTickPacket
+    from rlbot.messages.flat.MutatorSettings import MutatorSettings
 except ImportError:
     pass
 
@@ -51,6 +52,12 @@ def tick(packet: GameTickPacket, prediction_time: float=6.) -> None:
     Parses the game tick packet from RLBot
 
     prediction_time: The number of seconds into the future to generate the ball prediction struct
+    """
+
+
+def tick(mutators: MutatorSettings) -> None:
+    """
+    Parses the mutator settings from RLBot
     """
 
 

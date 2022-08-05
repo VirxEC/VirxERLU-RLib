@@ -1,13 +1,12 @@
-use dubins_paths::{self, NoPathError, PosRot};
-use glam::Vec3A;
-use rl_ball_sym::simulation::ball::Ball;
-
 use crate::{
     car::Car,
     ground::{angle_2d, shortest_path_in_validate, TargetInfo},
     pytypes::ShotType,
     utils::flatten,
 };
+use dubins_paths::{self, NoPathError, PosRot};
+use glam::Vec3A;
+use rl_ball_sym::simulation::ball::Ball;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Analyzer {

@@ -12,8 +12,6 @@ source $HOME/.cargo/env && \
 /opt/python/cp37-cp37m/bin/python -m venv venv37 && \
 source venv37/bin/activate && \
 pip install maturin && \
-/opt/python/cp39-cp39/bin/python -m venv venv39 && \
-source venv39/bin/activate && \
 pip install maturin twine && \
 mv .pypirc ~/.pypirc
 

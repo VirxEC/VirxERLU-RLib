@@ -1,11 +1,11 @@
-use dubins_paths::{DubinsPath, PosRot};
-use glam::Vec3A;
-use pyo3::{PyAny, PyResult};
-
 use crate::{
     constants::*,
     utils::{flatten, get_vec3_named, minimum_non_negative, vertex_quadratic_solve_for_x},
+    Mutators, BoostAmount,
 };
+use dubins_paths::{DubinsPath, PosRot};
+use glam::Vec3A;
+use pyo3::{PyAny, PyResult};
 
 pub fn throttle_acceleration(forward_velocity: f32) -> f32 {
     let x = forward_velocity.abs();
@@ -167,13 +167,13 @@ impl Car {
         Ok(())
     }
 
-    pub fn init(&mut self, gravity: f32, max_ball_slice: usize) {
+    pub fn init(&mut self, gravity: f32, max_ball_slice: usize, mutators: &Mutators) {
         if !self.init {
             self.calculate_orientation_matrix();
             self.calculate_field();
             self.calculate_landing_info(gravity);
             self.calculate_local_values();
-            self.calculate_max_values(max_ball_slice);
+            self.calculate_max_values(max_ball_slice, mutators);
             self.calculate_max_jump_height(gravity);
 
             self.init = true;
@@ -299,7 +299,7 @@ impl Car {
         self.up.z = c_p * c_r;
     }
 
-    pub fn calculate_max_values(&mut self, max_ball_slice: usize) {
+    pub fn calculate_max_values(&mut self, max_ball_slice: usize, mutators: &Mutators) {
         let mut b = self.boost as f32;
         let mut v = self.landing_velocity.dot(self.forward);
         let mut fast_forward = false;
@@ -341,9 +341,11 @@ impl Car {
                 accel += BRAKE_ACC_DT;
             }
 
-            if b > BOOST_CONSUMPTION_DT {
-                accel += BOOST_ACCEL_DT;
-                b -= BOOST_CONSUMPTION_DT;
+            if mutators.boost_amount != BoostAmount::NoBoost && b > BOOST_CONSUMPTION_DT {
+                accel += mutators.boost_accel * SIMULATION_DT;
+                if mutators.boost_amount != BoostAmount::Unlimited {
+                    b -= BOOST_CONSUMPTION_DT;
+                }
             }
 
             accel = accel.min(MAX_SPEED - v);
@@ -499,7 +501,7 @@ pub fn get_a_car() -> Car {
     car.jumped = false;
     car.doublejumped = false;
 
-    car.init(-650., 720);
+    car.init(-650., 720, &Mutators::new());
 
     car
 }

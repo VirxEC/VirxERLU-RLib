@@ -27,7 +27,7 @@ features = ["fast-math"]
 
 [dependencies.pyo3]
 version = "0.16"
-features = ["extension-module"]
+features = ["extension-module", "abi3-py37"]
 
 [dev-dependencies]
 rand = "0.8"
