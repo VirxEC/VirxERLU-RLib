@@ -7,6 +7,41 @@ use dubins_paths::{DubinsPath, PosRot};
 use glam::Vec3A;
 use pyo3::{PyAny, PyResult};
 
+// pub fn naive_double_jump_simulation(time_allowed: f32) {
+//     let gravity = -650.;
+//     let jump_impulse = 292.;
+//     let time_increment = 1. / 120.;
+//     let sticky_force = -325.;
+//     let sticky_timer = time_increment * 3.;
+//     let hold_bonus_increment = (292. * 5.) * time_increment;
+//     let max_hold_time = 0.2;
+//     let mut simulated_z_velocity = 0.;
+//     let mut simulated_height = 17.;
+//     let mut simulation_time = 0.;
+//     let mut double_jumped = false;
+
+//     while simulation_time < time_allowed {
+//         if simulation_time <= f32::EPSILON {
+//             simulated_z_velocity += jump_impulse
+//         } else if simulation_time > max_hold_time + time_increment && !double_jumped {
+//             simulated_z_velocity += jump_impulse;
+//             double_jumped = true;
+//         }
+
+//         if simulation_time < max_hold_time {
+//             simulated_z_velocity += hold_bonus_increment;
+//         }
+
+//         if simulation_time < sticky_timer {
+//             simulated_z_velocity += sticky_force * time_increment;
+//         }
+
+//         simulated_z_velocity += gravity * time_increment;
+//         simulated_height += simulated_z_velocity * time_increment;
+//         simulation_time += time_increment;
+//     }
+// }
+
 pub fn throttle_acceleration(forward_velocity: f32) -> f32 {
     let x = forward_velocity.abs();
 
@@ -52,6 +87,16 @@ pub struct Hitbox {
     pub height: f32,
 }
 
+impl Hitbox {
+    pub const fn new() -> Self {
+        Self {
+            length: 0.,
+            width: 0.,
+            height: 0.,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default)]
 pub struct CarFieldRect {
     goal_x: f32,
@@ -62,6 +107,15 @@ pub struct CarFieldRect {
 
 impl CarFieldRect {
     const CHECK_DISTANCE: f32 = 400.;
+
+    pub const fn new() -> Self {
+        Self {
+            goal_x: 0.,
+            goal_y: 0.,
+            field_y: 0.,
+            field_x: 0.,
+        }
+    }
 
     pub fn from(car_hitbox: &Hitbox) -> Self {
         let half_car_len = car_hitbox.length / 2.;
@@ -129,10 +183,43 @@ pub struct Car {
     /// turn radius at calculated max speed
     pub ctrms: Vec<f32>,
     pub max_jump_height: f32,
+    pub max_double_jump_height: f32,
     pub init: bool,
 }
 
 impl Car {
+    pub const fn new() -> Self {
+        Self {
+            location: Vec3A::ZERO,
+            velocity: Vec3A::ZERO,
+            local_velocity: Vec3A::ZERO,
+            angular_velocity: Vec3A::ZERO,
+            forward: Vec3A::ZERO,
+            right: Vec3A::ZERO,
+            up: Vec3A::ZERO,
+            hitbox: Hitbox::new(),
+            hitbox_offset: Vec3A::ZERO,
+            field: CarFieldRect::new(),
+            pitch: 0.,
+            yaw: 0.,
+            roll: 0.,
+            boost: 0,
+            demolished: false,
+            airborne: false,
+            jumped: false,
+            doublejumped: false,
+            landing_time: 0.,
+            landing_location: Vec3A::ZERO,
+            landing_velocity: Vec3A::ZERO,
+            landing_yaw: 0.,
+            max_speed: Vec::new(),
+            ctrms: Vec::new(),
+            max_jump_height: 0.,
+            max_double_jump_height: 0.,
+            init: false,
+        }
+    }
+
     pub fn update(&mut self, py_car: &PyAny) -> PyResult<()> {
         let py_car_physics = py_car.getattr("physics")?;
 
@@ -175,6 +262,7 @@ impl Car {
             self.calculate_local_values();
             self.calculate_max_values(max_ball_slice, mutators);
             self.calculate_max_jump_height(gravity);
+            self.calculate_max_double_jump_height(gravity);
 
             self.init = true;
         }
@@ -206,6 +294,38 @@ impl Car {
         }
 
         self.max_jump_height = l_z;
+    }
+
+    pub fn calculate_max_double_jump_height(&mut self, gravity: f32) {
+        let g = gravity * SIMULATION_DT;
+
+        let mut t = 0.;
+        let mut v_z = self.landing_velocity.z;
+        let mut l_z = self.landing_location.z;
+        let mut double_jumped = false;
+
+        while v_z > 0. || t < MAX_HOLD_TIME {
+            if t <= f32::EPSILON {
+                v_z += JUMP_IMPULSE;
+            } else if t > MAX_HOLD_TIME + SIMULATION_DT && !double_jumped {
+                v_z += JUMP_IMPULSE;
+                double_jumped = true;
+            }
+
+            if t < MAX_HOLD_TIME {
+                v_z += HOLD_BONUS;
+            }
+
+            if t < STICKY_TIMER {
+                v_z += STICKY_FORCE * SIMULATION_DT;
+            }
+
+            v_z += g;
+            l_z += v_z * SIMULATION_DT;
+            t += SIMULATION_DT;
+        }
+
+        self.max_double_jump_height = l_z;
     }
 
     pub fn calculate_landing_info(&mut self, gravity: f32) {
@@ -463,6 +583,38 @@ impl Car {
 
             if t < MAX_HOLD_TIME {
                 v_z += HOLD_BONUS * SIMULATION_DT;
+            }
+
+            if t < STICKY_TIMER {
+                v_z += STICKY_FORCE * SIMULATION_DT;
+            }
+
+            t += SIMULATION_DT;
+            v_z += g;
+            l_z += v_z * SIMULATION_DT;
+        }
+
+        t
+    }
+
+    pub fn double_jump_time_to_height(&self, gravity: f32, height_goal: f32) -> f32 {
+        let g = gravity * SIMULATION_DT;
+
+        let mut t = 0.;
+        let mut v_z = self.landing_velocity.z;
+        let mut l_z = self.landing_location.z;
+        let mut double_jumped = false;
+
+        while l_z < height_goal && (v_z > 0. || t < MAX_HOLD_TIME) {
+            if t <= f32::EPSILON {
+                v_z += JUMP_IMPULSE;
+            } else if t > MAX_HOLD_TIME + SIMULATION_DT && !double_jumped {
+                v_z += JUMP_IMPULSE;
+                double_jumped = true;
+            }
+
+            if t < MAX_HOLD_TIME {
+                v_z += HOLD_BONUS;
             }
 
             if t < STICKY_TIMER {

@@ -64,7 +64,7 @@ def tick(mutators: MutatorSettings) -> None:
 class ShotType:
     GROUND: int = 0
     JUMP: int = 1
-    # DOUBLE_JUMP: int = 2
+    DOUBLE_JUMP: int = 2
     # AERIAL: int = 3
 
 
@@ -147,13 +147,14 @@ class BasicShotInfo:
     def __repr__(self) -> str: ...
 
 
-def get_shot_with_target(target_id: int, temporary: bool=False, may_ground_shot: Optional[bool]=None, may_jump_shot: Optional[bool]=None, only: bool=False) -> BasicShotInfo:
+def get_shot_with_target(target_id: int, temporary: bool=False, may_ground_shot: Optional[bool]=None, may_jump_shot: Optional[bool]=None, may_double_jump_shot: Optional[bool]=None, only: bool=False) -> BasicShotInfo:
     """
     Searches the ball prediction struct for a shot
 
     temporary: Setting this to False will only return the time of the shot, if found
     may_ground_shot: Setting this to True will enable searching for ground shots, default is the opposite of only
-    may_ground_shot: Setting this to True will enable searching for jump shots, default is the opposite of only
+    may_jump_shot: Setting this to True will enable searching for jump shots, default is the opposite of only
+    may_double_jump_shot: Setting this to True will enable searching for double jump shots, default is the opposite of only
     only: Default False, set to True if you only want to search for the specified shot(s)
     """
 

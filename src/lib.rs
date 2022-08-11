@@ -1,5 +1,4 @@
 #[forbid(unsafe_code)]
-mod air;
 mod analyzer;
 mod car;
 mod constants;
@@ -24,19 +23,16 @@ use std::sync::Mutex;
 use utils::*;
 
 lazy_static! {
-    static ref CARS: Mutex<[Car; 64]> = Mutex::new([(); 64].map(|_| Car::default()));
-    static ref BALL_STRUCT: Mutex<BallPrediction> = Mutex::new(BallPrediction::default());
+    static ref CARS: Mutex<[Car; 64]> = Mutex::new(std::array::from_fn(|_| Car::new()));
 }
 
-// ready for 1.63 with const mutexs
-lazy_static! {
-    static ref GRAVITY: Mutex<Vec3A> = Mutex::new(Vec3A::ZERO);
-    static ref GAME_TIME: Mutex<f32> = Mutex::new(0.);
-    static ref GAME: Mutex<Option<Game>> = Mutex::new(None);
-    static ref BALL: Mutex<Option<Ball>> = Mutex::new(None);
-    static ref MUTATORS: Mutex<Mutators> = Mutex::new(Mutators::new());
-    static ref TARGETS: Mutex<Vec<Option<Target>>> = Mutex::new(Vec::new());
-}
+static BALL_STRUCT: Mutex<BallPrediction> = Mutex::new(BallPrediction::new());
+static GRAVITY: Mutex<Vec3A> = Mutex::new(Vec3A::ZERO);
+static GAME_TIME: Mutex<f32> = Mutex::new(0.);
+static GAME: Mutex<Option<Game>> = Mutex::new(None);
+static BALL: Mutex<Option<Ball>> = Mutex::new(None);
+static MUTATORS: Mutex<Mutators> = Mutex::new(Mutators::new());
+static TARGETS: Mutex<Vec<Option<Target>>> = Mutex::new(Vec::new());
 
 /// VirxERLU-RLib is written in Rust with Python bindings to make analyzing the ball prediction struct much faster.
 #[pymodule]
@@ -63,9 +59,6 @@ fn virx_erlu_rlib(_py: Python, m: &PyModule) -> PyResult<()> {
 }
 
 fn init() {
-    initialize(&GAME_TIME);
-    initialize(&TARGETS);
-    initialize(&BALL_STRUCT);
     initialize(&CARS);
 }
 
@@ -171,7 +164,7 @@ impl Mutators {
 
 #[pyfunction]
 fn set_mutator_settings(py: Python, mutators: PyObject) -> PyResult<()> {
-    *MUTATORS.lock().unwrap() = dbg!(Mutators::from(mutators.as_ref(py))?);
+    *MUTATORS.lock().unwrap() = Mutators::from(mutators.as_ref(py))?;
 
     Ok(())
 }
@@ -402,13 +395,15 @@ fn get_shot_with_target(
     temporary: Option<bool>,
     may_ground_shot: Option<bool>,
     may_jump_shot: Option<bool>,
+    may_double_jump_shot: Option<bool>,
     only: Option<bool>,
 ) -> PyResult<BasicShotInfo> {
     let only = only.unwrap_or(false);
     let may_ground_shot = may_ground_shot.unwrap_or(!only);
     let may_jump_shot = may_jump_shot.unwrap_or(!only);
+    let may_double_jump_shot = may_double_jump_shot.unwrap_or(!only);
 
-    if !may_ground_shot && !may_jump_shot {
+    if !may_ground_shot && !may_jump_shot && !may_double_jump_shot {
         return Err(PyErr::new::<NoShotSelectedPyErr, _>(NO_SHOT_SELECTED_ERR));
     }
 
@@ -438,7 +433,7 @@ fn get_shot_with_target(
         let max_speed = if target.options.use_absolute_max_values { Some(MAX_SPEED) } else { None };
         let max_turn_radius = if target.options.use_absolute_max_values { Some(turn_radius(MAX_SPEED)) } else { None };
 
-        Analyzer::new(max_speed, max_turn_radius, gravity, may_ground_shot, may_jump_shot)
+        Analyzer::new(max_speed, max_turn_radius, gravity, may_ground_shot, may_jump_shot, may_double_jump_shot)
     };
 
     let temporary = temporary.unwrap_or(false);
