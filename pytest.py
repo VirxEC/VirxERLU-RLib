@@ -15,7 +15,7 @@ rlru.load_soccar()
 packet = GameTickPacket()
 
 # set 6 cars to test the speed of tick()
-packet.num_cars = 6
+packet.num_cars = 64
 for i in range(packet.num_cars):
     packet.game_cars[i] = PlayerInfo(
         physics=Physics(
@@ -43,7 +43,7 @@ for i in range(packet.num_cars):
         hitbox_offset=Vector3(13.9, 0, 20.8),
         spawn_id=1793714700,
     )
-packet.game_ball.physics.location.z = 95
+packet.game_ball.physics.location.z = 1001.1
 packet.game_ball.collision_shape.type = 1
 packet.game_ball.collision_shape.sphere.diameter = 182.5
 packet.game_info.world_gravity_z = -650

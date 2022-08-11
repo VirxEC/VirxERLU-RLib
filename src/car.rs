@@ -1,11 +1,11 @@
-use dubins_paths::DubinsPath;
-use glam::Vec3A;
-use pyo3::{PyAny, PyResult};
-
 use crate::{
     constants::*,
     utils::{flatten, get_vec3_named, minimum_non_negative, vertex_quadratic_solve_for_x},
+    BoostAmount, Mutators,
 };
+use dubins_paths::{DubinsPath, PosRot};
+use glam::Vec3A;
+use pyo3::{PyAny, PyResult};
 
 pub fn throttle_acceleration(forward_velocity: f32) -> f32 {
     let x = forward_velocity.abs();
@@ -26,26 +26,19 @@ pub fn curvature(v: f32) -> f32 {
     let v = v.abs();
 
     if (0. ..500.).contains(&v) {
-        return 0.0069 - 5.84e-6 * v;
+        0.0069 - 5.84e-6 * v
+    } else if (500. ..1000.).contains(&v) {
+        0.00561 - 3.26e-6 * v
+    } else if (1000. ..1500.).contains(&v) {
+        0.0043 - 1.95e-6 * v
+    } else if (1500. ..1750.).contains(&v) {
+        0.003025 - 1.1e-6 * v
+    } else if (1750. ..2305.).contains(&v) {
+        0.0018 - 4e-7 * v
+    } else {
+        println!("Invalid input velocity: {}", v);
+        -1.
     }
-
-    if (500. ..1000.).contains(&v) {
-        return 0.00561 - 3.26e-6 * v;
-    }
-
-    if (1000. ..1500.).contains(&v) {
-        return 0.0043 - 1.95e-6 * v;
-    }
-
-    if (1500. ..1750.).contains(&v) {
-        return 0.003025 - 1.1e-6 * v;
-    }
-
-    if (1750. ..2500.).contains(&v) {
-        return 0.0018 - 4e-7 * v;
-    }
-
-    panic!("Invalid input velocity: {}", v);
 }
 
 pub fn turn_radius(v: f32) -> f32 {
@@ -68,6 +61,8 @@ pub struct CarFieldRect {
 }
 
 impl CarFieldRect {
+    const CHECK_DISTANCE: f32 = 400.;
+
     pub fn from(car_hitbox: &Hitbox) -> Self {
         let half_car_len = car_hitbox.length / 2.;
 
@@ -80,28 +75,29 @@ impl CarFieldRect {
     }
 
     pub fn is_path_in(&self, path: &DubinsPath) -> bool {
-        // instead of this, do a better "is arc in" or "is line in" thing
-        for dist in [
-            path.segment_length(0) / 2.,
-            path.segment_length(0),
-            path.segment_length(0) + path.segment_length(1) / 2.,
-            path.segment_length(0) + path.segment_length(1),
-            path.segment_length(0) + path.segment_length(1) + path.segment_length(2) / 2.,
-        ] {
-            if dist > 20. && !self.is_point_in(&path.sample(dist)) {
+        let length = path.length();
+
+        let mut dist = Self::CHECK_DISTANCE.min(length / 2.);
+
+        while dist < length {
+            if !self.is_point_in(&path.sample(dist)) {
                 return false;
             }
+
+            dist += Self::CHECK_DISTANCE;
         }
 
         true
     }
 
-    pub fn is_point_in(&self, p: &[f32; 3]) -> bool {
-        if p[0].abs() > self.goal_x {
-            return p[0].abs() < self.field_x && p[1].abs() < self.field_y;
-        }
+    pub fn is_point_in(&self, p: &PosRot) -> bool {
+        let p = [p.pos.x.abs(), p.pos.y.abs()];
 
-        p[1].abs() < self.goal_y
+        if p[0] > self.goal_x {
+            p[0] < self.field_x && p[1] < self.field_y
+        } else {
+            p[1] < self.goal_y
+        }
     }
 }
 
@@ -128,13 +124,16 @@ pub struct Car {
     pub landing_time: f32,
     pub landing_location: Vec3A,
     pub landing_velocity: Vec3A,
+    pub landing_yaw: f32,
     pub max_speed: Vec<f32>,
     /// turn radius at calculated max speed
     pub ctrms: Vec<f32>,
+    pub max_jump_height: f32,
+    pub init: bool,
 }
 
 impl Car {
-    pub fn update(&mut self, py_car: &PyAny, gravity: f32, max_ball_slice: usize) -> PyResult<()> {
+    pub fn update(&mut self, py_car: &PyAny) -> PyResult<()> {
         let py_car_physics = py_car.getattr("physics")?;
 
         self.location = get_vec3_named(py_car_physics.getattr("location")?)?;
@@ -163,19 +162,57 @@ impl Car {
         self.jumped = py_car.getattr("jumped")?.extract()?;
         self.doublejumped = py_car.getattr("double_jumped")?.extract()?;
 
-        self.calculate_orientation_matrix();
-        self.calculate_field();
-        self.calculate_landing_info(gravity);
-        self.calculate_local_values();
-        self.calculate_max_values(max_ball_slice);
+        self.init = false;
 
         Ok(())
+    }
+
+    pub fn init(&mut self, gravity: f32, max_ball_slice: usize, mutators: &Mutators) {
+        if !self.init {
+            self.calculate_orientation_matrix();
+            self.calculate_field();
+            self.calculate_landing_info(gravity);
+            self.calculate_local_values();
+            self.calculate_max_values(max_ball_slice, mutators);
+            self.calculate_max_jump_height(gravity);
+
+            self.init = true;
+        }
+    }
+
+    pub fn calculate_max_jump_height(&mut self, gravity: f32) {
+        let g = gravity * SIMULATION_DT;
+
+        let mut t = 0.;
+        let mut v_z = 0.;
+        let mut l_z = 17.;
+
+        while v_z > 0. || t < MAX_HOLD_TIME {
+            if t <= f32::EPSILON {
+                v_z += JUMP_IMPULSE;
+            }
+
+            if t < MAX_HOLD_TIME {
+                v_z += HOLD_BONUS * SIMULATION_DT;
+            }
+
+            if t < STICKY_TIMER {
+                v_z += STICKY_FORCE * SIMULATION_DT;
+            }
+
+            t += SIMULATION_DT;
+            v_z += g;
+            l_z += v_z * SIMULATION_DT;
+        }
+
+        self.max_jump_height = l_z;
     }
 
     pub fn calculate_landing_info(&mut self, gravity: f32) {
         self.landing_time = 0.;
         self.landing_location = self.location;
         self.landing_velocity = self.velocity;
+        self.landing_yaw = self.yaw;
 
         if !self.airborne {
             return;
@@ -209,7 +246,7 @@ impl Car {
             self.landing_time = time_until_tv;
 
             let dt = 1. / 120.;
-            self.landing_velocity.z += gravity * time_until_tv;
+            self.landing_velocity.z = terminal_velocity;
             self.landing_location += Vec3A::new(
                 self.velocity.x * self.landing_time,
                 self.velocity.y * self.landing_time,
@@ -234,6 +271,10 @@ impl Car {
 
             self.landing_location.z = if normal_gravity { 17. } else { 2300. };
         }
+
+        if flatten(self.landing_velocity).length() != 0. {
+            self.landing_yaw = self.landing_velocity.y.atan2(self.landing_velocity.x)
+        }
     }
 
     pub fn calculate_orientation_matrix(&mut self) {
@@ -257,7 +298,7 @@ impl Car {
         self.up.z = c_p * c_r;
     }
 
-    pub fn calculate_max_values(&mut self, max_ball_slice: usize) {
+    pub fn calculate_max_values(&mut self, max_ball_slice: usize, mutators: &Mutators) {
         let mut b = self.boost as f32;
         let mut v = self.landing_velocity.dot(self.forward);
         let mut fast_forward = false;
@@ -277,47 +318,51 @@ impl Car {
 
         let mut end = end_1;
 
-        for _ in end_1..max_ball_slice {
-            end += 1;
+        if mutators.boost_amount != BoostAmount::NoBoost {
+            for _ in end_1..max_ball_slice {
+                end += 1;
 
-            if fast_forward {
+                if fast_forward {
+                    self.max_speed.push(v);
+                    self.ctrms.push(turn_radius(v));
+                    continue;
+                }
+
+                if b < BOOST_CONSUMPTION_DT {
+                    break;
+                }
+
+                let throttle_accel = throttle_acceleration(v);
+                let mut accel = 0.;
+
+                if v.is_sign_positive() {
+                    accel += throttle_accel * SIMULATION_DT;
+                } else {
+                    accel += BRAKE_ACC_DT;
+                }
+
+                if b > BOOST_CONSUMPTION_DT {
+                    accel += mutators.boost_accel * SIMULATION_DT;
+                    if mutators.boost_amount != BoostAmount::Unlimited {
+                        b -= BOOST_CONSUMPTION_DT;
+                    }
+                }
+
+                accel = accel.min(MAX_SPEED - v);
+
+                if accel.abs() < f32::EPSILON {
+                    fast_forward = true;
+                }
+
+                v += accel;
+
                 self.max_speed.push(v);
                 self.ctrms.push(turn_radius(v));
-                continue;
             }
 
-            if b < BOOST_CONSUMPTION_DT {
-                break;
+            if end == max_ball_slice {
+                return;
             }
-
-            let throttle_accel = throttle_acceleration(v);
-            let mut accel = 0.;
-
-            if 1. == v.signum() {
-                accel += throttle_accel * SIMULATION_DT;
-            } else {
-                accel += BRAKE_ACC_DT;
-            }
-
-            if b > BOOST_CONSUMPTION_DT {
-                accel += BOOST_ACCEL_DT;
-                b -= BOOST_CONSUMPTION_DT;
-            }
-
-            accel = accel.min(MAX_SPEED - v);
-
-            if accel.abs() < f32::EPSILON {
-                fast_forward = true;
-            }
-
-            v += accel;
-
-            self.max_speed.push(v);
-            self.ctrms.push(turn_radius(v));
-        }
-
-        if end == max_ball_slice {
-            return;
         }
 
         let mut v1 = v;
@@ -403,6 +448,34 @@ impl Car {
     // pub fn globalize(car: &Car, vec: Vec3A) -> Vec3A {
     //     car.forward * vec.x + car.right * vec.y + car.up * vec.z + car.location
     // }
+
+    pub fn jump_time_to_height(&self, gravity: f32, height_goal: f32) -> f32 {
+        let g = gravity * SIMULATION_DT;
+
+        let mut t = 0.;
+        let mut v_z = self.landing_velocity.z;
+        let mut l_z = self.landing_location.z;
+
+        while l_z < height_goal && (v_z > 0. || t < MAX_HOLD_TIME) {
+            if t <= f32::EPSILON {
+                v_z += JUMP_IMPULSE;
+            }
+
+            if t < MAX_HOLD_TIME {
+                v_z += HOLD_BONUS * SIMULATION_DT;
+            }
+
+            if t < STICKY_TIMER {
+                v_z += STICKY_FORCE * SIMULATION_DT;
+            }
+
+            t += SIMULATION_DT;
+            v_z += g;
+            l_z += v_z * SIMULATION_DT;
+        }
+
+        t
+    }
 }
 
 #[allow(clippy::field_reassign_with_default)]
@@ -429,10 +502,7 @@ pub fn get_a_car() -> Car {
     car.jumped = false;
     car.doublejumped = false;
 
-    car.calculate_orientation_matrix();
-    car.calculate_max_values(720);
-    car.calculate_local_values();
-    car.calculate_field();
+    car.init(-650., 720, &Mutators::new());
 
     car
 }

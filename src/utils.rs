@@ -1,15 +1,13 @@
-use std::ops::{Add, Mul, Sub};
-
-use dubins_paths::DubinsPath;
-use pyo3::{exceptions, PyAny, PyErr, PyResult};
-
+use dubins_paths::{DubinsPath, PosRot};
 use glam::Vec3A;
+use pyo3::{exceptions, PyAny, PyErr, PyResult};
+use std::ops::{Add, Mul, Sub};
 
 /// Get a vec of samples from a path
 /// Starts at the given distance
 /// Ends at the given distance
 /// Step size is given
-pub fn get_samples_from_path(path: &DubinsPath, start_distance: f32, end_distance: f32, step_distance: f32) -> Vec<[f32; 3]> {
+pub fn get_samples_from_path(path: &DubinsPath, start_distance: f32, end_distance: f32, step_distance: f32) -> Vec<PosRot> {
     let num_steps = ((end_distance - start_distance) / step_distance).ceil() as usize;
     let mut samples = Vec::with_capacity(num_steps);
     let mut distance = start_distance;
@@ -26,13 +24,13 @@ pub fn get_samples_from_path(path: &DubinsPath, start_distance: f32, end_distanc
 /// Starts at the given point
 /// Ends after the given distance
 /// Goes in the direction of the given vector
-pub fn get_samples_from_line(start: Vec3A, direction: Vec3A, distance: f32, step_distance: f32) -> Vec<[f32; 3]> {
+pub fn get_samples_from_line(start: PosRot, direction: Vec3A, distance: f32, step_distance: f32) -> Vec<PosRot> {
     let mut samples = Vec::with_capacity((distance / step_distance).ceil() as usize);
     let mut current_distance = 0.;
 
     while current_distance < distance {
-        let vec = start + direction * current_distance;
-        samples.push(get_array_from_vec3(vec));
+        let vec = start.pos + direction * current_distance;
+        samples.push(PosRot::new(vec, start.rot));
         current_distance += step_distance;
     }
 
@@ -55,16 +53,9 @@ pub fn get_vec3_from_vec(vec: Vec<f32>, name: &str) -> PyResult<Vec3A> {
     }
 }
 
-pub fn get_vec3_from_array(arr: [f32; 3]) -> Vec3A {
-    Vec3A::new(arr[0], arr[1], arr[2])
-}
-
-pub fn get_array_from_vec3(vec: Vec3A) -> [f32; 3] {
-    [vec.x, vec.y, vec.z]
-}
-
-pub fn get_tuple_from_vec3(vec: Vec3A) -> (f32, f32, f32) {
-    (vec.x, vec.y, vec.z)
+pub const fn get_tuple_from_vec3(vec: Vec3A) -> (f32, f32, f32) {
+    let [x, y, z] = vec.to_array();
+    (x, y, z)
 }
 
 pub fn lerp<T: Copy + Add<Output = T> + Sub<Output = T> + Mul<f32, Output = T>>(a: T, b: T, t: f32) -> T {
@@ -96,8 +87,9 @@ fn clamp_index(s: Vec3A, start: Vec3A, end: Vec3A) -> usize {
     }
 }
 
-pub fn flatten(vec: Vec3A) -> Vec3A {
-    Vec3A::new(vec.x, vec.y, 0.)
+pub const fn flatten(vec: Vec3A) -> Vec3A {
+    let [x, y, _] = vec.to_array();
+    Vec3A::new(x, y, 0.)
 }
 
 // fn clockwise90_2d(vec: Vec3A) -> Vec3A {

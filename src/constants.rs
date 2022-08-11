@@ -17,7 +17,6 @@ pub const END_THROTTLE_ACCEL_M: f32 = -16.;
 pub const END_THROTTLE_ACCEL_B: f32 = 160.;
 
 pub const BOOST_ACCEL: f32 = 991. + 2. / 3.;
-pub const BOOST_ACCEL_DT: f32 = BOOST_ACCEL * SIMULATION_DT;
 
 pub const MIN_BOOST_CONSUMPTION: f32 = BOOST_CONSUMPTION * MIN_BOOST_TIME;
 pub const BOOST_CONSUMPTION_DT: f32 = BOOST_CONSUMPTION * SIMULATION_DT;
@@ -31,6 +30,8 @@ pub const STEER_REACTION_TIME: f32 = 0.25;
 
 pub type NoGamePyErr = exceptions::PyNameError;
 pub const NO_GAME_ERR: &str = "GAME is unset. Call a function like load_soccar first.";
+pub type NoBallPyErr = exceptions::PyNameError;
+pub const NO_BALL_ERR: &str = "BALL is unset. Call a function like load_soccar first.";
 pub type NoCarPyErr = exceptions::PyIndexError;
 pub const NO_CAR_ERR: &str = "No car at the provided index.";
 pub type NoSlicesPyErr = exceptions::PyValueError;
@@ -47,3 +48,11 @@ pub type NoTimeRemainingPyErr = exceptions::PyValueError;
 pub const NO_TIME_REMAINING_ERR: &str = "Time expired for the shot.";
 pub type BadAccelerationPyErr = exceptions::PyAssertionError;
 pub const BAD_ACCELERATION_ERR: &str = "Acceleration is slower than expected.";
+pub type StrayedFromPathPyErr = exceptions::PyAssertionError;
+pub const STRAYED_FROM_PATH_ERR: &str = "Car has strayed from the path.";
+
+pub const JUMP_IMPULSE: f32 = 292.;
+pub const STICKY_FORCE: f32 = -325.;
+pub const STICKY_TIMER: f32 = SIMULATION_DT * 3.;
+pub const HOLD_BONUS: f32 = 292. * 5.;
+pub const MAX_HOLD_TIME: f32 = 0.2;
