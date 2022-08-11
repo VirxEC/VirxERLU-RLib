@@ -1,10 +1,10 @@
 use crate::{
     car::{throttle_acceleration, Car, CarFieldRect},
     constants::*,
-    Mutators,
-    utils::*,
+    pytypes::{AdvancedShotInfo, BasicShotInfo},
     shot::Shot,
-    pytypes::{AdvancedShotInfo, BasicShotInfo}, BoostAmount,
+    utils::*,
+    BoostAmount, Mutators,
 };
 use dubins_paths::{self, DubinsPath, Intermediate, NoPathError, PathType, PosRot};
 use glam::Vec3A;
@@ -184,8 +184,9 @@ impl AdvancedShotInfo {
     pub fn get(car: &Car, shot: &Shot) -> Option<Self> {
         let (segment, pre_index) = shot.find_min_distance_index(car.location);
         let (distance_along, index) = shot.get_distance_along_shot_and_index(segment, pre_index);
+        let current_path_point = shot.samples[segment][pre_index];
 
-        if shot.samples[segment][pre_index].distance(flatten(car.location)) > car.hitbox.length / 2. {
+        if current_path_point.distance(flatten(car.location)) > car.hitbox.length / 2. {
             return None;
         }
 
@@ -207,6 +208,6 @@ impl AdvancedShotInfo {
         // get all the samples from the vec after index
         let samples = shot.all_samples.iter().skip(index / Shot::ALL_STEP).cloned().collect();
 
-        Some(Self::from(shot.direction, target, distance_to_ball, samples, shot.jump_time))
+        Some(Self::from(shot.direction, target, distance_to_ball, samples, shot.jump_time, current_path_point))
     }
 }

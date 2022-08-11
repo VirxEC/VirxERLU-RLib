@@ -164,6 +164,7 @@ class AdvancedShotInfo:
     distance_remaining: float
     required_jump_time: Optional[float]
     path_samples: list[tuple[float, float]]
+    current_path_point: tuple[float, float, float]
 
     def __str__(self) -> str: ...
     def __repr__(self) -> str: ...

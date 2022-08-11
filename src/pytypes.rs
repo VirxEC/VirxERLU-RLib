@@ -1,4 +1,4 @@
-use crate::utils::get_tuple_from_vec3;
+use crate::utils::{flatten, get_tuple_from_vec3};
 use glam::Vec3A;
 use pyo3::{pyclass, pymethods};
 use rl_ball_sym::simulation::ball::Ball;
@@ -35,7 +35,7 @@ pub struct TargetOptions {
 #[pymethods]
 impl TargetOptions {
     #[new]
-    fn __new__(min_slice: Option<usize>, max_slice: Option<usize>, use_absolute_max_values: Option<bool>, all: Option<bool>) -> Self {
+    const fn __new__(min_slice: Option<usize>, max_slice: Option<usize>, use_absolute_max_values: Option<bool>, all: Option<bool>) -> Self {
         Self {
             min_slice,
             max_slice,
@@ -151,17 +151,12 @@ impl BallSlice {
 }
 
 impl BallSlice {
-    pub fn from(ball: &Ball) -> Self {
-        let time = ball.time;
-        let location = get_tuple_from_vec3(ball.location);
-        let velocity = get_tuple_from_vec3(ball.velocity);
-        let angular_velocity = get_tuple_from_vec3(ball.angular_velocity);
-
+    pub const fn from(ball: &Ball) -> Self {
         BallSlice {
-            time,
-            location,
-            velocity,
-            angular_velocity,
+            time: ball.time,
+            location: get_tuple_from_vec3(ball.location),
+            velocity: get_tuple_from_vec3(ball.velocity),
+            angular_velocity: get_tuple_from_vec3(ball.angular_velocity),
         }
     }
 }
@@ -179,10 +174,12 @@ pub struct AdvancedShotInfo {
     required_jump_time: Option<f32>,
     #[pyo3(get)]
     path_samples: Vec<(f32, f32)>,
+    #[pyo3(get)]
+    current_path_point: (f32, f32, f32),
 }
 
 impl AdvancedShotInfo {
-    pub fn get_distance_remaining(&self) -> f32 {
+    pub const fn get_distance_remaining(&self) -> f32 {
         self.distance_remaining
     }
 }
@@ -192,11 +189,11 @@ impl AdvancedShotInfo {
     fn __str__(&self) -> String {
         match self.required_jump_time {
             Some(required_jump_time) => format!(
-                "Shot vector: {:?}, Final target: {:?}, distance remaining: {:.2}, required jump time: {:.2}",
+                "Shot vector: {:?}, Final target: {:?}, distance remaining: {:.0}, required jump time: {:.1}",
                 self.shot_vector, self.final_target, self.distance_remaining, required_jump_time
             ),
             None => format!(
-                "Shot vector: {:?}, Final target: {:?}, distance remaining: {:.2}",
+                "Shot vector: {:?}, Final target: {:?}, distance remaining: {:.0}",
                 self.shot_vector, self.final_target, self.distance_remaining
             ),
         }
@@ -204,24 +201,33 @@ impl AdvancedShotInfo {
 
     fn __repr__(&self) -> String {
         format!(
-            "AdvancedShotInfo(shot_vector={:?}, final_target={:?}, distance_remaining={}, required_jump_time: {:?}, path_samples=[{} items])",
+            "AdvancedShotInfo(shot_vector={:?}, final_target={:?}, distance_remaining={}, required_jump_time: {:?}, path_samples=[{} items], current_path_point:{:?})",
             self.shot_vector,
             self.final_target,
             self.distance_remaining,
             self.required_jump_time,
-            self.path_samples.len()
+            self.path_samples.len(),
+            self.current_path_point,
         )
     }
 }
 
 impl AdvancedShotInfo {
-    pub fn from(shot_vector: Vec3A, target: Vec3A, distance_remaining: f32, path_samples: Vec<(f32, f32)>, required_jump_time: Option<f32>) -> Self {
+    pub const fn from(
+        shot_vector: Vec3A,
+        target: Vec3A,
+        distance_remaining: f32,
+        path_samples: Vec<(f32, f32)>,
+        required_jump_time: Option<f32>,
+        current_path_point: Vec3A,
+    ) -> Self {
         AdvancedShotInfo {
             shot_vector: get_tuple_from_vec3(shot_vector),
-            final_target: (target.x, target.y, 0.),
+            final_target: get_tuple_from_vec3(flatten(target)),
             distance_remaining,
             path_samples,
             required_jump_time,
+            current_path_point: get_tuple_from_vec3(flatten(current_path_point)),
         }
     }
 }

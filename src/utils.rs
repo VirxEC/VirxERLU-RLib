@@ -53,8 +53,9 @@ pub fn get_vec3_from_vec(vec: Vec<f32>, name: &str) -> PyResult<Vec3A> {
     }
 }
 
-pub fn get_tuple_from_vec3(vec: Vec3A) -> (f32, f32, f32) {
-    (vec.x, vec.y, vec.z)
+pub const fn get_tuple_from_vec3(vec: Vec3A) -> (f32, f32, f32) {
+    let [x, y, z] = vec.to_array();
+    (x, y, z)
 }
 
 pub fn lerp<T: Copy + Add<Output = T> + Sub<Output = T> + Mul<f32, Output = T>>(a: T, b: T, t: f32) -> T {
@@ -86,8 +87,9 @@ fn clamp_index(s: Vec3A, start: Vec3A, end: Vec3A) -> usize {
     }
 }
 
-pub fn flatten(vec: Vec3A) -> Vec3A {
-    Vec3A::new(vec.x, vec.y, 0.)
+pub const fn flatten(vec: Vec3A) -> Vec3A {
+    let [x, y, _] = vec.to_array();
+    Vec3A::new(x, y, 0.)
 }
 
 // fn clockwise90_2d(vec: Vec3A) -> Vec3A {

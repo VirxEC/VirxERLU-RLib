@@ -1,7 +1,7 @@
 use crate::{
     constants::*,
     utils::{flatten, get_vec3_named, minimum_non_negative, vertex_quadratic_solve_for_x},
-    Mutators, BoostAmount,
+    BoostAmount, Mutators,
 };
 use dubins_paths::{DubinsPath, PosRot};
 use glam::Vec3A;
@@ -212,6 +212,7 @@ impl Car {
         self.landing_time = 0.;
         self.landing_location = self.location;
         self.landing_velocity = self.velocity;
+        self.landing_yaw = self.yaw;
 
         if !self.airborne {
             return;
@@ -271,11 +272,9 @@ impl Car {
             self.landing_location.z = if normal_gravity { 17. } else { 2300. };
         }
 
-        self.landing_yaw = if flatten(self.landing_velocity).length() == 0. {
-            self.yaw
-        } else {
-            self.landing_velocity.y.atan2(self.landing_velocity.x)
-        };
+        if flatten(self.landing_velocity).length() != 0. {
+            self.landing_yaw = self.landing_velocity.y.atan2(self.landing_velocity.x)
+        }
     }
 
     pub fn calculate_orientation_matrix(&mut self) {
@@ -319,49 +318,51 @@ impl Car {
 
         let mut end = end_1;
 
-        for _ in end_1..max_ball_slice {
-            end += 1;
+        if mutators.boost_amount != BoostAmount::NoBoost {
+            for _ in end_1..max_ball_slice {
+                end += 1;
 
-            if fast_forward {
+                if fast_forward {
+                    self.max_speed.push(v);
+                    self.ctrms.push(turn_radius(v));
+                    continue;
+                }
+
+                if b < BOOST_CONSUMPTION_DT {
+                    break;
+                }
+
+                let throttle_accel = throttle_acceleration(v);
+                let mut accel = 0.;
+
+                if v.is_sign_positive() {
+                    accel += throttle_accel * SIMULATION_DT;
+                } else {
+                    accel += BRAKE_ACC_DT;
+                }
+
+                if b > BOOST_CONSUMPTION_DT {
+                    accel += mutators.boost_accel * SIMULATION_DT;
+                    if mutators.boost_amount != BoostAmount::Unlimited {
+                        b -= BOOST_CONSUMPTION_DT;
+                    }
+                }
+
+                accel = accel.min(MAX_SPEED - v);
+
+                if accel.abs() < f32::EPSILON {
+                    fast_forward = true;
+                }
+
+                v += accel;
+
                 self.max_speed.push(v);
                 self.ctrms.push(turn_radius(v));
-                continue;
             }
 
-            if b < BOOST_CONSUMPTION_DT {
-                break;
+            if end == max_ball_slice {
+                return;
             }
-
-            let throttle_accel = throttle_acceleration(v);
-            let mut accel = 0.;
-
-            if v.is_sign_positive() {
-                accel += throttle_accel * SIMULATION_DT;
-            } else {
-                accel += BRAKE_ACC_DT;
-            }
-
-            if mutators.boost_amount != BoostAmount::NoBoost && b > BOOST_CONSUMPTION_DT {
-                accel += mutators.boost_accel * SIMULATION_DT;
-                if mutators.boost_amount != BoostAmount::Unlimited {
-                    b -= BOOST_CONSUMPTION_DT;
-                }
-            }
-
-            accel = accel.min(MAX_SPEED - v);
-
-            if accel.abs() < f32::EPSILON {
-                fast_forward = true;
-            }
-
-            v += accel;
-
-            self.max_speed.push(v);
-            self.ctrms.push(turn_radius(v));
-        }
-
-        if end == max_ball_slice {
-            return;
         }
 
         let mut v1 = v;
