@@ -112,6 +112,14 @@ def new_target(left_target: tuple[float, float, float], right_target: tuple[floa
     """
 
 
+def new_any_target(car_index: int, options: Optional[TargetOptions]=None) -> int:
+    """
+    Creates a new target to anywhere and returns the target's I.D.
+
+    Targets get automatically deleted upon calling tick() if it hasn't been confirmed.
+    """
+
+
 def confirm_target(target_id: int) -> None:
     """
     Confirms a target so it isn't deleted upon calling tick()
@@ -142,6 +150,8 @@ class BasicShotInfo:
     found: bool
     time: float
     shot_type: Optional[ShotType]
+    shot_vector: tuple[float, float, float]
+    is_forwards: bool
 
     def __str__(self) -> str: ...
     def __repr__(self) -> str: ...

@@ -1,4 +1,5 @@
-#[forbid(unsafe_code)]
+#![forbid(unsafe_code)]
+
 mod analyzer;
 mod car;
 mod constants;
@@ -11,7 +12,6 @@ use analyzer::*;
 use car::{turn_radius, Car};
 use constants::*;
 use glam::Vec3A;
-use lazy_static::{initialize, lazy_static};
 use pyo3::{prelude::*, PyErr};
 use pytypes::*;
 use rl_ball_sym::simulation::{
@@ -22,9 +22,7 @@ use shot::{Options, Shot, Target};
 use std::sync::Mutex;
 use utils::*;
 
-lazy_static! {
-    static ref CARS: Mutex<[Car; 64]> = Mutex::new(std::array::from_fn(|_| Car::new()));
-}
+static CARS: Mutex<[Car; 64]> = Mutex::new([NEW_CAR; 64]);
 
 static BALL_STRUCT: Mutex<BallPrediction> = Mutex::new(BallPrediction::new());
 static GRAVITY: Mutex<Vec3A> = Mutex::new(Vec3A::ZERO);
@@ -53,19 +51,14 @@ fn virx_erlu_rlib(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(get_shot_with_target, m)?)?;
     m.add_function(wrap_pyfunction!(get_data_for_shot_with_target, m)?)?;
     m.add_function(wrap_pyfunction!(set_mutator_settings, m)?)?;
+    m.add_function(wrap_pyfunction!(new_any_target, m)?)?;
     m.add_class::<TargetOptions>()?;
     m.add_class::<ShotType>()?;
     Ok(())
 }
 
-fn init() {
-    initialize(&CARS);
-}
-
 #[pyfunction]
 fn load_soccar() {
-    init();
-
     let (game, ball) = rl_ball_sym::load_soccar();
 
     *GAME.lock().unwrap() = Some(game);
@@ -79,8 +72,6 @@ fn load_soccer() {
 
 #[pyfunction]
 fn load_dropshot() {
-    init();
-
     let (game, ball) = rl_ball_sym::load_dropshot();
 
     *GAME.lock().unwrap() = Some(game);
@@ -89,8 +80,6 @@ fn load_dropshot() {
 
 #[pyfunction]
 fn load_hoops() {
-    init();
-
     let (game, ball) = rl_ball_sym::load_hoops();
 
     *GAME.lock().unwrap() = Some(game);
@@ -99,8 +88,6 @@ fn load_hoops() {
 
 #[pyfunction]
 fn load_soccar_throwback() {
-    init();
-
     let (game, ball) = rl_ball_sym::load_soccar_throwback();
 
     *GAME.lock().unwrap() = Some(game);
@@ -338,6 +325,39 @@ fn new_target(left_target: Vec<f32>, right_target: Vec<f32>, car_index: usize, o
 }
 
 #[pyfunction]
+fn new_any_target(car_index: usize, options: Option<TargetOptions>) -> PyResult<usize> {
+    let num_slices = BALL_STRUCT.lock().unwrap().len();
+
+    if num_slices == 0 {
+        return Err(PyErr::new::<NoSlicesPyErr, _>(NO_SLICES_ERR));
+    }
+
+    let options = Options::from(options, num_slices);
+
+    {
+        let mut cars = CARS.lock().unwrap();
+        let car = cars.get_mut(car_index).ok_or_else(|| PyErr::new::<NoCarPyErr, _>(NO_CAR_ERR))?;
+        car.init(GRAVITY.lock().unwrap().z, num_slices, &*MUTATORS.lock().unwrap());
+    }
+
+    let target = Some(Target::new_any(car_index, options));
+    let mut targets = TARGETS.lock().unwrap();
+
+    let target_index = match targets.iter().position(|x| x.is_none()) {
+        Some(i) => {
+            targets[i] = target;
+            i
+        }
+        None => {
+            targets.push(target);
+            targets.len() - 1
+        }
+    };
+
+    Ok(target_index)
+}
+
+#[pyfunction]
 fn confirm_target(target_index: usize) -> PyResult<()> {
     let mut targets = TARGETS.lock().unwrap();
     let target = targets
@@ -430,8 +450,11 @@ fn get_shot_with_target(
     }
 
     let analyzer = {
-        let max_speed = if target.options.use_absolute_max_values { Some(MAX_SPEED) } else { None };
-        let max_turn_radius = if target.options.use_absolute_max_values { Some(turn_radius(MAX_SPEED)) } else { None };
+        let (max_speed, max_turn_radius) = if target.options.use_absolute_max_values {
+            (Some(MAX_SPEED), Some(turn_radius(MAX_SPEED)))
+        } else {
+            (None, None)
+        };
 
         Analyzer::new(max_speed, max_turn_radius, gravity, may_ground_shot, may_jump_shot, may_double_jump_shot)
     };
@@ -443,37 +466,55 @@ fn get_shot_with_target(
             break;
         }
 
-        let post_info = PostCorrection::from(ball.location, ball.collision_radius, target.target_left, target.target_right);
-
-        if !post_info.fits {
-            continue;
-        }
-
-        let shot_vector = post_info.get_shot_vector_target(car.landing_location, ball.location);
         let max_time_remaining = ball.time - game_time;
-        let target_info = match analyzer.target(ball, car, shot_vector, max_time_remaining, i) {
-            Ok(r) => r,
-            Err(_) => continue,
-        };
 
-        let is_forwards = true;
+        if let Some(target_location) = &target.location {
+            let post_info = PostCorrection::from(ball.location, ball.collision_radius, target_location.left, target_location.right);
 
-        let _time_remaining = match target_info.can_reach(car, max_time_remaining, is_forwards, &mutators) {
-            Ok(t_r) => t_r,
-            Err(_) => continue,
-        };
-
-        if found_shot.is_none() {
-            basic_shot_info = Some(target_info.get_basic_shot_info(ball.time));
-
-            if !temporary {
-                found_shot = Some(Shot::from(ball, &target_info, shot_vector));
+            if !post_info.fits {
+                continue;
             }
 
-            if !target.options.all {
-                break;
+            let shot_vector = post_info.get_shot_vector_target(car.landing_location, ball.location);
+
+            let target_info = match analyzer.target(ball, car, shot_vector, max_time_remaining, i) {
+                Ok(ti) => ti,
+                Err(_) => continue,
+            };
+
+            if target_info.can_reach(car, max_time_remaining, &mutators).is_err() {
+                continue;
             }
-        }
+
+            if found_shot.is_none() {
+                basic_shot_info = Some(target_info.get_basic_shot_info(ball.time));
+
+                found_shot = Some(if temporary { Shot::default() } else { Shot::from(ball, &target_info) });
+
+                if !target.options.all {
+                    break;
+                }
+            }
+        } else {
+            let target_info = match analyzer.no_target(ball, car, max_time_remaining, i) {
+                Ok(ti) => ti,
+                Err(_) => continue,
+            };
+
+            if target_info.can_reach(car, max_time_remaining, &mutators).is_err() {
+                continue;
+            }
+
+            if found_shot.is_none() {
+                basic_shot_info = Some(target_info.get_basic_shot_info(ball.time));
+
+                found_shot = Some(if temporary { Shot::default() } else { Shot::from(ball, &target_info) });
+
+                if !target.options.all {
+                    break;
+                }
+            }
+        };
     }
 
     if !temporary {
@@ -488,8 +529,6 @@ fn get_shot_with_target(
 
 #[pyfunction]
 fn get_data_for_shot_with_target(target_index: usize) -> PyResult<AdvancedShotInfo> {
-    // let gravity = GRAVITY.lock().unwrap().z;
-
     let targets_gaurd = TARGETS.lock().unwrap();
     let target = targets_gaurd
         .get(target_index)

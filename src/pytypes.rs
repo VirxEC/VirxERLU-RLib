@@ -86,6 +86,10 @@ pub struct BasicShotInfo {
     time: f32,
     #[pyo3(get)]
     shot_type: Option<usize>,
+    #[pyo3(get)]
+    shot_vector: (f32, f32, f32),
+    #[pyo3(get)]
+    is_forwards: bool,
 }
 
 impl BasicShotInfo {
@@ -94,14 +98,18 @@ impl BasicShotInfo {
             found: false,
             time: -1.,
             shot_type: None,
+            shot_vector: (0., 0., 0.),
+            is_forwards: true,
         }
     }
 
-    pub const fn found(time: f32, shot_type: usize) -> Self {
+    pub const fn found(time: f32, shot_type: usize, shot_vector: Vec3A, is_forwards: bool) -> Self {
         BasicShotInfo {
             found: true,
             time,
             shot_type: Some(shot_type),
+            shot_vector: get_tuple_from_vec3(shot_vector),
+            is_forwards,
         }
     }
 }

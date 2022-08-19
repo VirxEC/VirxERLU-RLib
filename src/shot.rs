@@ -3,12 +3,13 @@ use crate::{
     pytypes::TargetOptions,
     utils::{get_samples_from_line, get_samples_from_path},
 };
-use dubins_paths::{DubinsPath, PosRot};
+use dubins_paths::{DubinsPath, PathType, PosRot};
 use glam::Vec3A;
 use rl_ball_sym::simulation::ball::Ball;
 
-fn posrot_to_xy_tuple(posrot: &PosRot) -> (f32, f32) {
-    (posrot.pos.x, posrot.pos.y)
+const fn posrot_to_xy_tuple(posrot: &PosRot) -> (f32, f32) {
+    let [x, y, _] = posrot.pos.to_array();
+    (x, y)
 }
 
 #[derive(Clone, Debug)]
@@ -29,7 +30,30 @@ impl Shot {
     const STEP_DISTANCE: f32 = 10.;
     pub const ALL_STEP: usize = 3;
 
-    pub fn from(ball: &Ball, target: &TargetInfo, direction: Vec3A) -> Self {
+    pub const fn default() -> Self {
+        const NEW_VEC: Vec<Vec3A> = Vec::new();
+
+        Self {
+            time: 0.,
+            ball_location: Vec3A::ZERO,
+            direction: Vec3A::ZERO,
+            distances: [0.; 4],
+            all_samples: Vec::new(),
+            samples: [NEW_VEC; 4],
+            path: DubinsPath {
+                qi: PosRot { pos: Vec3A::ZERO, rot: 0. },
+                rho: 0.,
+                param: [0., 0., 0.],
+                type_: PathType::LSL,
+            },
+            path_endpoint: PosRot { pos: Vec3A::ZERO, rot: 0. },
+            shot_type: 0,
+            jump_time: None,
+        }
+    }
+
+    pub fn from(ball: &Ball, target: &TargetInfo) -> Self {
+        let direction = target.shot_vector;
         let path_endpoint = target.path.endpoint();
 
         let (all_samples, samples) = {
@@ -179,10 +203,21 @@ impl Options {
 }
 
 #[derive(Clone, Debug, Default)]
+pub struct TargetLocation {
+    pub left: Vec3A,
+    pub right: Vec3A,
+}
+
+impl TargetLocation {
+    pub const fn new(left: Vec3A, right: Vec3A) -> Self {
+        Self { left, right }
+    }
+}
+
+#[derive(Clone, Debug, Default)]
 pub struct Target {
     pub car_index: usize,
-    pub target_left: Vec3A,
-    pub target_right: Vec3A,
+    pub location: Option<TargetLocation>,
     pub options: Options,
     pub shot: Option<Shot>,
     confirmed: bool,
@@ -192,8 +227,17 @@ impl Target {
     pub const fn new(target_left: Vec3A, target_right: Vec3A, car_index: usize, options: Options) -> Self {
         Self {
             car_index,
-            target_left,
-            target_right,
+            location: Some(TargetLocation::new(target_left, target_right)),
+            options,
+            shot: None,
+            confirmed: false,
+        }
+    }
+
+    pub const fn new_any(car_index: usize, options: Options) -> Self {
+        Self {
+            car_index,
+            location: None,
             options,
             shot: None,
             confirmed: false,

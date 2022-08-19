@@ -50,7 +50,7 @@ packet.game_info.world_gravity_z = -650
 packet.teams[1].team_index = 1
 packet.num_teams = 2
 
-times = [[], [], [], [], [], [], [], []]
+times = [[], [], [], [], [], [], [], [], [], [], [], [], []]
 
 print()
 
@@ -69,9 +69,12 @@ print(use_abs)
 print(use_all)
 print()
 
-target_args = ((800, 5120, 0), (-800, 5120, 0), 0)
+car_index = 0
+target_args = ((800, 5120, 0), (-800, 5120, 0), car_index)
 rlru.new_target(*target_args, use_abs)
 rlru.new_target(*target_args)
+rlru.new_any_target(car_index, use_abs)
+rlru.new_any_target(car_index)
 
 print("get_slice(1.2):")
 slice = rlru.get_slice(1.2)
@@ -107,9 +110,37 @@ print(data)
 print(repr(data))
 
 print()
+
+print("get_shot_with_target(any, use_absolute_max_values):")
+shot = rlru.get_shot_with_target(2)
+print(shot)
+print(repr(shot))
+
+print()
+
+print("get_data_for_shot_with_target(any, use_absolute_max_values):")
+data = rlru.get_data_for_shot_with_target(2)
+print(data)
+print(repr(data))
+
+
+print()
+
+print("get_shot_with_target(any):")
+shot = rlru.get_shot_with_target(3)
+print(shot)
+print(repr(shot))
+
+print()
+
+print("get_data_for_shot_with_target(any):")
+data = rlru.get_data_for_shot_with_target(3)
+print(data)
+print(repr(data))
+
+print()
 rlru.print_targets()
 
-# exit()
 print()
 
 print("Benchmarking...")
@@ -123,11 +154,16 @@ for _ in range(5000):
 
     start = time_ns()
 
-    target_args = ((800, 5120, 0), (-800, 5120, 0), 0)
+    car_index = 0
+    target_args = ((800, 5120, 0), (-800, 5120, 0), car_index)
     rlru.new_target(*target_args, use_abs_all)
     rlru.new_target(*target_args, use_abs)
     rlru.new_target(*target_args, use_all)
     rlru.new_target(*target_args)
+    rlru.new_any_target(car_index, use_abs_all)
+    rlru.new_any_target(car_index, use_abs)
+    rlru.new_any_target(car_index, use_all)
+    rlru.new_any_target(car_index)
 
     times[7].append(time_ns() - start)
 
@@ -166,6 +202,36 @@ for _ in range(5000):
     rlru.get_data_for_shot_with_target(3)
 
     times[3].append(time_ns() - start)
+
+    start = time_ns()
+
+    rlru.get_shot_with_target(4)
+
+    times[8].append(time_ns() - start)
+
+    start = time_ns()
+
+    rlru.get_shot_with_target(5)
+
+    times[9].append(time_ns() - start)
+
+    start = time_ns()
+
+    rlru.get_shot_with_target(6)
+
+    times[10].append(time_ns() - start)
+
+    start = time_ns()
+
+    rlru.get_shot_with_target(7)
+
+    times[11].append(time_ns() - start)
+
+    start = time_ns()
+
+    rlru.get_shot_with_target(7, temporary=True)
+
+    times[12].append(time_ns() - start)
 
 print()
 
@@ -208,6 +274,36 @@ print()
 print("get_shot_with_target(temporary):")
 print(f"Total test time: {round(sum(times[6]) / 1000000000, 4)}s")
 print(f"Avg. time of execution: {round(sum(times[6]) / len(times[6]) / 1000000, 3)}ms")
+
+print()
+
+print("get_shot_with_target(any, use_absolute_max_values) worst-case:")
+print(f"Total test time: {round(sum(times[8]) / 1000000000, 4)}s")
+print(f"Avg. time of execution: {round(sum(times[8]) / len(times[8]) / 1000000, 3)}ms")
+
+print()
+
+print("get_shot_with_target(any, use_absolute_max_values):")
+print(f"Total test time: {round(sum(times[9]) / 1000000000, 4)}s")
+print(f"Avg. time of execution: {round(sum(times[9]) / len(times[9]) / 1000000, 3)}ms")
+
+print()
+
+print("get_shot_with_target(any) worst-case:")
+print(f"Total test time: {round(sum(times[10]) / 1000000000, 4)}s")
+print(f"Avg. time of execution: {round(sum(times[10]) / len(times[10]) / 1000000, 3)}ms")
+
+print()
+
+print("get_shot_with_target(any):")
+print(f"Total test time: {round(sum(times[11]) / 1000000000, 4)}s")
+print(f"Avg. time of execution: {round(sum(times[11]) / len(times[11]) / 1000000, 3)}ms")
+
+print()
+
+print("get_shot_with_target(any, temporary):")
+print(f"Total test time: {round(sum(times[12]) / 1000000000, 4)}s")
+print(f"Avg. time of execution: {round(sum(times[12]) / len(times[12]) / 1000000, 3)}ms")
 
 print()
 
