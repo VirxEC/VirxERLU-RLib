@@ -25,7 +25,7 @@ version = "0.21.3"
 features = ["fast-math"]
 
 [dependencies.pyo3]
-version = "0.16"
+version = "0.17"
 features = ["extension-module", "abi3-py37"]
 
 [dev-dependencies]

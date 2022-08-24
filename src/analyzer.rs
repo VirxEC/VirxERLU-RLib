@@ -107,6 +107,12 @@ impl Analyzer {
         })
     }
 
+    fn should_travel_forwards(time_remaining: f32, shot_vector: Vec3A, car: &Car) -> bool {
+        // it's easier for me to think about what I want the criteria to be for going backwards, so I did that then just took the opposite of it for is_forwards
+        let is_backwards = time_remaining < 4. && angle_2d(shot_vector, Vec3A::new(car.landing_yaw.cos(), car.landing_yaw.sin(), 0.)) > PI * (2. / 3.);
+        !is_backwards
+    }
+
     pub fn no_target(&self, ball: &Ball, car: &Car, time_remaining: f32, slice_num: usize) -> DubinsResult<TargetInfo> {
         let car_front_length = (car.hitbox_offset.x + car.hitbox.length) / 2.;
 
@@ -127,17 +133,11 @@ impl Analyzer {
             return Err(NoPathError);
         }
 
+        let car_to_ball = (ball.location - car.location).normalize_or_zero();
+
         let shot_type = self.get_shot_type(car, ball.location)?;
         let (jump_time, end_distance) = if shot_type != ShotType::GROUND {
-            self.get_jump_info(
-                car,
-                ball.location,
-                ball.location,
-                (ball.location - car.location).normalize_or_zero(),
-                max_speed,
-                time_remaining,
-                shot_type,
-            )?
+            self.get_jump_info(car, ball.location, ball.location, car_to_ball, max_speed, time_remaining, shot_type)?
         } else {
             (None, 0.)
         };
@@ -152,7 +152,7 @@ impl Analyzer {
         }
 
         let rho = self.get_max_turn_radius(car, slice_num);
-        let is_forwards = true;
+        let is_forwards = true; // Self::should_travel_forwards(time_remaining, car_to_ball, car);
         let target_is_forwards = car.forward.dot(ball.location) >= 0.;
         let should_turn_left = car.right.dot(ball.location) < 0.;
         let center_of_turn = flatten(if car.right.dot(ball.location) < 0. { -car.landing_right } else { car.landing_right } * rho);
@@ -177,14 +177,14 @@ impl Analyzer {
 
         let shot_vector = (flatten(ball.location) - turn_target).normalize_or_zero();
 
-        // check if the exit point is in the field, and make sure a simplified version of the path isn't longer than the longest distance we can travel
+        // check if the exit point is in the field
         if !car.field.is_point_in(turn_target) {
             return Err(NoPathError);
         }
 
         // construct a path so we can easily follow our defined turn arc
         let path = DubinsPath {
-            qi: PosRot::new(car.landing_location, car.landing_yaw),
+            qi: PosRot::new(car_location, car.landing_yaw),
             rho,
             type_: if should_turn_left { PathType::LSR } else { PathType::RSL },
             param: [turn_arc_distance / rho, 0., 0.],
@@ -239,9 +239,7 @@ impl Analyzer {
         let target_angle = shot_vector.y.atan2(shot_vector.x);
         let mut starting_yaw = car.landing_yaw;
 
-        // it's easier for me to think about what I want the criteria to be for going backwards, so I did that then just took the opposite of it for is_forwards
-        let is_backwards = time_remaining < 4. && angle_2d(shot_vector, Vec3A::new(car.landing_yaw.cos(), car.landing_yaw.sin(), 0.)) > PI * (2. / 3.);
-        let is_forwards = !is_backwards;
+        let is_forwards = Self::should_travel_forwards(time_remaining, shot_vector, car);
 
         if !is_forwards {
             starting_yaw += PI;

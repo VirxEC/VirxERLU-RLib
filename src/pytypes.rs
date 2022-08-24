@@ -3,7 +3,7 @@ use glam::Vec3A;
 use pyo3::{pyclass, pymethods};
 use rl_ball_sym::simulation::ball::Ball;
 
-#[pyclass]
+#[pyclass(frozen)]
 #[derive(Clone, Copy)]
 pub struct ShotType;
 
@@ -26,7 +26,7 @@ fn get_str_from_shot_type(type_: usize) -> String {
     }
 }
 
-#[pyclass]
+#[pyclass(frozen)]
 #[derive(Clone, Copy, Debug, Default)]
 pub struct TargetOptions {
     pub min_slice: Option<usize>,
@@ -77,7 +77,7 @@ impl TargetOptions {
     }
 }
 
-#[pyclass]
+#[pyclass(frozen)]
 #[allow(dead_code)]
 pub struct BasicShotInfo {
     #[pyo3(get)]
@@ -131,7 +131,7 @@ impl BasicShotInfo {
     }
 }
 
-#[pyclass]
+#[pyclass(frozen)]
 #[allow(dead_code)]
 pub struct BallSlice {
     #[pyo3(get)]
@@ -172,7 +172,7 @@ impl BallSlice {
     }
 }
 
-#[pyclass]
+#[pyclass(frozen)]
 #[allow(dead_code)]
 pub struct AdvancedShotInfo {
     #[pyo3(get)]
