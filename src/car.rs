@@ -554,11 +554,11 @@ impl Car {
     }
 
     pub fn localize_2d_location(&self, vec: Vec3A) -> Vec3A {
-        self.localize_2d(vec - self.location)
+        self.localize_2d(vec - self.landing_location)
     }
 
     pub fn localize_2d(&self, vec: Vec3A) -> Vec3A {
-        Vec3A::new(vec.dot(self.forward), vec.dot(self.right), 0.)
+        Vec3A::new(vec.dot(self.landing_forward), vec.dot(self.landing_right), 0.)
     }
 
     // pub fn localize_location(car: &Car, vec: Vec3A) -> Vec3A {

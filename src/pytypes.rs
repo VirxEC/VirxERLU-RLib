@@ -17,11 +17,11 @@ impl ShotType {
     pub const DOUBLE_JUMP: usize = 2;
 }
 
-fn get_str_from_shot_type(type_: usize) -> String {
+fn get_str_from_shot_type(type_: usize) -> &'static str {
     match type_ {
-        ShotType::GROUND => String::from("GROUND"),
-        ShotType::JUMP => String::from("JUMP"),
-        ShotType::DOUBLE_JUMP => String::from("DOUBLE_JUMP"),
+        ShotType::GROUND => "GROUND",
+        ShotType::JUMP => "JUMP",
+        ShotType::DOUBLE_JUMP => "DOUBLE_JUMP",
         _ => unreachable!(),
     }
 }

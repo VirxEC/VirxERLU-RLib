@@ -153,11 +153,12 @@ impl Analyzer {
 
         let rho = self.get_max_turn_radius(car, slice_num);
         let is_forwards = true; // Self::should_travel_forwards(time_remaining, car_to_ball, car);
-        let target_is_forwards = car.forward.dot(ball.location) >= 0.;
-        let should_turn_left = car.right.dot(ball.location) < 0.;
-        let center_of_turn = flatten(if car.right.dot(ball.location) < 0. { -car.landing_right } else { car.landing_right } * rho);
+        let local_ball = car.localize_2d_location(ball.location);
+        let target_is_forwards = local_ball.x >= 0.;
+        let should_turn_left = local_ball.y < 0.;
+        let center_of_turn = car_location + flatten(if should_turn_left { -car.landing_right } else { car.landing_right } * rho);
 
-        let turn_target = car_location + get_turn_exit_tanget(car, flatten(ball.location), center_of_turn, rho, target_is_forwards);
+        let turn_target = get_turn_exit_tanget(car, flatten(ball.location), center_of_turn, rho, target_is_forwards);
 
         // compute the distance of each path, validating that it is within our current maximum travel distance (returning an error if neither are)
 
@@ -167,15 +168,15 @@ impl Analyzer {
             return Err(NoPathError);
         }
 
+        let shot_vector = (flatten(ball.location) - turn_target).normalize_or_zero();
+
         // find the angle between the car location and each turn exit point relative to the exit turn point centers
-        let turn_angle = angle_2d(car_location - center_of_turn, turn_target - center_of_turn);
+        let turn_angle = angle_2d(car.landing_forward, shot_vector);
         let turn_arc_distance = turn_angle * rho;
 
         if turn_final_distance + turn_arc_distance > max_distance {
             return Err(NoPathError);
         }
-
-        let shot_vector = (flatten(ball.location) - turn_target).normalize_or_zero();
 
         // check if the exit point is in the field
         if !car.field.is_point_in(turn_target) {
@@ -186,8 +187,8 @@ impl Analyzer {
         let path = DubinsPath {
             qi: PosRot::new(car_location, car.landing_yaw),
             rho,
-            type_: if should_turn_left { PathType::LSR } else { PathType::RSL },
-            param: [turn_arc_distance / rho, 0., 0.],
+            type_: if should_turn_left { PathType::RSL } else { PathType::LSR },
+            param: [turn_angle, 0., 0.],
         };
 
         let distances = [turn_arc_distance, 0., 0., turn_final_distance];

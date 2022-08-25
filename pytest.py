@@ -18,16 +18,24 @@ packet = GameTickPacket()
 packet.num_cars = 64
 for i in range(packet.num_cars):
     packet.game_cars[i] = PlayerInfo(
+        # physics=Physics(
+        #     location=Vector3(3500, -3500, 100),
+        #     # location=Vector3(0., -3500., 20.),
+        #     rotation=Rotator(0, 1.1, 0),
+        #     velocity=Vector3(0, 0, 0),
+        #     angular_velocity=Vector3(0, 0, 0),
+        # ),
         physics=Physics(
-            location=Vector3(3500, -3500, 100),
+            location=Vector3(788.87, -1111.21, 17.01),
             # location=Vector3(0., -3500., 20.),
-            rotation=Rotator(0, 1.1, 0),
+            rotation=Rotator(0, 0.0955, 0),
             velocity=Vector3(0, 0, 0),
             angular_velocity=Vector3(0, 0, 0),
         ),
         score_info=ScoreInfo(0, 0, 0, 0, 0, 0, 0),
         is_demolished=False,
-        has_wheel_contact=False,
+        # has_wheel_contact=False,
+        has_wheel_contact=True,
         is_super_sonic=False,
         is_bot=True,
         team=0,
@@ -43,7 +51,10 @@ for i in range(packet.num_cars):
         hitbox_offset=Vector3(13.9, 0, 20.8),
         spawn_id=1793714700,
     )
-packet.game_ball.physics.location.z = 1001.1
+# packet.game_ball.physics.location.z = 1001.1
+packet.game_ball.physics.location.x = -12.02
+packet.game_ball.physics.location.y = 1084.92
+packet.game_ball.physics.location.z = 94.71
 packet.game_ball.collision_shape.type = 1
 packet.game_ball.collision_shape.sphere.diameter = 182.5
 packet.game_info.world_gravity_z = -650
@@ -76,55 +87,54 @@ rlru.new_target(*target_args)
 rlru.new_any_target(car_index, use_abs)
 rlru.new_any_target(car_index)
 
-print("get_slice(1.2):")
-slice = rlru.get_slice(1.2)
-print(slice)
-print(repr(slice))
+# print("get_slice(1.2):")
+# slice = rlru.get_slice(1.2)
+# print(slice)
+# print(repr(slice))
 
-print()
+# print()
 
-print("get_shot_with_target(use_absolute_max_values):")
-shot = rlru.get_shot_with_target(0)
-print(shot)
-print(repr(shot))
+# print("get_shot_with_target(use_absolute_max_values):")
+# shot = rlru.get_shot_with_target(0)
+# print(shot)
+# print(repr(shot))
 
-print()
+# print()
 
-print("get_data_for_shot_with_target(use_absolute_max_values):")
-data = rlru.get_data_for_shot_with_target(0)
-print(data)
-print(repr(data))
+# print("get_data_for_shot_with_target(use_absolute_max_values):")
+# data = rlru.get_data_for_shot_with_target(0)
+# print(data)
+# print(repr(data))
 
-print()
+# print()
 
-print("get_shot_with_target():")
-shot = rlru.get_shot_with_target(1)
-print(shot)
-print(repr(shot))
+# print("get_shot_with_target():")
+# shot = rlru.get_shot_with_target(1)
+# print(shot)
+# print(repr(shot))
 
-print()
+# print()
 
-print("get_data_for_shot_with_target():")
-data = rlru.get_data_for_shot_with_target(1)
-print(data)
-print(repr(data))
+# print("get_data_for_shot_with_target():")
+# data = rlru.get_data_for_shot_with_target(1)
+# print(data)
+# print(repr(data))
 
-print()
+# print()
 
-print("get_shot_with_target(any, use_absolute_max_values):")
-shot = rlru.get_shot_with_target(2)
-print(shot)
-print(repr(shot))
+# print("get_shot_with_target(any, use_absolute_max_values):")
+# shot = rlru.get_shot_with_target(2)
+# print(shot)
+# print(repr(shot))
 
-print()
+# print()
 
-print("get_data_for_shot_with_target(any, use_absolute_max_values):")
-data = rlru.get_data_for_shot_with_target(2)
-print(data)
-print(repr(data))
+# print("get_data_for_shot_with_target(any, use_absolute_max_values):")
+# data = rlru.get_data_for_shot_with_target(2)
+# print(data)
+# print(repr(data))
 
-
-print()
+# print()
 
 print("get_shot_with_target(any):")
 shot = rlru.get_shot_with_target(3)
@@ -141,6 +151,7 @@ print(repr(data))
 print()
 rlru.print_targets()
 
+exit()
 print()
 
 print("Benchmarking...")

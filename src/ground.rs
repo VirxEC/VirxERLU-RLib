@@ -8,7 +8,7 @@ use crate::{
 };
 use dubins_paths::{self, DubinsPath, Intermediate, NoPathError, PathType, PosRot};
 use glam::Vec3A;
-use std::f32::{consts::E, INFINITY};
+use std::f32::{consts::{E, PI}, INFINITY};
 
 /// https://stackoverflow.com/a/49987361/10930209
 fn get_turn_exit_tangets(target: Vec3A, circle_center: Vec3A, radius: f32) -> (Vec3A, Vec3A) {
@@ -26,54 +26,23 @@ fn get_turn_exit_tangets(target: Vec3A, circle_center: Vec3A, radius: f32) -> (V
 pub fn get_turn_exit_tanget(car: &Car, target: Vec3A, circle_center: Vec3A, rho: f32, target_is_forwards: bool) -> Vec3A {
     let (t1, t2) = get_turn_exit_tangets(target, circle_center, rho);
 
-    let (t1_direction, t2_direction) = (car.landing_right.dot(t1), car.landing_right.dot(t2));
+    let (t1_local, t2_local) = (car.localize_2d_location(t1), car.localize_2d_location(t2));
+    let (t1_angle, t2_angle) = (t1_local.y.atan2(t1_local.x).abs(), t2_local.y.atan2(t2_local.x).abs());
 
-    // handle the case of both tangents being parallel with the car
-    // in theory this means that the target is right in front/behind of us
-    // to be safe, we take the closest one when the target is in front
-    // and the furthest one when the target is behind
-    // there are problems with this but there's also a problem with both being parallel (they never should be), there just needs to be _something_ do deal with it
-    if t1_direction == 0. && t2_direction == 0. {
-        let (t1_distance, t2_distance) = (car.landing_location.distance(t1), car.landing_location.distance(t2));
-        return if target_is_forwards {
-            if t1_distance < t2_distance {
-                t1
-            } else {
-                t2
-            }
-        } else if t1_distance > t2_distance {
-            t1
-        } else {
-            t2
-        };
+    if !target_is_forwards {
+        let (t1_local_circle, t2_local_circle) = (car.localize_2d(t1 - circle_center), car.localize_2d(t2 - circle_center));
+        let (t1_circle_angle, t2_circle_angle) = (t1_local_circle.y.atan2(t1_local_circle.x).abs(), t2_local_circle.y.atan2(t2_local_circle.x).abs());
+
+        if (0.0..PI / 2.).contains(&t1_circle_angle) {
+            return t2;
+        }
+        
+        if (0.0..PI / 2.).contains(&t2_circle_angle) {
+            return t1;
+        }
     }
-
-    let (t1_angle, t2_angle) = (
-        angle_2d(car.landing_forward, car.localize_2d_location(t1)),
-        angle_2d(car.landing_forward, car.localize_2d_location(t2)),
-    );
-
-    // handle the target being in front of us
-    // we just want to take the soonest exit point
-    // which should be the tangent with the smallest angle to the car
-    if target_is_forwards {
-        return if t1_angle < t2_angle { t1 } else { t2 };
-    }
-
-    // now the target must be behind us
-    // handle if both tangents are behind us
-    // take the one with the largest angle to the car
-    if t1_direction < 0. && t2_direction < 0. {
-        return if t1_angle > t2_angle { t1 } else { t2 };
-    }
-
-    // now either t1 or t2 is behind us
-    // take the one that is behind us
-    if t1_direction < 0. {
-        t1
-    } else {
-        t2
-    }
+    
+    if t1_angle < t2_angle { t1 } else { t2 }
 }
 
 pub fn angle_2d(vec1: Vec3A, vec2: Vec3A) -> f32 {
