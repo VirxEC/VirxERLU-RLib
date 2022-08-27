@@ -1,5 +1,7 @@
 # VirxERLU-RLib
 
+[![unsafe forbidden](https://img.shields.io/badge/unsafe-forbidden-success.svg)](https://github.com/rust-secure-code/safety-dance/)
+
 + [RLBot](http://www.rlbot.org/)
 + [VirxERLU Wiki](https://github.com/VirxEC/VirxERLU/wiki)
 + [VirxEC Discord](https://discord.gg/rutfWr4Yrw) - Ask your questions here!

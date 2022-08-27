@@ -3,7 +3,7 @@ use glam::Vec3A;
 use pyo3::{pyclass, pymethods};
 use rl_ball_sym::simulation::ball::Ball;
 
-#[pyclass]
+#[pyclass(frozen)]
 #[derive(Clone, Copy)]
 pub struct ShotType;
 
@@ -13,17 +13,20 @@ impl ShotType {
     pub const GROUND: usize = 0;
     #[classattr]
     pub const JUMP: usize = 1;
+    #[classattr]
+    pub const DOUBLE_JUMP: usize = 2;
 }
 
-fn get_str_from_shot_type(type_: usize) -> String {
+fn get_str_from_shot_type(type_: usize) -> &'static str {
     match type_ {
-        ShotType::GROUND => String::from("GROUND"),
-        ShotType::JUMP => String::from("JUMP"),
+        ShotType::GROUND => "GROUND",
+        ShotType::JUMP => "JUMP",
+        ShotType::DOUBLE_JUMP => "DOUBLE_JUMP",
         _ => unreachable!(),
     }
 }
 
-#[pyclass]
+#[pyclass(frozen)]
 #[derive(Clone, Copy, Debug, Default)]
 pub struct TargetOptions {
     pub min_slice: Option<usize>,
@@ -74,7 +77,7 @@ impl TargetOptions {
     }
 }
 
-#[pyclass]
+#[pyclass(frozen)]
 #[allow(dead_code)]
 pub struct BasicShotInfo {
     #[pyo3(get)]
@@ -83,6 +86,10 @@ pub struct BasicShotInfo {
     time: f32,
     #[pyo3(get)]
     shot_type: Option<usize>,
+    #[pyo3(get)]
+    shot_vector: (f32, f32, f32),
+    #[pyo3(get)]
+    is_forwards: bool,
 }
 
 impl BasicShotInfo {
@@ -91,14 +98,18 @@ impl BasicShotInfo {
             found: false,
             time: -1.,
             shot_type: None,
+            shot_vector: (0., 0., 0.),
+            is_forwards: true,
         }
     }
 
-    pub const fn found(time: f32, shot_type: usize) -> Self {
+    pub const fn found(time: f32, shot_type: usize, shot_vector: Vec3A, is_forwards: bool) -> Self {
         BasicShotInfo {
             found: true,
             time,
             shot_type: Some(shot_type),
+            shot_vector: get_tuple_from_vec3(shot_vector),
+            is_forwards,
         }
     }
 }
@@ -120,7 +131,7 @@ impl BasicShotInfo {
     }
 }
 
-#[pyclass]
+#[pyclass(frozen)]
 #[allow(dead_code)]
 pub struct BallSlice {
     #[pyo3(get)]
@@ -161,13 +172,15 @@ impl BallSlice {
     }
 }
 
-#[pyclass]
+type PyVec3A = (f32, f32, f32);
+
+#[pyclass(frozen)]
 #[allow(dead_code)]
 pub struct AdvancedShotInfo {
     #[pyo3(get)]
-    shot_vector: (f32, f32, f32),
+    shot_vector: PyVec3A,
     #[pyo3(get)]
-    final_target: (f32, f32, f32),
+    final_target: PyVec3A,
     #[pyo3(get)]
     distance_remaining: f32,
     #[pyo3(get)]
@@ -175,7 +188,9 @@ pub struct AdvancedShotInfo {
     #[pyo3(get)]
     path_samples: Vec<(f32, f32)>,
     #[pyo3(get)]
-    current_path_point: (f32, f32, f32),
+    current_path_point: PyVec3A,
+    #[pyo3(get)]
+    turn_targets: Option<(PyVec3A, PyVec3A)>,
 }
 
 impl AdvancedShotInfo {
@@ -220,6 +235,7 @@ impl AdvancedShotInfo {
         path_samples: Vec<(f32, f32)>,
         required_jump_time: Option<f32>,
         current_path_point: Vec3A,
+        turn_targets: Option<(Vec3A, Vec3A)>,
     ) -> Self {
         AdvancedShotInfo {
             shot_vector: get_tuple_from_vec3(shot_vector),
@@ -228,6 +244,11 @@ impl AdvancedShotInfo {
             path_samples,
             required_jump_time,
             current_path_point: get_tuple_from_vec3(flatten(current_path_point)),
+            turn_targets: if let Some((a, b)) = turn_targets {
+                Some((get_tuple_from_vec3(flatten(a)), get_tuple_from_vec3(flatten(b))))
+            } else {
+                None
+            },
         }
     }
 }

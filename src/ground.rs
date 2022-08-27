@@ -10,8 +10,44 @@ use dubins_paths::{self, DubinsPath, Intermediate, NoPathError, PathType, PosRot
 use glam::Vec3A;
 use std::f32::{consts::E, INFINITY};
 
+/// https://stackoverflow.com/a/49987361/10930209
+fn get_turn_exit_tangets(target: Vec3A, circle_center: Vec3A, radius: f32) -> (Vec3A, Vec3A) {
+    let circle_center_to_target = target - circle_center;
+    let b = circle_center_to_target.length();
+    let th = (radius / b).acos();
+    let d = circle_center_to_target.y.atan2(circle_center_to_target.x);
+    let (d1s, d1c) = (d + th).sin_cos();
+    let (d2s, d2c) = (d - th).sin_cos();
+
+    (circle_center + radius * Vec3A::new(d1c, d1s, 0.), circle_center + radius * Vec3A::new(d2c, d2s, 0.))
+}
+
+/// Get the exit turn point on a circle where the car will face the target
+pub fn get_turn_exit_tanget(car: &Car, target: Vec3A, circle_center: Vec3A, rho: f32, target_is_forwards: bool) -> (Vec3A, Vec3A) {
+    let (t1, t2) = get_turn_exit_tangets(target, circle_center, rho);
+    let (t1_local, t2_local) = (car.localize_2d_location(t1), car.localize_2d_location(t2));
+
+    if !target_is_forwards {
+        if t1_local.x >= 0. && t1_local.y.abs() < rho {
+            return (t2, t1);
+        }
+
+        if t2_local.x >= 0. && t2_local.y.abs() < rho {
+            return (t1, t2);
+        }
+    }
+
+    let (t1_angle, t2_angle) = (t1_local.y.atan2(t1_local.x).abs(), t2_local.y.atan2(t2_local.x).abs());
+
+    if t1_angle < t2_angle {
+        (t1, t2)
+    } else {
+        (t2, t1)
+    }
+}
+
 pub fn angle_2d(vec1: Vec3A, vec2: Vec3A) -> f32 {
-    flatten(vec1).dot(flatten(vec2)).clamp(-1., 1.).acos()
+    flatten(vec1).normalize_or_zero().dot(flatten(vec2).normalize_or_zero()).clamp(-1., 1.).acos()
 }
 
 pub fn shortest_path_in_validate(q0: PosRot, q1: PosRot, rho: f32, car_field: &CarFieldRect, max_distance: f32) -> dubins_paths::Result<DubinsPath> {
@@ -46,19 +82,33 @@ pub struct TargetInfo {
     pub path: DubinsPath,
     pub shot_type: usize,
     pub jump_time: Option<f32>,
+    pub is_forwards: bool,
+    pub shot_vector: Vec3A,
+    pub turn_targets: Option<(Vec3A, Vec3A)>,
 }
 
 impl TargetInfo {
-    pub const fn from(distances: [f32; 4], shot_type: usize, path: DubinsPath, jump_time: Option<f32>) -> Self {
+    pub const fn from(
+        distances: [f32; 4],
+        shot_type: usize,
+        path: DubinsPath,
+        jump_time: Option<f32>,
+        is_forwards: bool,
+        shot_vector: Vec3A,
+        turn_targets: Option<(Vec3A, Vec3A)>,
+    ) -> Self {
         Self {
             distances,
             path,
             shot_type,
             jump_time,
+            is_forwards,
+            shot_vector,
+            turn_targets,
         }
     }
 
-    pub fn can_reach(&self, car: &Car, max_time: f32, is_forwards: bool, mutators: &Mutators) -> Result<f32, ()> {
+    pub fn can_reach(&self, car: &Car, max_time: f32, mutators: &Mutators) -> Result<f32, ()> {
         let is_curved = PathType::CCC.contains(&self.path.type_);
 
         let total_d = self.distances.iter().sum::<f32>();
@@ -76,7 +126,7 @@ impl TargetInfo {
         let mut b = car.boost as f32 - b_s;
         let mut v = flatten(car.landing_velocity).length();
 
-        let direction = if is_forwards { 1. } else { -1. };
+        let direction = if self.is_forwards { 1. } else { -1. };
 
         loop {
             if self.distances[3] < f32::EPSILON && d < 1. {
@@ -109,7 +159,7 @@ impl TargetInfo {
                 }
             }
 
-            if is_forwards {
+            if self.is_forwards {
                 let quick_max_speed = if b >= 1. {
                     MAX_SPEED.min(MAX_SPEED_NO_BOOST.max(v) + BOOST_ACCEL * t_r.min(b / BOOST_CONSUMPTION))
                 } else {
@@ -158,7 +208,7 @@ impl TargetInfo {
     }
 
     pub const fn get_basic_shot_info(&self, time: f32) -> BasicShotInfo {
-        BasicShotInfo::found(time, self.shot_type)
+        BasicShotInfo::found(time, self.shot_type, self.shot_vector, self.is_forwards)
     }
 }
 
@@ -208,6 +258,14 @@ impl AdvancedShotInfo {
         // get all the samples from the vec after index
         let samples = shot.all_samples.iter().skip(index / Shot::ALL_STEP).cloned().collect();
 
-        Some(Self::from(shot.direction, target, distance_to_ball, samples, shot.jump_time, current_path_point))
+        Some(Self::from(
+            shot.direction,
+            target,
+            distance_to_ball,
+            samples,
+            shot.jump_time,
+            current_path_point,
+            shot.turn_targets,
+        ))
     }
 }

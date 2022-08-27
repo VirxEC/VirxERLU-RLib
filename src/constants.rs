@@ -1,4 +1,7 @@
+use crate::car::Car;
 use pyo3::exceptions;
+
+pub const NEW_CAR: Car = Car::new();
 
 pub const MAX_SPEED: f32 = 2300.;
 pub const MAX_SPEED_NO_BOOST: f32 = 1410.;

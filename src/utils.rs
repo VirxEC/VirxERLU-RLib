@@ -192,25 +192,3 @@ pub fn vertex_quadratic_solve_for_x(a: f32, h: f32, k: f32, y: f32) -> (f32, f32
     let v_sqrt = ((y - k) / a).sqrt();
     (h + v_sqrt, h - v_sqrt)
 }
-
-#[cfg(test)]
-mod tests {
-    use glam::Vec3A;
-
-    use crate::car::get_a_car;
-
-    #[test]
-    pub fn landing_time_test() {
-        let mut car = get_a_car();
-        car.location.z = 1000.;
-        dbg!(car.location);
-        car.velocity = Vec3A::new(100., -100., 2000.);
-
-        let gravity = -650.;
-
-        car.calculate_landing_info(gravity);
-
-        dbg!(car.landing_time);
-        dbg!(car.landing_location);
-    }
-}

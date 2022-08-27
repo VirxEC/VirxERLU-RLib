@@ -1,6 +1,6 @@
 [package]
 name = "virx_erlu_rlib"
-version = "0.9.0"
+version = "0.10.0"
 edition = "2021"
 authors = ["VirxEC <virx@virxcase.dev>"]
 readme = "README.md"
@@ -17,16 +17,15 @@ crate-type = ["cdylib"]
 path = "src/lib.rs"
 
 [dependencies]
-rl_ball_sym = { version = "2.0.2", features = ["fast-math"] }
-dubins_paths = { version = "1.4.0", features = ["fast-math"] }
-lazy_static = "1.4"
+rl_ball_sym = { version = "2.0.3", features = ["fast-math"] }
+dubins_paths = { version = "1.4.2", features = ["fast-math"] }
 
 [dependencies.glam]
 version = "0.21.3"
 features = ["fast-math"]
 
 [dependencies.pyo3]
-version = "0.16"
+version = "0.17"
 features = ["extension-module", "abi3-py37"]
 
 [dev-dependencies]
@@ -36,3 +35,4 @@ rand = "0.8"
 codegen-units = 1
 lto = "fat"
 panic = "abort"
+strip = true

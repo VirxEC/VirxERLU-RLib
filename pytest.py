@@ -20,21 +20,27 @@ for i in range(packet.num_cars):
     packet.game_cars[i] = PlayerInfo(
         physics=Physics(
             location=Vector3(3500, -3500, 100),
-            # location=Vector3(0., -3500., 20.),
             rotation=Rotator(0, 1.1, 0),
             velocity=Vector3(0, 0, 0),
             angular_velocity=Vector3(0, 0, 0),
         ),
+        # physics=Physics(
+        #     location=Vector3(-186.17, -3768.27, 17.01),
+        #     rotation=Rotator(0, -1.861, 0),
+        #     velocity=Vector3(0, 0, 0),
+        #     angular_velocity=Vector3(0, 0, 0),
+        # ),
         score_info=ScoreInfo(0, 0, 0, 0, 0, 0, 0),
         is_demolished=False,
         has_wheel_contact=False,
+        # has_wheel_contact=True,
         is_super_sonic=False,
         is_bot=True,
         team=0,
         name="DownToEarth",
         jumped=False,
         double_jumped=False,
-        boost=36,
+        boost=50,
         hitbox=BoxShape(
             length=118,
             width=84.2,
@@ -43,14 +49,18 @@ for i in range(packet.num_cars):
         hitbox_offset=Vector3(13.9, 0, 20.8),
         spawn_id=1793714700,
     )
-packet.game_ball.physics.location.z = 1001.1
+packet.game_ball.physics.location.z = 1000.1
+packet.game_ball.physics.velocity.z = -0.001
+# packet.game_ball.physics.location.x = 0
+# packet.game_ball.physics.location.y = 0
+# packet.game_ball.physics.location.z = 93.14
 packet.game_ball.collision_shape.type = 1
 packet.game_ball.collision_shape.sphere.diameter = 182.5
 packet.game_info.world_gravity_z = -650
 packet.teams[1].team_index = 1
 packet.num_teams = 2
 
-times = [[], [], [], [], [], [], [], []]
+times = [[], [], [], [], [], [], [], [], [], [], [], [], []]
 
 print()
 
@@ -69,9 +79,12 @@ print(use_abs)
 print(use_all)
 print()
 
-target_args = ((800, 5120, 0), (-800, 5120, 0), 0)
+car_index = 0
+target_args = ((800, 5120, 0), (-800, 5120, 0), car_index)
 rlru.new_target(*target_args, use_abs)
 rlru.new_target(*target_args)
+rlru.new_any_target(car_index, use_abs)
+rlru.new_any_target(car_index)
 
 print("get_slice(1.2):")
 slice = rlru.get_slice(1.2)
@@ -107,6 +120,34 @@ print(data)
 print(repr(data))
 
 print()
+
+print("get_shot_with_target(any, use_absolute_max_values):")
+shot = rlru.get_shot_with_target(2)
+print(shot)
+print(repr(shot))
+
+print()
+
+print("get_data_for_shot_with_target(any, use_absolute_max_values):")
+data = rlru.get_data_for_shot_with_target(2)
+print(data)
+print(repr(data))
+
+print()
+
+print("get_shot_with_target(any):")
+shot = rlru.get_shot_with_target(3)
+print(shot)
+print(repr(shot))
+
+print()
+
+print("get_data_for_shot_with_target(any):")
+data = rlru.get_data_for_shot_with_target(3)
+print(data)
+print(repr(data))
+
+print()
 rlru.print_targets()
 
 # exit()
@@ -123,11 +164,16 @@ for _ in range(5000):
 
     start = time_ns()
 
-    target_args = ((800, 5120, 0), (-800, 5120, 0), 0)
+    car_index = 0
+    target_args = ((800, 5120, 0), (-800, 5120, 0), car_index)
     rlru.new_target(*target_args, use_abs_all)
     rlru.new_target(*target_args, use_abs)
     rlru.new_target(*target_args, use_all)
     rlru.new_target(*target_args)
+    rlru.new_any_target(car_index, use_abs_all)
+    rlru.new_any_target(car_index, use_abs)
+    rlru.new_any_target(car_index, use_all)
+    rlru.new_any_target(car_index)
 
     times[7].append(time_ns() - start)
 
@@ -167,6 +213,36 @@ for _ in range(5000):
 
     times[3].append(time_ns() - start)
 
+    start = time_ns()
+
+    rlru.get_shot_with_target(4)
+
+    times[8].append(time_ns() - start)
+
+    start = time_ns()
+
+    rlru.get_shot_with_target(5)
+
+    times[9].append(time_ns() - start)
+
+    start = time_ns()
+
+    rlru.get_shot_with_target(6)
+
+    times[10].append(time_ns() - start)
+
+    start = time_ns()
+
+    rlru.get_shot_with_target(7)
+
+    times[11].append(time_ns() - start)
+
+    start = time_ns()
+
+    rlru.get_shot_with_target(7, temporary=True)
+
+    times[12].append(time_ns() - start)
+
 print()
 
 print("tick():")
@@ -177,7 +253,7 @@ print()
 
 print("new_target():")
 print(f"Total test time: {round(sum(times[7]) / 1000000000, 6)}s")
-print(f"Avg. time of execution: {round(sum(times[7]) / len(times[0]) / 4, 1)}ns")
+print(f"Avg. time of execution: {round(sum(times[7]) / len(times[0]) / 8, 1)}ns")
 
 print()
 
@@ -208,6 +284,36 @@ print()
 print("get_shot_with_target(temporary):")
 print(f"Total test time: {round(sum(times[6]) / 1000000000, 4)}s")
 print(f"Avg. time of execution: {round(sum(times[6]) / len(times[6]) / 1000000, 3)}ms")
+
+print()
+
+print("get_shot_with_target(any, use_absolute_max_values) worst-case:")
+print(f"Total test time: {round(sum(times[8]) / 1000000000, 4)}s")
+print(f"Avg. time of execution: {round(sum(times[8]) / len(times[8]) / 1000000, 3)}ms")
+
+print()
+
+print("get_shot_with_target(any, use_absolute_max_values):")
+print(f"Total test time: {round(sum(times[9]) / 1000000000, 4)}s")
+print(f"Avg. time of execution: {round(sum(times[9]) / len(times[9]) / 1000000, 3)}ms")
+
+print()
+
+print("get_shot_with_target(any) worst-case:")
+print(f"Total test time: {round(sum(times[10]) / 1000000000, 4)}s")
+print(f"Avg. time of execution: {round(sum(times[10]) / len(times[10]) / 1000000, 3)}ms")
+
+print()
+
+print("get_shot_with_target(any):")
+print(f"Total test time: {round(sum(times[11]) / 1000000000, 4)}s")
+print(f"Avg. time of execution: {round(sum(times[11]) / len(times[11]) / 1000000, 3)}ms")
+
+print()
+
+print("get_shot_with_target(any, temporary):")
+print(f"Total test time: {round(sum(times[12]) / 1000000000, 4)}s")
+print(f"Avg. time of execution: {round(sum(times[12]) / len(times[12]) / 1000000, 3)}ms")
 
 print()
 
