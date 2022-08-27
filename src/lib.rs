@@ -42,7 +42,10 @@ fn virx_erlu_rlib(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(load_soccar_throwback, m)?)?;
     m.add_function(wrap_pyfunction!(tick, m)?)?;
     m.add_function(wrap_pyfunction!(get_slice, m)?)?;
+    m.add_function(wrap_pyfunction!(get_slice_index, m)?)?;
+    m.add_function(wrap_pyfunction!(get_num_ball_slices, m)?)?;
     m.add_function(wrap_pyfunction!(new_target, m)?)?;
+    m.add_function(wrap_pyfunction!(new_any_target, m)?)?;
     m.add_function(wrap_pyfunction!(confirm_target, m)?)?;
     m.add_function(wrap_pyfunction!(remove_target, m)?)?;
     m.add_function(wrap_pyfunction!(print_targets, m)?)?;
@@ -50,7 +53,6 @@ fn virx_erlu_rlib(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(get_shot_with_target, m)?)?;
     m.add_function(wrap_pyfunction!(get_data_for_shot_with_target, m)?)?;
     m.add_function(wrap_pyfunction!(set_mutator_settings, m)?)?;
-    m.add_function(wrap_pyfunction!(new_any_target, m)?)?;
     m.add_class::<TargetOptions>()?;
     m.add_class::<ShotType>()?;
     Ok(())
@@ -227,11 +229,8 @@ fn tick(py: Python, packet: PyObject, prediction_time: Option<f32>) -> PyResult<
         // Get the general game information
         let py_game_info = packet.getattr("game_info")?;
 
-        let mut time = GAME_TIME.write().unwrap();
-        *time = py_game_info.getattr("seconds_elapsed")?.extract::<f32>()?;
-
+        *GAME_TIME.write().unwrap() = py_game_info.getattr("seconds_elapsed")?.extract::<f32>()?;
         game.gravity.z = py_game_info.getattr("world_gravity_z")?.extract()?;
-
         *GRAVITY.write().unwrap() = game.gravity;
 
         // Get information about the ball
@@ -240,7 +239,7 @@ fn tick(py: Python, packet: PyObject, prediction_time: Option<f32>) -> PyResult<
         let py_ball_physics = py_ball.getattr("physics")?;
 
         ball.update(
-            *time,
+            *GAME_TIME.read().unwrap(),
             get_vec3_named(py_ball_physics.getattr("location")?)?,
             get_vec3_named(py_ball_physics.getattr("velocity")?)?,
             get_vec3_named(py_ball_physics.getattr("angular_velocity")?)?,
@@ -254,13 +253,7 @@ fn tick(py: Python, packet: PyObject, prediction_time: Option<f32>) -> PyResult<
     }
 
     // Predict future information about the ball
-    {
-        let prediction_time = prediction_time.unwrap_or(6.);
-        let ball_struct = ball.get_ball_prediction_struct_for_time(game, &prediction_time);
-
-        let mut ball_struct_guard = BALL_STRUCT.write().unwrap();
-        *ball_struct_guard = ball_struct;
-    }
+    *BALL_STRUCT.write().unwrap() = ball.get_ball_prediction_struct_for_time(game, &prediction_time.unwrap_or(6.));
 
     // Get information about the cars on the field
     {
@@ -279,13 +272,21 @@ fn tick(py: Python, packet: PyObject, prediction_time: Option<f32>) -> PyResult<
 
 #[pyfunction]
 fn get_slice(slice_time: f32) -> BallSlice {
-    let game_time = GAME_TIME.read().unwrap();
-    let ball_struct = BALL_STRUCT.read().unwrap();
+    let slice_num = ((slice_time - *GAME_TIME.read().unwrap()) * TPS).round() as usize;
+    get_slice_index(slice_num)
+}
 
-    let slice_num = ((slice_time - *game_time) * TPS).round() as usize;
+#[pyfunction]
+fn get_slice_index(slice_num: usize) -> BallSlice {
+    let ball_struct = BALL_STRUCT.read().unwrap();
     let ball = ball_struct[slice_num.clamp(1, ball_struct.len()) - 1];
 
     BallSlice::from(&ball)
+}
+
+#[pyfunction]
+fn get_num_ball_slices() -> usize {
+    BALL_STRUCT.read().unwrap().len()
 }
 
 #[pyfunction]

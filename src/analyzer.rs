@@ -4,7 +4,7 @@ use crate::{
     pytypes::ShotType,
     utils::flatten,
 };
-use dubins_paths::{DubinsPath, NoPathError, PathType, PosRot, Result as DubinsResult};
+use dubins_paths::{mod2pi, DubinsPath, NoPathError, PathType, PosRot, Result as DubinsResult};
 use glam::Vec3A;
 use rl_ball_sym::simulation::ball::Ball;
 use std::f32::consts::PI;
@@ -43,23 +43,18 @@ impl Analyzer {
     /// also check if that type of shot has been enabled
     fn get_shot_type(&self, car: &Car, target: Vec3A) -> DubinsResult<usize> {
         if target.z < car.hitbox.height / 2. + 17. {
-            match self.may_ground_shot {
-                true => Ok(ShotType::GROUND),
-                false => Err(NoPathError),
+            if self.may_ground_shot {
+                return Ok(ShotType::GROUND);
             }
         } else if target.z < car.max_jump_height {
-            match self.may_jump_shot {
-                true => Ok(ShotType::JUMP),
-                false => Err(NoPathError),
+            if self.may_jump_shot {
+                return Ok(ShotType::JUMP);
             }
-        } else if target.z < car.max_double_jump_height {
-            match self.may_double_jump_shot {
-                true => Ok(ShotType::DOUBLE_JUMP),
-                false => Err(NoPathError),
-            }
-        } else {
-            Err(NoPathError)
+        } else if target.z < car.max_double_jump_height && self.may_double_jump_shot {
+            return Ok(ShotType::DOUBLE_JUMP);
         }
+
+        Err(NoPathError)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -95,7 +90,7 @@ impl Analyzer {
             }
             ShotType::DOUBLE_JUMP => {
                 // if we need to do a double jump but we don't even have time for a normal jump
-                if time_remaining > car.max_jump_time {
+                if time_remaining < car.max_jump_time {
                     return Err(NoPathError);
                 }
 
@@ -158,7 +153,12 @@ impl Analyzer {
         let should_turn_left = local_ball.y < 0.;
         let center_of_turn = car_location + flatten(if should_turn_left { -car.landing_right } else { car.landing_right } * rho);
 
-        let turn_target = get_turn_exit_tanget(car, flatten(ball.location), center_of_turn, rho, target_is_forwards);
+        let (turn_target, turn_target_2) = get_turn_exit_tanget(car, flatten(ball.location), center_of_turn, rho, target_is_forwards);
+
+        // check if the exit point is in the field
+        if !car.field.is_point_in(turn_target) {
+            return Err(NoPathError);
+        }
 
         // compute the distance of each path, validating that it is within our current maximum travel distance (returning an error if neither are)
 
@@ -171,15 +171,15 @@ impl Analyzer {
         let shot_vector = (flatten(ball.location) - turn_target).normalize_or_zero();
 
         // find the angle between the car location and each turn exit point relative to the exit turn point centers
-        let turn_angle = angle_2d(car.landing_forward, shot_vector);
+        let turn_angle = mod2pi(if should_turn_left {
+            car.landing_forward.y.atan2(car.landing_forward.x) - shot_vector.y.atan2(shot_vector.x)
+        } else {
+            shot_vector.y.atan2(shot_vector.x) - car.landing_forward.y.atan2(car.landing_forward.x)
+        });
+
         let turn_arc_distance = turn_angle * rho;
 
         if turn_final_distance + turn_arc_distance > max_distance {
-            return Err(NoPathError);
-        }
-
-        // check if the exit point is in the field
-        if !car.field.is_point_in(turn_target) {
             return Err(NoPathError);
         }
 
@@ -193,7 +193,15 @@ impl Analyzer {
 
         let distances = [turn_arc_distance, 0., 0., turn_final_distance];
 
-        Ok(TargetInfo::from(distances, shot_type, path, jump_time, is_forwards, shot_vector))
+        Ok(TargetInfo::from(
+            distances,
+            shot_type,
+            path,
+            jump_time,
+            is_forwards,
+            shot_vector,
+            Some((turn_target, turn_target_2)),
+        ))
     }
 
     pub fn target(&self, ball: &Ball, car: &Car, shot_vector: Vec3A, time_remaining: f32, slice_num: usize) -> DubinsResult<TargetInfo> {
@@ -253,6 +261,6 @@ impl Analyzer {
 
         let distances = [path.segment_length(0), path.segment_length(1), path.segment_length(2), offset_distance];
 
-        Ok(TargetInfo::from(distances, shot_type, path, jump_time, is_forwards, shot_vector))
+        Ok(TargetInfo::from(distances, shot_type, path, jump_time, is_forwards, shot_vector, None))
     }
 }

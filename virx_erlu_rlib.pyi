@@ -98,9 +98,21 @@ class BallSlice:
     def __repr__(self) -> str: ...
 
 
+def get_slice_index(i: int) -> BallSlice:
+    """
+    Gets the ball information at the specified index
+    """
+
+
 def get_slice(time: float) -> BallSlice:
     """
     Gets the ball information at some time game time in the future
+    """
+
+
+def get_num_ball_slices() -> int:
+    """
+    Gets the number of ball slices in the ball prediction struct
     """
 
 

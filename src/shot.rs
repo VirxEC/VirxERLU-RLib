@@ -24,6 +24,7 @@ pub struct Shot {
     pub path_endpoint: PosRot,
     pub shot_type: usize,
     pub jump_time: Option<f32>,
+    pub turn_targets: Option<(Vec3A, Vec3A)>,
 }
 
 impl Shot {
@@ -49,6 +50,7 @@ impl Shot {
             path_endpoint: PosRot { pos: Vec3A::ZERO, rot: 0. },
             shot_type: 0,
             jump_time: None,
+            turn_targets: None,
         }
     }
 
@@ -101,6 +103,7 @@ impl Shot {
             path_endpoint,
             shot_type: target.shot_type,
             jump_time: target.jump_time,
+            turn_targets: target.turn_targets,
         }
     }
 

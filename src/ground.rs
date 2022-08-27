@@ -8,7 +8,7 @@ use crate::{
 };
 use dubins_paths::{self, DubinsPath, Intermediate, NoPathError, PathType, PosRot};
 use glam::Vec3A;
-use std::f32::{consts::{E, PI}, INFINITY};
+use std::f32::{consts::E, INFINITY};
 
 /// https://stackoverflow.com/a/49987361/10930209
 fn get_turn_exit_tangets(target: Vec3A, circle_center: Vec3A, radius: f32) -> (Vec3A, Vec3A) {
@@ -23,26 +23,27 @@ fn get_turn_exit_tangets(target: Vec3A, circle_center: Vec3A, radius: f32) -> (V
 }
 
 /// Get the exit turn point on a circle where the car will face the target
-pub fn get_turn_exit_tanget(car: &Car, target: Vec3A, circle_center: Vec3A, rho: f32, target_is_forwards: bool) -> Vec3A {
+pub fn get_turn_exit_tanget(car: &Car, target: Vec3A, circle_center: Vec3A, rho: f32, target_is_forwards: bool) -> (Vec3A, Vec3A) {
     let (t1, t2) = get_turn_exit_tangets(target, circle_center, rho);
-
     let (t1_local, t2_local) = (car.localize_2d_location(t1), car.localize_2d_location(t2));
-    let (t1_angle, t2_angle) = (t1_local.y.atan2(t1_local.x).abs(), t2_local.y.atan2(t2_local.x).abs());
 
     if !target_is_forwards {
-        let (t1_local_circle, t2_local_circle) = (car.localize_2d(t1 - circle_center), car.localize_2d(t2 - circle_center));
-        let (t1_circle_angle, t2_circle_angle) = (t1_local_circle.y.atan2(t1_local_circle.x).abs(), t2_local_circle.y.atan2(t2_local_circle.x).abs());
-
-        if (0.0..PI / 2.).contains(&t1_circle_angle) {
-            return t2;
+        if t1_local.x >= 0. && t1_local.y.abs() < rho {
+            return (t2, t1);
         }
-        
-        if (0.0..PI / 2.).contains(&t2_circle_angle) {
-            return t1;
+
+        if t2_local.x >= 0. && t2_local.y.abs() < rho {
+            return (t1, t2);
         }
     }
-    
-    if t1_angle < t2_angle { t1 } else { t2 }
+
+    let (t1_angle, t2_angle) = (t1_local.y.atan2(t1_local.x).abs(), t2_local.y.atan2(t2_local.x).abs());
+
+    if t1_angle < t2_angle {
+        (t1, t2)
+    } else {
+        (t2, t1)
+    }
 }
 
 pub fn angle_2d(vec1: Vec3A, vec2: Vec3A) -> f32 {
@@ -83,10 +84,19 @@ pub struct TargetInfo {
     pub jump_time: Option<f32>,
     pub is_forwards: bool,
     pub shot_vector: Vec3A,
+    pub turn_targets: Option<(Vec3A, Vec3A)>,
 }
 
 impl TargetInfo {
-    pub const fn from(distances: [f32; 4], shot_type: usize, path: DubinsPath, jump_time: Option<f32>, is_forwards: bool, shot_vector: Vec3A) -> Self {
+    pub const fn from(
+        distances: [f32; 4],
+        shot_type: usize,
+        path: DubinsPath,
+        jump_time: Option<f32>,
+        is_forwards: bool,
+        shot_vector: Vec3A,
+        turn_targets: Option<(Vec3A, Vec3A)>,
+    ) -> Self {
         Self {
             distances,
             path,
@@ -94,6 +104,7 @@ impl TargetInfo {
             jump_time,
             is_forwards,
             shot_vector,
+            turn_targets,
         }
     }
 
@@ -247,6 +258,14 @@ impl AdvancedShotInfo {
         // get all the samples from the vec after index
         let samples = shot.all_samples.iter().skip(index / Shot::ALL_STEP).cloned().collect();
 
-        Some(Self::from(shot.direction, target, distance_to_ball, samples, shot.jump_time, current_path_point))
+        Some(Self::from(
+            shot.direction,
+            target,
+            distance_to_ball,
+            samples,
+            shot.jump_time,
+            current_path_point,
+            shot.turn_targets,
+        ))
     }
 }

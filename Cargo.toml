@@ -17,7 +17,7 @@ crate-type = ["cdylib"]
 path = "src/lib.rs"
 
 [dependencies]
-rl_ball_sym = { version = "2.0.2", features = ["fast-math"] }
+rl_ball_sym = { version = "2.0.3", features = ["fast-math"] }
 dubins_paths = { version = "1.4.2", features = ["fast-math"] }
 
 [dependencies.glam]
