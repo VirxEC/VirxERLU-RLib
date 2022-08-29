@@ -21,6 +21,7 @@ pub struct Analyzer {
 }
 
 impl Analyzer {
+    #[inline]
     pub const fn new(
         max_speed: Option<f32>,
         max_turn_radius: Option<f32>,

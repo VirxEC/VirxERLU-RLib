@@ -19,7 +19,8 @@ impl ShotType {
     pub const AERIAL: usize = 3;
 }
 
-fn get_str_from_shot_type(type_: usize) -> &'static str {
+#[inline]
+const fn get_str_from_shot_type(type_: usize) -> &'static str {
     match type_ {
         ShotType::GROUND => "GROUND",
         ShotType::JUMP => "JUMP",
@@ -41,6 +42,7 @@ pub struct TargetOptions {
 #[pymethods]
 impl TargetOptions {
     #[new]
+    #[inline]
     const fn __new__(min_slice: Option<usize>, max_slice: Option<usize>, use_absolute_max_values: Option<bool>, all: Option<bool>) -> Self {
         Self {
             min_slice,
@@ -96,6 +98,7 @@ pub struct BasicShotInfo {
 }
 
 impl BasicShotInfo {
+    #[inline]
     pub const fn not_found() -> Self {
         BasicShotInfo {
             found: false,
@@ -106,6 +109,7 @@ impl BasicShotInfo {
         }
     }
 
+    #[inline]
     pub const fn found(time: f32, shot_type: usize, shot_vector: Vec3A, is_forwards: bool) -> Self {
         BasicShotInfo {
             found: true,
@@ -165,6 +169,7 @@ impl BallSlice {
 }
 
 impl BallSlice {
+    #[inline]
     pub const fn from(ball: &Ball) -> Self {
         BallSlice {
             time: ball.time,
@@ -197,6 +202,7 @@ pub struct AdvancedShotInfo {
 }
 
 impl AdvancedShotInfo {
+    #[inline]
     pub const fn get_distance_remaining(&self) -> f32 {
         self.distance_remaining
     }
@@ -231,6 +237,7 @@ impl AdvancedShotInfo {
 }
 
 impl AdvancedShotInfo {
+    #[inline]
     pub const fn from(
         shot_vector: Vec3A,
         target: Vec3A,

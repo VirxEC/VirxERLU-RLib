@@ -53,6 +53,7 @@ pub fn get_vec3_from_vec(vec: Vec<f32>, name: &str) -> PyResult<Vec3A> {
     }
 }
 
+#[inline]
 pub const fn get_tuple_from_vec3(vec: Vec3A) -> (f32, f32, f32) {
     let [x, y, z] = vec.to_array();
     (x, y, z)
@@ -87,6 +88,7 @@ fn clamp_index(s: Vec3A, start: Vec3A, end: Vec3A) -> usize {
     }
 }
 
+#[inline]
 pub const fn flatten(vec: Vec3A) -> Vec3A {
     let [x, y, _] = vec.to_array();
     Vec3A::new(x, y, 0.)

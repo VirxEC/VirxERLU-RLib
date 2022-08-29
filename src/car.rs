@@ -88,6 +88,7 @@ pub struct Hitbox {
 }
 
 impl Hitbox {
+    #[inline]
     pub const fn new() -> Self {
         Self {
             length: 0.,
@@ -108,6 +109,7 @@ pub struct CarFieldRect {
 impl CarFieldRect {
     const CHECK_DISTANCE: f32 = 400.;
 
+    #[inline]
     pub const fn new() -> Self {
         Self {
             goal_x: 0.,
@@ -192,6 +194,7 @@ pub struct Car {
 }
 
 impl Car {
+    #[inline]
     pub const fn new() -> Self {
         Self {
             location: Vec3A::ZERO,

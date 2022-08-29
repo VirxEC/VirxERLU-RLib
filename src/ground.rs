@@ -94,6 +94,7 @@ pub struct TargetInfo {
 }
 
 impl TargetInfo {
+    #[inline]
     pub const fn from(
         distances: [f32; 4],
         shot_type: usize,
@@ -225,6 +226,7 @@ impl TargetInfo {
         Ok(t_r)
     }
 
+    #[inline]
     pub const fn get_basic_shot_info(&self, time: f32) -> BasicShotInfo {
         BasicShotInfo::found(time, self.shot_type, self.shot_vector, self.is_forwards)
     }

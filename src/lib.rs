@@ -129,6 +129,7 @@ pub struct Mutators {
 }
 
 impl Mutators {
+    #[inline]
     pub const fn new() -> Self {
         Mutators {
             boost_amount: BoostAmount::Default,

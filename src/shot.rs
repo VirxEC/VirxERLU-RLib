@@ -7,6 +7,7 @@ use dubins_paths::{DubinsPath, PathType, PosRot};
 use glam::Vec3A;
 use rl_ball_sym::simulation::ball::Ball;
 
+#[inline]
 const fn posrot_to_xy_tuple(posrot: &PosRot) -> (f32, f32) {
     let [x, y, _] = posrot.pos.to_array();
     (x, y)
@@ -31,6 +32,7 @@ impl Shot {
     const STEP_DISTANCE: f32 = 10.;
     pub const ALL_STEP: usize = 3;
 
+    #[inline]
     pub const fn default() -> Self {
         const NEW_VEC: Vec<Vec3A> = Vec::new();
 
@@ -212,6 +214,7 @@ pub struct TargetLocation {
 }
 
 impl TargetLocation {
+    #[inline]
     pub const fn new(left: Vec3A, right: Vec3A) -> Self {
         Self { left, right }
     }
@@ -227,6 +230,7 @@ pub struct Target {
 }
 
 impl Target {
+    #[inline]
     pub const fn new(target_left: Vec3A, target_right: Vec3A, car_index: usize, options: Options) -> Self {
         Self {
             car_index,
@@ -237,6 +241,7 @@ impl Target {
         }
     }
 
+    #[inline]
     pub const fn new_any(car_index: usize, options: Options) -> Self {
         Self {
             car_index,
@@ -251,6 +256,7 @@ impl Target {
         self.confirmed = true;
     }
 
+    #[inline]
     pub const fn is_confirmed(&self) -> bool {
         self.confirmed
     }
