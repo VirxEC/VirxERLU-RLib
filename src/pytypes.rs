@@ -15,6 +15,8 @@ impl ShotType {
     pub const JUMP: usize = 1;
     #[classattr]
     pub const DOUBLE_JUMP: usize = 2;
+    #[classattr]
+    pub const AERIAL: usize = 3;
 }
 
 fn get_str_from_shot_type(type_: usize) -> &'static str {
@@ -22,6 +24,7 @@ fn get_str_from_shot_type(type_: usize) -> &'static str {
         ShotType::GROUND => "GROUND",
         ShotType::JUMP => "JUMP",
         ShotType::DOUBLE_JUMP => "DOUBLE_JUMP",
+        ShotType::AERIAL => "AERIAL",
         _ => unreachable!(),
     }
 }

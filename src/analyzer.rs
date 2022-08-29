@@ -17,10 +17,19 @@ pub struct Analyzer {
     may_ground_shot: bool,
     may_jump_shot: bool,
     may_double_jump_shot: bool,
+    may_aerial_shot: bool,
 }
 
 impl Analyzer {
-    pub const fn new(max_speed: Option<f32>, max_turn_radius: Option<f32>, gravity: f32, may_ground_shot: bool, may_jump_shot: bool, may_double_jump_shot: bool) -> Self {
+    pub const fn new(
+        max_speed: Option<f32>,
+        max_turn_radius: Option<f32>,
+        gravity: f32,
+        may_ground_shot: bool,
+        may_jump_shot: bool,
+        may_double_jump_shot: bool,
+        may_aerial_shot: bool,
+    ) -> Self {
         Self {
             max_speed,
             max_turn_radius,
@@ -28,6 +37,7 @@ impl Analyzer {
             may_ground_shot,
             may_jump_shot,
             may_double_jump_shot,
+            may_aerial_shot,
         }
     }
 
@@ -50,9 +60,13 @@ impl Analyzer {
             if self.may_jump_shot {
                 return Ok(ShotType::JUMP);
             }
-        } else if target.z < car.max_double_jump_height && self.may_double_jump_shot {
-            return Ok(ShotType::DOUBLE_JUMP);
-        }
+        } else if target.z < car.max_double_jump_height {
+            if self.may_double_jump_shot {
+                return Ok(ShotType::DOUBLE_JUMP);
+            }
+        } /*else if self.may_aerial_shot {
+              return Ok(ShotType::AERIAL);
+          }*/
 
         Err(NoPathError)
     }
@@ -147,13 +161,13 @@ impl Analyzer {
         }
 
         let rho = self.get_max_turn_radius(car, slice_num);
-        let is_forwards = true; // Self::should_travel_forwards(time_remaining, car_to_ball, car);
+        let travel_forwards = Self::should_travel_forwards(time_remaining, car_to_ball, car);
         let local_ball = car.localize_2d_location(ball.location);
         let target_is_forwards = local_ball.x >= 0.;
         let should_turn_left = local_ball.y < 0.;
         let center_of_turn = car_location + flatten(if should_turn_left { -car.landing_right } else { car.landing_right } * rho);
 
-        let (turn_target, turn_target_2) = get_turn_exit_tanget(car, flatten(ball.location), center_of_turn, rho, target_is_forwards);
+        let (turn_target, turn_target_2) = get_turn_exit_tanget(car, flatten(ball.location), center_of_turn, rho, target_is_forwards, travel_forwards);
 
         // check if the exit point is in the field
         if !car.field.is_point_in(turn_target) {
@@ -169,12 +183,21 @@ impl Analyzer {
         }
 
         let shot_vector = (flatten(ball.location) - turn_target).normalize_or_zero();
+        let shot_vector_angle = shot_vector.y.atan2(shot_vector.x);
+        let forward_angle = if travel_forwards {
+            car.landing_forward.y.atan2(car.landing_forward.x)
+        } else {
+            let forward = car.landing_forward * Vec3A::NEG_ONE;
+            forward.y.atan2(forward.x)
+        };
+
+        let direction_turn_left = (travel_forwards && should_turn_left) || (!travel_forwards && !should_turn_left);
 
         // find the angle between the car location and each turn exit point relative to the exit turn point centers
-        let turn_angle = mod2pi(if should_turn_left {
-            car.landing_forward.y.atan2(car.landing_forward.x) - shot_vector.y.atan2(shot_vector.x)
+        let turn_angle = mod2pi(if direction_turn_left {
+            forward_angle - shot_vector_angle
         } else {
-            shot_vector.y.atan2(shot_vector.x) - car.landing_forward.y.atan2(car.landing_forward.x)
+            shot_vector_angle - forward_angle
         });
 
         let turn_arc_distance = turn_angle * rho;
@@ -183,11 +206,13 @@ impl Analyzer {
             return Err(NoPathError);
         }
 
+        let enter_yaw = if travel_forwards { car.landing_yaw } else { mod2pi(car.landing_yaw + PI) };
+
         // construct a path so we can easily follow our defined turn arc
         let path = DubinsPath {
-            qi: PosRot::new(car_location, car.landing_yaw),
+            qi: PosRot::new(car_location, enter_yaw),
             rho,
-            type_: if should_turn_left { PathType::RSL } else { PathType::LSR },
+            type_: if direction_turn_left { PathType::RSL } else { PathType::LSR },
             param: [turn_angle, 0., 0.],
         };
 
@@ -198,7 +223,7 @@ impl Analyzer {
             shot_type,
             path,
             jump_time,
-            is_forwards,
+            travel_forwards,
             shot_vector,
             Some((turn_target, turn_target_2)),
         ))

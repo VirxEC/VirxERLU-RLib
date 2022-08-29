@@ -416,15 +416,17 @@ fn get_shot_with_target(
     may_ground_shot: Option<bool>,
     may_jump_shot: Option<bool>,
     may_double_jump_shot: Option<bool>,
+    may_aerial_shot: Option<bool>,
     only: Option<bool>,
 ) -> PyResult<BasicShotInfo> {
     let only = only.unwrap_or(false);
     let may_ground_shot = may_ground_shot.unwrap_or(!only);
     let may_jump_shot = may_jump_shot.unwrap_or(!only);
     let may_double_jump_shot = may_double_jump_shot.unwrap_or(!only);
+    let may_aerial_shot = may_aerial_shot.unwrap_or(!only);
     let temporary = temporary.unwrap_or(false);
 
-    if !may_ground_shot && !may_jump_shot && !may_double_jump_shot {
+    if !may_ground_shot && !may_jump_shot && !may_double_jump_shot && !may_aerial_shot {
         return Err(PyErr::new::<NoShotSelectedPyErr, _>(NO_SHOT_SELECTED_ERR));
     }
 
@@ -458,7 +460,7 @@ fn get_shot_with_target(
                 (None, None)
             };
 
-            Analyzer::new(max_speed, max_turn_radius, gravity, may_ground_shot, may_jump_shot, may_double_jump_shot)
+            Analyzer::new(max_speed, max_turn_radius, gravity, may_ground_shot, may_jump_shot, may_double_jump_shot, may_aerial_shot)
         };
 
         for (i, ball) in ball_prediction[target.options.min_slice..target.options.max_slice].iter().enumerate() {

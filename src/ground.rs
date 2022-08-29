@@ -23,9 +23,15 @@ fn get_turn_exit_tangets(target: Vec3A, circle_center: Vec3A, radius: f32) -> (V
 }
 
 /// Get the exit turn point on a circle where the car will face the target
-pub fn get_turn_exit_tanget(car: &Car, target: Vec3A, circle_center: Vec3A, rho: f32, target_is_forwards: bool) -> (Vec3A, Vec3A) {
+pub fn get_turn_exit_tanget(car: &Car, target: Vec3A, circle_center: Vec3A, rho: f32, mut target_is_forwards: bool, travel_forwards: bool) -> (Vec3A, Vec3A) {
     let (t1, t2) = get_turn_exit_tangets(target, circle_center, rho);
-    let (t1_local, t2_local) = (car.localize_2d_location(t1), car.localize_2d_location(t2));
+    let (mut t1_local, mut t2_local) = (car.localize_2d_location(t1), car.localize_2d_location(t2));
+
+    if !travel_forwards {
+        t1_local.x *= -1.;
+        t2_local.x *= -1.;
+        target_is_forwards = !target_is_forwards;
+    }
 
     if !target_is_forwards {
         if t1_local.x >= 0. && t1_local.y.abs() < rho {
@@ -120,13 +126,13 @@ impl TargetInfo {
             start..end
         };
 
+        let direction = if self.is_forwards { 1. } else { -1. };
+
         let mut d = total_d;
         let mut t_r = max_time;
         let b_s = car.boost.min(12) as f32;
         let mut b = car.boost as f32 - b_s;
-        let mut v = flatten(car.landing_velocity).length();
-
-        let direction = if self.is_forwards { 1. } else { -1. };
+        let mut v = flatten(car.landing_velocity).length() * direction;
 
         loop {
             if self.distances[3] < f32::EPSILON && d < 1. {
@@ -174,7 +180,19 @@ impl TargetInfo {
             }
 
             let throttle_accel = throttle_acceleration(v);
-            let (throttle, boost) = get_throttle_and_boost(throttle_accel, b, t);
+            let (throttle, boost) = {
+                let (mut throttle, mut boost) = get_throttle_and_boost(throttle_accel, b, if v < 0. { -t } else { t });
+
+                if t <= 0. {
+                    boost = false;
+                }
+
+                if v < 0. {
+                    throttle *= -1.;
+                }
+
+                (throttle, boost)
+            };
             let mut accel = 0.;
 
             if throttle == 0. {
@@ -220,7 +238,7 @@ fn get_throttle_and_boost(throttle_accel: f32, b: f32, t: f32) -> (f32, bool) {
         (-1., false)
     } else if BRAKE_COAST_TRANSITION < acceleration && acceleration < COASTING_THROTTLE_TRANSITION {
         (0., false)
-    } else if COASTING_THROTTLE_TRANSITION <= acceleration && acceleration <= throttle_boost_transition {
+    } else if (COASTING_THROTTLE_TRANSITION..throttle_boost_transition).contains(&acceleration) {
         let throttle = if throttle_accel == 0. { 1. } else { (acceleration / throttle_accel).clamp(0.02, 1.) };
         (throttle, false)
     } else if throttle_boost_transition < acceleration {

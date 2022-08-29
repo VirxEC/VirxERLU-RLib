@@ -1,6 +1,6 @@
 from time import time_ns
 from rlbot.utils.structures.game_data_struct import *
-
+from math import pi
 import virx_erlu_rlib as rlru
 
 print()
@@ -25,8 +25,8 @@ for i in range(packet.num_cars):
             angular_velocity=Vector3(0, 0, 0),
         ),
         # physics=Physics(
-        #     location=Vector3(-186.17, -3768.27, 17.01),
-        #     rotation=Rotator(0, -1.861, 0),
+        #     location=Vector3(-88.84, -1071.1, 17.01),
+        #     rotation=Rotator(0, -1.894, 0),
         #     velocity=Vector3(0, 0, 0),
         #     angular_velocity=Vector3(0, 0, 0),
         # ),
