@@ -189,6 +189,7 @@ pub struct Car {
     pub ctrms: Vec<f32>,
     pub max_jump_time: f32,
     pub max_jump_height: f32,
+    pub max_double_jump_time: f32,
     pub max_double_jump_height: f32,
     pub init: bool,
 }
@@ -226,6 +227,7 @@ impl Car {
             ctrms: Vec::new(),
             max_jump_time: 0.,
             max_jump_height: 0.,
+            max_double_jump_time: 0.,
             max_double_jump_height: 0.,
             init: false,
         }
@@ -281,7 +283,7 @@ impl Car {
 
         while v_z > 0. || t < MAX_HOLD_TIME {
             if t <= f32::EPSILON {
-                v_z += JUMP_IMPULSE;
+                v_z += JUMP_SPEED;
             }
 
             if t < MAX_HOLD_TIME {
@@ -311,9 +313,9 @@ impl Car {
 
         while v_z > 0. || t < MAX_HOLD_TIME {
             if t <= f32::EPSILON {
-                v_z += JUMP_IMPULSE;
+                v_z += JUMP_SPEED;
             } else if t > MAX_HOLD_TIME + SIMULATION_DT && !double_jumped {
-                v_z += JUMP_IMPULSE;
+                v_z += JUMP_SPEED;
                 double_jumped = true;
             }
 
@@ -330,6 +332,7 @@ impl Car {
             t += SIMULATION_DT;
         }
 
+        self.max_double_jump_time = t;
         self.max_double_jump_height = l_z;
     }
 
@@ -585,7 +588,7 @@ impl Car {
 
         while l_z < height_goal && (v_z > 0. || t < MAX_HOLD_TIME) {
             if t <= f32::EPSILON {
-                v_z += JUMP_IMPULSE;
+                v_z += JUMP_SPEED;
             }
 
             if t < MAX_HOLD_TIME {
@@ -614,9 +617,9 @@ impl Car {
 
         while l_z < height_goal && (v_z > 0. || t < MAX_HOLD_TIME) {
             if t <= f32::EPSILON {
-                v_z += JUMP_IMPULSE;
+                v_z += JUMP_SPEED;
             } else if t > MAX_HOLD_TIME + SIMULATION_DT && !double_jumped {
-                v_z += JUMP_IMPULSE;
+                v_z += JUMP_SPEED;
                 double_jumped = true;
             }
 

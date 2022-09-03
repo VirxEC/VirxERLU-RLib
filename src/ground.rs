@@ -1,8 +1,7 @@
 use crate::{
     car::{throttle_acceleration, Car, CarFieldRect},
     constants::*,
-    pytypes::{AdvancedShotInfo, BasicShotInfo},
-    shot::Shot,
+    pytypes::{BasicShotInfo, ShotType},
     utils::*,
     BoostAmount, Mutators,
 };
@@ -86,7 +85,7 @@ pub fn shortest_path_in_validate(q0: PosRot, q1: PosRot, rho: f32, car_field: &C
 pub struct TargetInfo {
     pub distances: [f32; 4],
     pub path: DubinsPath,
-    pub shot_type: usize,
+    pub shot_type: ShotType,
     pub jump_time: Option<f32>,
     pub is_forwards: bool,
     pub shot_vector: Vec3A,
@@ -97,7 +96,7 @@ impl TargetInfo {
     #[inline]
     pub const fn from(
         distances: [f32; 4],
-        shot_type: usize,
+        shot_type: ShotType,
         path: DubinsPath,
         jump_time: Option<f32>,
         is_forwards: bool,
@@ -247,45 +246,5 @@ fn get_throttle_and_boost(throttle_accel: f32, b: f32, t: f32) -> (f32, bool) {
         (1., b >= MIN_BOOST_CONSUMPTION && t > 0.)
     } else {
         (0., false)
-    }
-}
-
-impl AdvancedShotInfo {
-    pub fn get(car: &Car, shot: &Shot) -> Option<Self> {
-        let (segment, pre_index) = shot.find_min_distance_index(car.location);
-        let (distance_along, index) = shot.get_distance_along_shot_and_index(segment, pre_index);
-        let current_path_point = shot.samples[segment][pre_index];
-
-        if current_path_point.distance(flatten(car.location)) > car.hitbox.length / 2. {
-            return None;
-        }
-
-        let distance = car.local_velocity.x.max(500.) * STEER_REACTION_TIME;
-
-        let path_length = shot.distances[0] + shot.distances[1] + shot.distances[2];
-        let max_path_distance = path_length - distance_along;
-        let distance_to_ball = path_length + shot.distances[3] - distance_along;
-
-        let target = if distance > max_path_distance {
-            let distance_remaining = distance - max_path_distance;
-            let additional_space = shot.direction * distance_remaining;
-
-            shot.path_endpoint.pos + additional_space
-        } else {
-            shot.path.sample(distance_along + distance).pos
-        };
-
-        // get all the samples from the vec after index
-        let samples = shot.all_samples.iter().skip(index / Shot::ALL_STEP).cloned().collect();
-
-        Some(Self::from(
-            shot.direction,
-            target,
-            distance_to_ball,
-            samples,
-            shot.jump_time,
-            current_path_point,
-            shot.turn_targets,
-        ))
     }
 }

@@ -28,9 +28,9 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "dubins_paths"
-version = "1.4.2"
+version = "1.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9f1adb4e324dd1925b352d16b42fbf36da44e2ab62325e3e85271ba75823b202"
+checksum = "00556f0c29a7e6fa4eed10f3f6c1d04296d724b1003633ae184500686c7474af"
 dependencies = [
  "glam",
 ]
@@ -85,9 +85,9 @@ dependencies = [
 
 [[package]]
 name = "once_cell"
-version = "1.13.1"
+version = "1.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "074864da206b4973b84eb91683020dbefd6a8c3f0f38e054d93954e891935e4e"
+checksum = "2f7254b99e31cad77da24b08ebf628882739a608578bb1bcdfc1f9c21260d7c0"
 
 [[package]]
 name = "parking_lot"
@@ -243,9 +243,9 @@ dependencies = [
 
 [[package]]
 name = "rl_ball_sym"
-version = "2.0.3"
+version = "2.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a928f6310f90aae701d625950c5a23926c166773b7fbec35e81336bfc014f25d"
+checksum = "e4cb891182a38a2ace49a3024fe1646649a77cee18bb72d8f2b0eb9e1286466b"
 dependencies = [
  "byteorder",
  "glam",

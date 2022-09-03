@@ -1,7 +1,7 @@
 from time import time_ns
-from rlbot.utils.structures.game_data_struct import *
-from math import pi
+
 import virx_erlu_rlib as rlru
+from rlbot.utils.structures.game_data_struct import *
 
 print()
 

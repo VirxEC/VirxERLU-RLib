@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+mod air;
 mod analyzer;
 mod car;
 mod constants;
@@ -8,6 +9,7 @@ mod pytypes;
 mod shot;
 mod utils;
 
+use air::aerial_shot_is_viable;
 use analyzer::*;
 use car::{turn_radius, Car};
 use constants::*;
@@ -18,7 +20,7 @@ use rl_ball_sym::simulation::{
     ball::{Ball, BallPrediction},
     game::Game,
 };
-use shot::{Options, Shot, Target};
+use shot::{AirBasedShot, GroundBasedShot, Options, Shot, Target};
 use std::sync::RwLock;
 use utils::*;
 
@@ -393,7 +395,7 @@ fn print_targets() {
     for target in targets.iter() {
         match target {
             Some(t) => match &t.shot {
-                Some(s) => out.push(format!("{}", s.time)),
+                Some(s) => out.push(format!("{}", s.time())),
                 None => out.push(String::from("No shot")),
             },
             None => {
@@ -432,7 +434,7 @@ fn get_shot_with_target(
     }
 
     let mutators = *MUTATORS.read().unwrap();
-    let gravity = GRAVITY.read().unwrap().z;
+    let gravity = *GRAVITY.read().unwrap();
     let game_time = *GAME_TIME.read().unwrap();
     let ball_prediction = BALL_STRUCT.read().unwrap();
 
@@ -461,7 +463,7 @@ fn get_shot_with_target(
                 (None, None)
             };
 
-            Analyzer::new(max_speed, max_turn_radius, gravity, may_ground_shot, may_jump_shot, may_double_jump_shot, may_aerial_shot)
+            Analyzer::new(max_speed, max_turn_radius, gravity.z, may_ground_shot, may_jump_shot, may_double_jump_shot, may_aerial_shot)
         };
 
         for (i, ball) in ball_prediction[target.options.min_slice..target.options.max_slice].iter().enumerate() {
@@ -480,7 +482,16 @@ fn get_shot_with_target(
 
                 let shot_vector = post_info.get_shot_vector_target(car.landing_location, ball.location);
 
-                let target_info = match analyzer.target(ball, car, shot_vector, max_time_remaining, i) {
+                let shot_type = match analyzer.get_shot_type(car, ball.location, max_time_remaining) {
+                    Ok(st) => st,
+                    Err(_) => continue,
+                };
+
+                if shot_type == ShotType::Aerial {
+                    continue;
+                }
+
+                let target_info = match analyzer.target(ball, car, shot_vector, max_time_remaining, i, shot_type) {
                     Ok(ti) => ti,
                     Err(_) => continue,
                 };
@@ -492,14 +503,47 @@ fn get_shot_with_target(
                 if found_shot.is_none() {
                     basic_shot_info = Some(target_info.get_basic_shot_info(ball.time));
 
-                    found_shot = Some(if temporary { Shot::default() } else { Shot::from(ball, &target_info) });
+                    found_shot = Some(
+                        if temporary {
+                            GroundBasedShot::default()
+                        } else {
+                            GroundBasedShot::from(ball, &target_info)
+                        }
+                        .into(),
+                    );
 
                     if !target.options.all {
                         break;
                     }
                 }
             } else {
-                let target_info = match analyzer.no_target(ball, car, max_time_remaining, i) {
+                let shot_type = match analyzer.get_shot_type(car, ball.location, max_time_remaining) {
+                    Ok(st) => st,
+                    Err(_) => continue,
+                };
+
+                if shot_type == ShotType::Aerial {
+                    // TODO: better target calculation for aerial shots
+                    let target_location = ball.location;
+                    let target_info = match aerial_shot_is_viable(car, mutators, target_location, gravity, max_time_remaining) {
+                        Ok(ti) => ti,
+                        Err(_) => continue,
+                    };
+
+                    if found_shot.is_none() {
+                        basic_shot_info = Some(target_info.get_basic_shot_info(ball.time));
+
+                        found_shot = Some(if temporary { AirBasedShot::default() } else { AirBasedShot::from(ball, target_info) }.into());
+
+                        if !target.options.all {
+                            break;
+                        }
+                    }
+
+                    continue;
+                }
+
+                let target_info = match analyzer.no_target(ball, car, max_time_remaining, i, shot_type) {
                     Ok(ti) => ti,
                     Err(_) => continue,
                 };
@@ -511,7 +555,14 @@ fn get_shot_with_target(
                 if found_shot.is_none() {
                     basic_shot_info = Some(target_info.get_basic_shot_info(ball.time));
 
-                    found_shot = Some(if temporary { Shot::default() } else { Shot::from(ball, &target_info) });
+                    found_shot = Some(
+                        if temporary {
+                            GroundBasedShot::default()
+                        } else {
+                            GroundBasedShot::from(ball, &target_info)
+                        }
+                        .into(),
+                    );
 
                     if !target.options.all {
                         break;
@@ -548,7 +599,7 @@ fn get_data_for_shot_with_target(target_index: usize) -> PyResult<AdvancedShotIn
         .ok_or_else(|| PyErr::new::<NoTargetPyErr, _>(NO_TARGET_ERR))?;
     let shot = target.shot.as_ref().ok_or_else(|| PyErr::new::<NoShotPyErr, _>(NO_SHOT_ERR))?;
 
-    let time_remaining = shot.time - *GAME_TIME.read().unwrap();
+    let time_remaining = shot.time() - *GAME_TIME.read().unwrap();
 
     if time_remaining < 0. {
         return Err(PyErr::new::<NoTimeRemainingPyErr, _>(NO_TIME_REMAINING_ERR));
@@ -561,15 +612,24 @@ fn get_data_for_shot_with_target(target_index: usize) -> PyResult<AdvancedShotIn
     let slice_num = ((time_remaining * TPS).round() as usize).clamp(1, ball_struct.len()) - 1;
     let ball = &ball_struct[slice_num];
 
-    if ball.location.distance(shot.ball_location) > car.hitbox.width {
-        Err(PyErr::new::<BallChangedPyErr, _>(BALL_CHANGED_ERR))
-    } else {
-        let shot_info = AdvancedShotInfo::get(car, shot).ok_or_else(|| PyErr::new::<StrayedFromPathPyErr, _>(STRAYED_FROM_PATH_ERR))?;
+    if ball.location.distance(shot.ball_location()) > car.hitbox.width {
+        return Err(PyErr::new::<BallChangedPyErr, _>(BALL_CHANGED_ERR));
+    }
 
-        if car.max_speed[slice_num] * (time_remaining + 0.1) >= shot_info.get_distance_remaining() {
+    match shot {
+        Shot::GroundBased(shot_details) => {
+            let shot_info = AdvancedShotInfo::get_from_ground(car, shot_details).ok_or_else(|| PyErr::new::<StrayedFromPathPyErr, _>(STRAYED_FROM_PATH_ERR))?;
+
+            if car.max_speed[slice_num] * (time_remaining + 0.1) >= shot_info.get_distance_remaining() {
+                Ok(shot_info)
+            } else {
+                Err(PyErr::new::<BadAccelerationPyErr, _>(BAD_ACCELERATION_ERR))
+            }
+        }
+        Shot::AirBased(shot_details) => {
+            let shot_info = AdvancedShotInfo::get_from_air(car, shot_details).ok_or_else(|| PyErr::new::<StrayedFromPathPyErr, _>(STRAYED_FROM_PATH_ERR))?;
+
             Ok(shot_info)
-        } else {
-            Err(PyErr::new::<BadAccelerationPyErr, _>(BAD_ACCELERATION_ERR))
         }
     }
 }

@@ -1,6 +1,7 @@
 use crate::{
+    air::{AerialJumpType, AerialTargetInfo},
     ground::TargetInfo,
-    pytypes::TargetOptions,
+    pytypes::{ShotType, TargetOptions},
     utils::{get_samples_from_line, get_samples_from_path},
 };
 use dubins_paths::{DubinsPath, PathType, PosRot};
@@ -14,7 +15,68 @@ const fn posrot_to_xy_tuple(posrot: &PosRot) -> (f32, f32) {
 }
 
 #[derive(Clone, Debug)]
-pub struct Shot {
+pub enum Shot {
+    GroundBased(Box<GroundBasedShot>),
+    AirBased(AirBasedShot),
+}
+
+impl Shot {
+    pub const fn time(&self) -> f32 {
+        match self {
+            Shot::GroundBased(shot) => shot.time,
+            Shot::AirBased(shot) => shot.time,
+        }
+    }
+
+    pub const fn ball_location(&self) -> Vec3A {
+        match self {
+            Shot::GroundBased(shot) => shot.ball_location,
+            Shot::AirBased(shot) => shot.final_target,
+        }
+    }
+}
+
+impl From<GroundBasedShot> for Shot {
+    fn from(shot: GroundBasedShot) -> Self {
+        Shot::GroundBased(Box::new(shot))
+    }
+}
+
+impl From<AirBasedShot> for Shot {
+    fn from(shot: AirBasedShot) -> Self {
+        Shot::AirBased(shot)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct AirBasedShot {
+    pub time: f32,
+    pub final_target: Vec3A,
+    pub jump_type: AerialJumpType,
+}
+
+impl AirBasedShot {
+    #[inline]
+    pub const fn default() -> Self {
+        Self {
+            time: 0.,
+            final_target: Vec3A::ZERO,
+            jump_type: AerialJumpType::None,
+        }
+    }
+
+    #[inline]
+    pub const fn from(ball: &Ball, target_info: AerialTargetInfo) -> Self {
+        Self {
+            time: ball.time,
+            final_target: target_info.final_target,
+            jump_type: target_info.jump_type,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct GroundBasedShot {
     pub time: f32,
     pub ball_location: Vec3A,
     pub direction: Vec3A,
@@ -23,12 +85,12 @@ pub struct Shot {
     pub samples: [Vec<Vec3A>; 4],
     pub path: DubinsPath,
     pub path_endpoint: PosRot,
-    pub shot_type: usize,
+    pub shot_type: ShotType,
     pub jump_time: Option<f32>,
     pub turn_targets: Option<(Vec3A, Vec3A)>,
 }
 
-impl Shot {
+impl GroundBasedShot {
     const STEP_DISTANCE: f32 = 10.;
     pub const ALL_STEP: usize = 3;
 
@@ -50,7 +112,7 @@ impl Shot {
                 type_: PathType::LSL,
             },
             path_endpoint: PosRot { pos: Vec3A::ZERO, rot: 0. },
-            shot_type: 0,
+            shot_type: ShotType::Ground,
             jump_time: None,
             turn_targets: None,
         }

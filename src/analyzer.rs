@@ -52,22 +52,28 @@ impl Analyzer {
 
     /// get the type of shot that will be required to hit the ball
     /// also check if that type of shot has been enabled
-    fn get_shot_type(&self, car: &Car, target: Vec3A) -> DubinsResult<usize> {
-        if target.z < car.hitbox.height / 2. + 17. {
+    pub fn get_shot_type(&self, car: &Car, target: Vec3A, time_remaining: f32) -> DubinsResult<ShotType> {
+        // we only have ground-based shots right now
+        // check if we've landed on the ground at this point in time
+        if car.landing_time > time_remaining {
+            if self.may_aerial_shot {
+                return Ok(ShotType::Aerial);
+            }
+        } else if target.z < car.hitbox.height / 2. + 17. {
             if self.may_ground_shot {
-                return Ok(ShotType::GROUND);
+                return Ok(ShotType::Ground);
             }
         } else if target.z < car.max_jump_height {
             if self.may_jump_shot {
-                return Ok(ShotType::JUMP);
+                return Ok(ShotType::Jump);
             }
-        } else if target.z < car.max_double_jump_height {
-            if self.may_double_jump_shot {
-                return Ok(ShotType::DOUBLE_JUMP);
-            }
-        } /*else if self.may_aerial_shot {
-              return Ok(ShotType::AERIAL);
-          }*/
+        } else if target.z < car.max_double_jump_height && self.may_double_jump_shot {
+            return Ok(ShotType::DoubleJump);
+        }
+
+        if self.may_aerial_shot {
+            return Ok(ShotType::Aerial);
+        }
 
         Err(NoPathError)
     }
@@ -81,10 +87,10 @@ impl Analyzer {
         shot_vector: Vec3A,
         max_speed: f32,
         time_remaining: f32,
-        shot_type: usize,
+        shot_type: ShotType,
     ) -> DubinsResult<(Option<f32>, f32)> {
         Ok(match shot_type {
-            ShotType::GROUND => {
+            ShotType::Ground => {
                 let distance = 320.;
                 (
                     None,
@@ -98,12 +104,12 @@ impl Analyzer {
                     },
                 )
             }
-            ShotType::JUMP => {
+            ShotType::Jump => {
                 let time = car.jump_time_to_height(self.gravity, target.z - car.hitbox.height / 2.);
 
                 (Some(time), time * max_speed + 128.)
             }
-            ShotType::DOUBLE_JUMP => {
+            ShotType::DoubleJump => {
                 // if we need to do a double jump but we don't even have time for a normal jump
                 if time_remaining < car.max_jump_time {
                     return Err(NoPathError);
@@ -123,14 +129,8 @@ impl Analyzer {
         !is_backwards
     }
 
-    pub fn no_target(&self, ball: &Ball, car: &Car, time_remaining: f32, slice_num: usize) -> DubinsResult<TargetInfo> {
+    pub fn no_target(&self, ball: &Ball, car: &Car, time_remaining: f32, slice_num: usize, shot_type: ShotType) -> DubinsResult<TargetInfo> {
         let car_front_length = (car.hitbox_offset.x + car.hitbox.length) / 2.;
-
-        // we only have ground-based shots right now
-        // check if we've landed on the ground at this point in time
-        if car.landing_time >= time_remaining {
-            return Err(NoPathError);
-        }
 
         let max_speed = self.get_max_speed(car, slice_num);
 
@@ -145,14 +145,11 @@ impl Analyzer {
 
         let car_to_ball = (ball.location - car.location).normalize_or_zero();
 
-        let shot_type = self.get_shot_type(car, ball.location)?;
-        let (jump_time, end_distance) = if shot_type != ShotType::GROUND {
+        let (jump_time, end_distance) = if shot_type != ShotType::Ground {
             self.get_jump_info(car, ball.location, ball.location, car_to_ball, max_speed, time_remaining, shot_type)?
         } else {
             (None, 0.)
         };
-
-        let offset_distance = end_distance - car_front_length - ball.radius;
 
         if let Some(jump_time) = jump_time {
             // if we have enough time for just the jump
@@ -178,6 +175,7 @@ impl Analyzer {
         // compute the distance of each path, validating that it is within our current maximum travel distance (returning an error if neither are)
 
         let turn_final_distance = turn_target.distance(ball.location) - ball.radius - car_front_length;
+        let offset_distance = end_distance - car_front_length - ball.radius;
 
         if turn_final_distance < offset_distance || turn_final_distance + turn_target.distance(car_location) > max_distance {
             return Err(NoPathError);
@@ -230,15 +228,9 @@ impl Analyzer {
         ))
     }
 
-    pub fn target(&self, ball: &Ball, car: &Car, shot_vector: Vec3A, time_remaining: f32, slice_num: usize) -> DubinsResult<TargetInfo> {
+    pub fn target(&self, ball: &Ball, car: &Car, shot_vector: Vec3A, time_remaining: f32, slice_num: usize, shot_type: ShotType) -> DubinsResult<TargetInfo> {
         let offset_target = ball.location - (shot_vector * ball.radius);
         let car_front_length = (car.hitbox_offset.x + car.hitbox.length) / 2.;
-
-        // we only have ground-based shots right now
-        // check if we've landed on the ground at this point in time
-        if car.landing_time >= time_remaining {
-            return Err(NoPathError);
-        }
 
         let max_speed = self.get_max_speed(car, slice_num);
 
@@ -250,8 +242,6 @@ impl Analyzer {
         if flatten(car_location).distance(flatten(offset_target)) > max_distance {
             return Err(NoPathError);
         }
-
-        let shot_type = self.get_shot_type(car, ball.location)?;
         let (jump_time, end_distance) = self.get_jump_info(car, ball.location, offset_target, shot_vector, max_speed, time_remaining, shot_type)?;
 
         if let Some(jump_time) = jump_time {
@@ -261,7 +251,6 @@ impl Analyzer {
             }
         }
 
-        let offset_distance = end_distance - car_front_length;
         let exit_turn_target = flatten(offset_target) - (flatten(shot_vector).normalize_or_zero() * end_distance);
 
         // check if the exit point is in the field, and make sure a simplified version of the path isn't longer than the longest distance we can travel
@@ -285,6 +274,7 @@ impl Analyzer {
 
         let path = shortest_path_in_validate(q0, q1, self.get_max_turn_radius(car, slice_num), &car.field, max_distance)?;
 
+        let offset_distance = end_distance - car_front_length;
         let distances = [path.segment_length(0), path.segment_length(1), path.segment_length(2), offset_distance];
 
         Ok(TargetInfo::from(distances, shot_type, path, jump_time, is_forwards, shot_vector, None))
