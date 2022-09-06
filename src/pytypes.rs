@@ -280,6 +280,7 @@ impl AdvancedShotInfo {
         })
     }
 
+    #[inline]
     pub fn get_from_air(car: &Car, shot: &AirBasedShot) -> Option<Self> {
         Some(Self {
             final_target: get_tuple_from_vec3(shot.final_target),

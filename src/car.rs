@@ -7,41 +7,6 @@ use dubins_paths::DubinsPath;
 use glam::Vec3A;
 use pyo3::{FromPyObject, PyAny, PyResult};
 
-// pub fn naive_double_jump_simulation(time_allowed: f32) {
-//     let gravity = -650.;
-//     let jump_impulse = 292.;
-//     let time_increment = 1. / 120.;
-//     let sticky_force = -325.;
-//     let sticky_timer = time_increment * 3.;
-//     let hold_bonus_increment = (292. * 5.) * time_increment;
-//     let max_hold_time = 0.2;
-//     let mut simulated_z_velocity = 0.;
-//     let mut simulated_height = 17.;
-//     let mut simulation_time = 0.;
-//     let mut double_jumped = false;
-
-//     while simulation_time < time_allowed {
-//         if simulation_time <= f32::EPSILON {
-//             simulated_z_velocity += jump_impulse
-//         } else if simulation_time > max_hold_time + time_increment && !double_jumped {
-//             simulated_z_velocity += jump_impulse;
-//             double_jumped = true;
-//         }
-
-//         if simulation_time < max_hold_time {
-//             simulated_z_velocity += hold_bonus_increment;
-//         }
-
-//         if simulation_time < sticky_timer {
-//             simulated_z_velocity += sticky_force * time_increment;
-//         }
-
-//         simulated_z_velocity += gravity * time_increment;
-//         simulated_height += simulated_z_velocity * time_increment;
-//         simulation_time += time_increment;
-//     }
-// }
-
 pub fn throttle_acceleration(forward_velocity: f32) -> f32 {
     let x = forward_velocity.abs();
 
@@ -76,6 +41,7 @@ pub fn curvature(v: f32) -> f32 {
     }
 }
 
+#[inline]
 pub fn turn_radius(v: f32) -> f32 {
     1. / curvature(v)
 }
@@ -559,10 +525,12 @@ impl Car {
         self.field = CarFieldRect::from(&self.hitbox);
     }
 
+    #[inline]
     pub fn localize_2d_location(&self, vec: Vec3A) -> Vec3A {
         self.localize_2d(vec - self.landing_location)
     }
 
+    #[inline]
     pub fn localize_2d(&self, vec: Vec3A) -> Vec3A {
         Vec3A::new(vec.dot(self.landing_forward), vec.dot(self.landing_right), 0.)
     }
@@ -571,6 +539,7 @@ impl Car {
     //     localize(car, vec - car.location)
     // }
 
+    #[inline]
     pub fn localize(&self, vec: Vec3A) -> Vec3A {
         Vec3A::new(vec.dot(self.forward), vec.dot(self.right), vec.dot(self.up))
     }

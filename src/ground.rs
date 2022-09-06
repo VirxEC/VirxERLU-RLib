@@ -51,6 +51,7 @@ pub fn get_turn_exit_tanget(car: &Car, target: Vec3A, circle_center: Vec3A, rho:
     }
 }
 
+#[inline]
 pub fn angle_2d(vec1: Vec3A, vec2: Vec3A) -> f32 {
     flatten(vec1).normalize_or_zero().dot(flatten(vec2).normalize_or_zero()).clamp(-1., 1.).acos()
 }

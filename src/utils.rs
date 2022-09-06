@@ -37,6 +37,7 @@ pub fn get_samples_from_line(start: PosRot, direction: Vec3A, distance: f32, ste
     samples
 }
 
+#[inline]
 pub fn get_vec3_named(py_vec: &PyAny) -> PyResult<Vec3A> {
     Ok(Vec3A::new(
         py_vec.getattr("x")?.extract()?,
@@ -59,6 +60,7 @@ pub const fn get_tuple_from_vec3(vec: Vec3A) -> (f32, f32, f32) {
     (x, y, z)
 }
 
+#[inline]
 pub fn lerp<T: Copy + Add<Output = T> + Sub<Output = T> + Mul<f32, Output = T>>(a: T, b: T, t: f32) -> T {
     // Linearly interpolate from a to b using t
     // For instance, when t == 0, a is returned, and when t is 1, b is returned
@@ -66,6 +68,7 @@ pub fn lerp<T: Copy + Add<Output = T> + Sub<Output = T> + Mul<f32, Output = T>>(
     (b - a) * t + a
 }
 
+// #[inline]
 // fn invlerp<T: Copy + Sub<Output = T> + Div<Output = f32>>(a: T, b: T, v: T) -> f32 {
 //     // Inverse linear interpolation from a to b with value v
 //     // For instance, it returns 0 if v is a, and returns 1 if v is b, and returns 0.5 if v is exactly between a and b
@@ -169,6 +172,7 @@ impl PostCorrection {
     }
 }
 
+#[inline]
 pub fn minimum_non_negative(x1: f32, x2: f32) -> f32 {
     // get the smallest, non-negative value
     if x1 < 0. {

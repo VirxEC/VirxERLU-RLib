@@ -21,6 +21,7 @@ pub enum Shot {
 }
 
 impl Shot {
+    #[inline]
     pub const fn time(&self) -> f32 {
         match self {
             Shot::GroundBased(shot) => shot.time,
@@ -28,6 +29,7 @@ impl Shot {
         }
     }
 
+    #[inline]
     pub const fn ball_location(&self) -> Vec3A {
         match self {
             Shot::GroundBased(shot) => shot.ball_location,
@@ -37,12 +39,14 @@ impl Shot {
 }
 
 impl From<GroundBasedShot> for Shot {
+    #[inline]
     fn from(shot: GroundBasedShot) -> Self {
         Shot::GroundBased(Box::new(shot))
     }
 }
 
 impl From<AirBasedShot> for Shot {
+    #[inline]
     fn from(shot: AirBasedShot) -> Self {
         Shot::AirBased(shot)
     }
