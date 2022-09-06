@@ -174,7 +174,7 @@ impl BallSlice {
 
 impl BallSlice {
     #[inline]
-    pub const fn from(ball: &Ball) -> Self {
+    pub const fn from(ball: Ball) -> Self {
         BallSlice {
             time: ball.time,
             location: get_tuple_from_vec3(ball.location),

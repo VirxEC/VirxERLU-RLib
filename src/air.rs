@@ -2,12 +2,9 @@ use crate::{
     car::Car,
     constants::*,
     pytypes::{BasicShotInfo, ShotType},
-    // utils::flatten,
-    BoostAmount,
-    Mutators,
+    BoostAmount, Mutators,
 };
 use dubins_paths::NoPathError;
-// use glam::{Mat3A, Vec3A, Vec3Swizzles};
 use glam::Vec3A;
 
 #[inline]
@@ -201,7 +198,7 @@ pub enum AerialJumpType {
     Double,
 }
 
-pub fn aerial_shot_is_viable(car: &Car, mutators: Mutators, target: Vec3A, gravity: Vec3A, time_remaining: f32) -> Result<AerialTargetInfo, NoPathError> {
+pub fn aerial_shot_is_viable(car: &Car, mutators: Mutators, gravity: Vec3A, target: Vec3A, shot_vector: Vec3A, time_remaining: f32) -> Result<AerialTargetInfo, NoPathError> {
     let is_on_ground = !car.airborne || time_remaining > car.landing_time;
 
     if is_on_ground && car.up.z >= 0. && car.max_jump_time > time_remaining {
@@ -285,7 +282,7 @@ pub fn aerial_shot_is_viable(car: &Car, mutators: Mutators, target: Vec3A, gravi
         .ok_or(NoPathError)?;
 
     Ok(AerialTargetInfo {
-        shot_vector: (target - car_location).normalize_or_zero(),
+        shot_vector,
         jump_type: min_boost_estimate.0,
         final_target: target,
     })

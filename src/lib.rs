@@ -284,7 +284,7 @@ fn get_slice_index(slice_num: usize) -> BallSlice {
     let ball_struct = BALL_STRUCT.read().unwrap();
     let ball = ball_struct[slice_num.clamp(1, ball_struct.len()) - 1];
 
-    BallSlice::from(&ball)
+    BallSlice::from(ball)
 }
 
 #[pyfunction]
@@ -467,6 +467,7 @@ fn get_shot_with_target(
         };
 
         for (i, ball) in ball_prediction[target.options.min_slice..target.options.max_slice].iter().enumerate() {
+            let ball = *ball;
             if ball.location.y.abs() > 5120. + ball.collision_radius {
                 break;
             }
@@ -488,6 +489,25 @@ fn get_shot_with_target(
                 };
 
                 if shot_type == ShotType::Aerial {
+                    let ball_edge = ball.location - flatten(shot_vector) * ball.radius;
+                    let shot_vector = (ball_edge - car.location).normalize_or_zero();
+                    let target_location = ball_edge - shot_vector * (car.hitbox.length / 2.);
+
+                    let target_info = match aerial_shot_is_viable(car, mutators, gravity, target_location, shot_vector, max_time_remaining) {
+                        Ok(ti) => ti,
+                        Err(_) => continue,
+                    };
+
+                    if found_shot.is_none() {
+                        basic_shot_info = Some(target_info.get_basic_shot_info(ball.time));
+
+                        found_shot = Some(if temporary { AirBasedShot::default() } else { AirBasedShot::from(ball, target_info) }.into());
+
+                        if !target.options.all {
+                            break;
+                        }
+                    }
+
                     continue;
                 }
 
@@ -523,9 +543,11 @@ fn get_shot_with_target(
                 };
 
                 if shot_type == ShotType::Aerial {
-                    // TODO: better target calculation for aerial shots
-                    let target_location = ball.location;
-                    let target_info = match aerial_shot_is_viable(car, mutators, target_location, gravity, max_time_remaining) {
+                    let ball_edge = ball.location - flatten(ball.location - car.location).normalize_or_zero() * ball.radius;
+                    let shot_vector = (ball_edge - car.location).normalize_or_zero();
+                    let target_location = ball_edge - shot_vector * (car.hitbox.length / 2.);
+
+                    let target_info = match aerial_shot_is_viable(car, mutators, gravity, target_location, shot_vector, max_time_remaining) {
                         Ok(ti) => ti,
                         Err(_) => continue,
                     };
@@ -610,7 +632,7 @@ fn get_data_for_shot_with_target(target_index: usize) -> PyResult<AdvancedShotIn
 
     let ball_struct = BALL_STRUCT.read().unwrap();
     let slice_num = ((time_remaining * TPS).round() as usize).clamp(1, ball_struct.len()) - 1;
-    let ball = &ball_struct[slice_num];
+    let ball = ball_struct[slice_num];
 
     if ball.location.distance(shot.ball_location()) > car.hitbox.width {
         return Err(PyErr::new::<BallChangedPyErr, _>(BALL_CHANGED_ERR));

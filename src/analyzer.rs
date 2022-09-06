@@ -129,7 +129,7 @@ impl Analyzer {
         !is_backwards
     }
 
-    pub fn no_target(&self, ball: &Ball, car: &Car, time_remaining: f32, slice_num: usize, shot_type: ShotType) -> DubinsResult<TargetInfo> {
+    pub fn no_target(&self, ball: Ball, car: &Car, time_remaining: f32, slice_num: usize, shot_type: ShotType) -> DubinsResult<TargetInfo> {
         let car_front_length = (car.hitbox_offset.x + car.hitbox.length) / 2.;
 
         let max_speed = self.get_max_speed(car, slice_num);
@@ -228,7 +228,7 @@ impl Analyzer {
         ))
     }
 
-    pub fn target(&self, ball: &Ball, car: &Car, shot_vector: Vec3A, time_remaining: f32, slice_num: usize, shot_type: ShotType) -> DubinsResult<TargetInfo> {
+    pub fn target(&self, ball: Ball, car: &Car, shot_vector: Vec3A, time_remaining: f32, slice_num: usize, shot_type: ShotType) -> DubinsResult<TargetInfo> {
         let offset_target = ball.location - (shot_vector * ball.radius);
         let car_front_length = (car.hitbox_offset.x + car.hitbox.length) / 2.;
 

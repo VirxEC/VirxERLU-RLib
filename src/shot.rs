@@ -33,7 +33,7 @@ impl Shot {
     pub const fn ball_location(&self) -> Vec3A {
         match self {
             Shot::GroundBased(shot) => shot.ball_location,
-            Shot::AirBased(shot) => shot.final_target,
+            Shot::AirBased(shot) => shot.ball_location,
         }
     }
 }
@@ -57,6 +57,7 @@ pub struct AirBasedShot {
     pub time: f32,
     pub final_target: Vec3A,
     pub jump_type: AerialJumpType,
+    pub ball_location: Vec3A,
 }
 
 impl AirBasedShot {
@@ -66,15 +67,17 @@ impl AirBasedShot {
             time: 0.,
             final_target: Vec3A::ZERO,
             jump_type: AerialJumpType::None,
+            ball_location: Vec3A::ZERO,
         }
     }
 
     #[inline]
-    pub const fn from(ball: &Ball, target_info: AerialTargetInfo) -> Self {
+    pub const fn from(ball: Ball, target_info: AerialTargetInfo) -> Self {
         Self {
             time: ball.time,
             final_target: target_info.final_target,
             jump_type: target_info.jump_type,
+            ball_location: ball.location,
         }
     }
 }
@@ -122,7 +125,7 @@ impl GroundBasedShot {
         }
     }
 
-    pub fn from(ball: &Ball, target: &TargetInfo) -> Self {
+    pub fn from(ball: Ball, target: &TargetInfo) -> Self {
         let direction = target.shot_vector;
         let path_endpoint = target.path.endpoint();
 
