@@ -1,6 +1,6 @@
 use crate::{
     air::{AerialJumpType, AerialTargetInfo},
-    ground::TargetInfo,
+    ground::GroundTargetInfo,
     pytypes::{ShotType, TargetOptions},
     utils::{get_samples_from_line, get_samples_from_path},
 };
@@ -125,7 +125,7 @@ impl GroundBasedShot {
         }
     }
 
-    pub fn from(ball: Ball, target: &TargetInfo) -> Self {
+    pub fn from(ball: Ball, target: &GroundTargetInfo) -> Self {
         let direction = target.shot_vector;
         let path_endpoint = target.path.endpoint();
 

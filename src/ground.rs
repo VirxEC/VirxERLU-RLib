@@ -83,7 +83,7 @@ pub fn shortest_path_in_validate(q0: PosRot, q1: PosRot, rho: f32, car_field: &C
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct TargetInfo {
+pub struct GroundTargetInfo {
     pub distances: [f32; 4],
     pub path: DubinsPath,
     pub shot_type: ShotType,
@@ -93,7 +93,7 @@ pub struct TargetInfo {
     pub turn_targets: Option<(Vec3A, Vec3A)>,
 }
 
-impl TargetInfo {
+impl GroundTargetInfo {
     #[inline]
     pub const fn from(
         distances: [f32; 4],

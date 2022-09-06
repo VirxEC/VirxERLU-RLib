@@ -9,7 +9,6 @@ mod pytypes;
 mod shot;
 mod utils;
 
-use air::aerial_shot_is_viable;
 use analyzer::*;
 use car::{turn_radius, Car};
 use constants::*;
@@ -463,7 +462,15 @@ fn get_shot_with_target(
                 (None, None)
             };
 
-            Analyzer::new(max_speed, max_turn_radius, gravity.z, may_ground_shot, may_jump_shot, may_double_jump_shot, may_aerial_shot)
+            Analyzer::new(
+                (max_speed, max_turn_radius),
+                gravity,
+                may_ground_shot,
+                may_jump_shot,
+                may_double_jump_shot,
+                may_aerial_shot,
+                car,
+            )
         };
 
         for (i, ball) in ball_prediction[target.options.min_slice..target.options.max_slice].iter().enumerate() {
@@ -483,17 +490,16 @@ fn get_shot_with_target(
 
                 let shot_vector = post_info.get_shot_vector_target(car.landing_location, ball.location);
 
-                let shot_type = match analyzer.get_shot_type(car, ball.location, max_time_remaining) {
+                let shot_type = match analyzer.get_shot_type(ball.location, max_time_remaining) {
                     Ok(st) => st,
                     Err(_) => continue,
                 };
 
                 if shot_type == ShotType::Aerial {
                     let ball_edge = ball.location - flatten(shot_vector) * ball.radius;
-                    let shot_vector = (ball_edge - car.location).normalize_or_zero();
-                    let target_location = ball_edge - shot_vector * (car.hitbox.length / 2.);
+                    let target_location = ball_edge - Vec3A::new(0., 0., shot_vector.z) * (car.hitbox_offset.x + car.hitbox.length) / 2.;
 
-                    let target_info = match aerial_shot_is_viable(car, mutators, gravity, target_location, shot_vector, max_time_remaining) {
+                    let target_info = match analyzer.aerial_shot(mutators, target_location, shot_vector, max_time_remaining) {
                         Ok(ti) => ti,
                         Err(_) => continue,
                     };
@@ -511,7 +517,7 @@ fn get_shot_with_target(
                     continue;
                 }
 
-                let target_info = match analyzer.target(ball, car, shot_vector, max_time_remaining, i, shot_type) {
+                let target_info = match analyzer.target(ball, shot_vector, max_time_remaining, i, shot_type) {
                     Ok(ti) => ti,
                     Err(_) => continue,
                 };
@@ -537,7 +543,7 @@ fn get_shot_with_target(
                     }
                 }
             } else {
-                let shot_type = match analyzer.get_shot_type(car, ball.location, max_time_remaining) {
+                let shot_type = match analyzer.get_shot_type(ball.location, max_time_remaining) {
                     Ok(st) => st,
                     Err(_) => continue,
                 };
@@ -545,9 +551,9 @@ fn get_shot_with_target(
                 if shot_type == ShotType::Aerial {
                     let ball_edge = ball.location - flatten(ball.location - car.location).normalize_or_zero() * ball.radius;
                     let shot_vector = (ball_edge - car.location).normalize_or_zero();
-                    let target_location = ball_edge - shot_vector * (car.hitbox.length / 2.);
+                    let target_location = ball_edge - shot_vector * (car.hitbox_offset.x + car.hitbox.length) / 2.;
 
-                    let target_info = match aerial_shot_is_viable(car, mutators, gravity, target_location, shot_vector, max_time_remaining) {
+                    let target_info = match analyzer.aerial_shot(mutators, target_location, shot_vector, max_time_remaining) {
                         Ok(ti) => ti,
                         Err(_) => continue,
                     };
@@ -565,7 +571,7 @@ fn get_shot_with_target(
                     continue;
                 }
 
-                let target_info = match analyzer.no_target(ball, car, max_time_remaining, i, shot_type) {
+                let target_info = match analyzer.no_target(ball, max_time_remaining, i, shot_type) {
                     Ok(ti) => ti,
                     Err(_) => continue,
                 };
