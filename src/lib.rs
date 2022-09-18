@@ -11,6 +11,7 @@ mod utils;
 
 use analyzer::*;
 use car::{turn_radius, Car};
+use combo_vec::{rearr, ReArr};
 use constants::*;
 use glam::Vec3A;
 use pyo3::prelude::*;
@@ -23,14 +24,14 @@ use shot::{AirBasedShot, GroundBasedShot, Options, Shot, Target};
 use std::sync::RwLock;
 use utils::*;
 
-static CARS: RwLock<[Car; 64]> = RwLock::new([NEW_CAR; 64]);
+static CARS: RwLock<ReArr<Car, 8>> = RwLock::new(rearr![]);
 static BALL_STRUCT: RwLock<BallPrediction> = RwLock::new(BallPrediction::new());
 static GRAVITY: RwLock<Vec3A> = RwLock::new(Vec3A::ZERO);
 static GAME_TIME: RwLock<f32> = RwLock::new(0.);
 static GAME: RwLock<Option<Game>> = RwLock::new(None);
 static BALL: RwLock<Option<Ball>> = RwLock::new(None);
 static MUTATORS: RwLock<Mutators> = RwLock::new(Mutators::new());
-static TARGETS: RwLock<Vec<Option<Target>>> = RwLock::new(Vec::new());
+static TARGETS: RwLock<ReArr<Option<Target>, 16>> = RwLock::new(rearr![]);
 
 /// VirxERLU-RLib is written in Rust with Python bindings to make analyzing the ball prediction struct much faster.
 #[pymodule]
@@ -264,8 +265,15 @@ fn tick(py: Python, packet: PyObject, prediction_time: Option<f32>) -> PyResult<
         let num_cars = packet.getattr("num_cars")?.extract::<usize>()?;
         let py_game_cars = packet.getattr("game_cars")?;
 
-        for (i, car) in cars.iter_mut().enumerate().take(num_cars) {
-            car.update(py_game_cars.get_item(i)?)?;
+        if cars.len() != num_cars {
+            const NEW_CAR: Car = Car::new();
+            cars.resize(num_cars, NEW_CAR);
+        }
+
+        let game_time = *GAME_TIME.read().unwrap();
+
+        for (i, car) in cars.iter_mut().enumerate() {
+            car.update(py_game_cars.get_item(i)?, game_time)?;
         }
     }
 
@@ -312,7 +320,8 @@ fn new_target(left_target: Vec<f32>, right_target: Vec<f32>, car_index: usize, o
     let target = Some(Target::new(target_left, target_right, car_index, options));
     let mut targets = TARGETS.write().unwrap();
 
-    let target_index = match targets.iter().position(|x| x.is_none()) {
+    let target_position = targets.iter().position(|x| x.is_none());
+    let target_index = match target_position {
         Some(i) => {
             targets[i] = target;
             i
@@ -345,7 +354,8 @@ fn new_any_target(car_index: usize, options: Option<TargetOptions>) -> PyResult<
     let target = Some(Target::new_any(car_index, options));
     let mut targets = TARGETS.write().unwrap();
 
-    let target_index = match targets.iter().position(|x| x.is_none()) {
+    let target_position = targets.iter().position(|x| x.is_none());
+    let target_index = match target_position {
         Some(i) => {
             targets[i] = target;
             i
@@ -474,7 +484,6 @@ fn get_shot_with_target(
         };
 
         for (i, ball) in ball_prediction[target.options.min_slice..target.options.max_slice].iter().enumerate() {
-            let ball = *ball;
             if ball.location.y.abs() > 5120. + ball.collision_radius {
                 break;
             }

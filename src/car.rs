@@ -150,6 +150,8 @@ pub struct Car {
     pub landing_forward: Vec3A,
     pub landing_right: Vec3A,
     pub landing_up: Vec3A,
+    last_landing_game_time: f32,
+    pub last_landing_time: f32,
     pub max_speed: Vec<f32>,
     /// turn radius at calculated max speed
     pub ctrms: Vec<f32>,
@@ -189,6 +191,8 @@ impl Car {
             landing_forward: Vec3A::ZERO,
             landing_right: Vec3A::ZERO,
             landing_up: Vec3A::ZERO,
+            last_landing_game_time: 0.,
+            last_landing_time: 0.,
             max_speed: Vec::new(),
             ctrms: Vec::new(),
             max_jump_time: 0.,
@@ -199,7 +203,7 @@ impl Car {
         }
     }
 
-    pub fn update(&mut self, py_car: &PyAny) -> PyResult<()> {
+    pub fn update(&mut self, py_car: &PyAny, game_time: f32) -> PyResult<()> {
         let py_car_physics = py_car.getattr("physics")?;
 
         self.location = get_vec3_named(py_car_physics.getattr("location")?)?;
@@ -217,9 +221,17 @@ impl Car {
 
         self.boost = py_car.getattr("boost")?.extract()?;
         self.demolished = py_car.getattr("is_demolished")?.extract()?;
-        self.airborne = !py_car.getattr("has_wheel_contact")?.extract()?;
         self.jumped = py_car.getattr("jumped")?.extract()?;
         self.doublejumped = py_car.getattr("double_jumped")?.extract()?;
+
+        let airborne = !py_car.getattr("has_wheel_contact")?.extract::<bool>()?;
+
+        if self.airborne && !airborne {
+            self.last_landing_game_time = game_time;
+        }
+
+        self.last_landing_time = self.last_landing_game_time - game_time;
+        self.airborne = airborne;
 
         self.init = false;
 

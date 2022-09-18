@@ -72,7 +72,7 @@ impl AirBasedShot {
     }
 
     #[inline]
-    pub const fn from(ball: Ball, target_info: AerialTargetInfo) -> Self {
+    pub const fn from(ball: &Ball, target_info: AerialTargetInfo) -> Self {
         Self {
             time: ball.time,
             final_target: target_info.final_target,
@@ -125,7 +125,7 @@ impl GroundBasedShot {
         }
     }
 
-    pub fn from(ball: Ball, target: &GroundTargetInfo) -> Self {
+    pub fn from(ball: &Ball, target: &GroundTargetInfo) -> Self {
         let direction = target.shot_vector;
         let path_endpoint = target.path.endpoint();
 

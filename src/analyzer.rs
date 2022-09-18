@@ -57,10 +57,8 @@ impl<'a> Analyzer<'a> {
     /// get the type of shot that will be required to hit the ball
     /// also check if that type of shot has been enabled
     pub fn get_shot_type(&self, target: Vec3A, time_remaining: f32) -> DubinsResult<ShotType> {
-        // we only have ground-based shots right now
-        // check if we've landed on the ground at this point in time
         if self.car.landing_time > time_remaining {
-            if self.may_aerial_shot {
+            if self.may_aerial_shot && self.car.last_landing_time + 0.6 < time_remaining {
                 return Ok(ShotType::Aerial);
             }
         } else if target.z < self.car.hitbox.height / 2. + 17. {
@@ -75,7 +73,7 @@ impl<'a> Analyzer<'a> {
             return Ok(ShotType::DoubleJump);
         }
 
-        if self.may_aerial_shot {
+        if self.may_aerial_shot && self.car.last_landing_time + 0.6 < time_remaining {
             return Ok(ShotType::Aerial);
         }
 
@@ -132,7 +130,7 @@ impl<'a> Analyzer<'a> {
         !is_backwards
     }
 
-    pub fn no_target(&self, ball: Ball, time_remaining: f32, slice_num: usize, shot_type: ShotType) -> DubinsResult<GroundTargetInfo> {
+    pub fn no_target(&self, ball: &Ball, time_remaining: f32, slice_num: usize, shot_type: ShotType) -> DubinsResult<GroundTargetInfo> {
         let car_front_length = (self.car.hitbox_offset.x + self.car.hitbox.length) / 2.;
 
         let max_speed = self.get_max_speed(slice_num);
@@ -231,7 +229,7 @@ impl<'a> Analyzer<'a> {
         ))
     }
 
-    pub fn target(&self, ball: Ball, shot_vector: Vec3A, time_remaining: f32, slice_num: usize, shot_type: ShotType) -> DubinsResult<GroundTargetInfo> {
+    pub fn target(&self, ball: &Ball, shot_vector: Vec3A, time_remaining: f32, slice_num: usize, shot_type: ShotType) -> DubinsResult<GroundTargetInfo> {
         let offset_target = ball.location - (shot_vector * ball.radius);
         let car_front_length = (self.car.hitbox_offset.x + self.car.hitbox.length) / 2.;
 

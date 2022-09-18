@@ -9,7 +9,7 @@ use glam::Vec3A;
 
 #[inline]
 fn angle_3d(a: Vec3A, b: Vec3A) -> f32 {
-    a.dot(b).clamp(-1.0, 1.0).acos()
+    a.dot(b).clamp(-1., 1.).acos()
 }
 
 // fn axis_to_rotation(axis: Vec3A) -> Mat3A {
@@ -150,7 +150,7 @@ impl BasicAerialInfo /*<'a>*/ {
 
     fn validate(&self, xf: Vec3A, vf: Vec3A, jump_type: AerialJumpType) -> Option<(AerialJumpType, f32)> {
         let delta_x = self.target - xf;
-        let f = delta_x.normalize();
+        let f = delta_x.try_normalize()?;
         let phi = angle_3d(f, self.car_forward);
 
         // let estimated_turn_time = 2. * (phi / 9.).sqrt();
@@ -166,7 +166,7 @@ impl BasicAerialInfo /*<'a>*/ {
             return None;
         }
 
-        let tau1 = turn_time * (1. - 0.3 / phi).clamp(0., 1.);
+        let tau1 = turn_time * (1. - 0.3 / phi.max(f32::EPSILON)).clamp(0., 1.);
         let required_acc = 2. * delta_x.length() / (self.time_remaining - tau1).powi(2);
 
         let ratio = required_acc / self.boost_accel;
@@ -186,6 +186,7 @@ impl BasicAerialInfo /*<'a>*/ {
             return None;
         }
 
+        println!("{jump_type:?}: {tau1} | {tau2}");
         Some((jump_type, boost_estimate))
     }
 }
@@ -201,13 +202,16 @@ pub enum AerialJumpType {
 pub fn aerial_shot_is_viable(car: &Car, mutators: Mutators, gravity: Vec3A, target: Vec3A, shot_vector: Vec3A, time_remaining: f32) -> DubinsResult<AerialTargetInfo> {
     let is_on_ground = !car.airborne || time_remaining > car.landing_time;
 
-    if is_on_ground && car.up.z >= 0. && car.max_jump_time > time_remaining {
+    if is_on_ground && car.up.z >= 0. && time_remaining <= JUMP_MAX_DURATION {
         return Err(NoPathError);
     }
 
-    let car_location = if is_on_ground { car.landing_location } else { car.location };
+    let land_time = if car.landing_time > f32::EPSILON { car.landing_time } else { car.last_landing_time };
+    if is_on_ground && land_time + 0.6 > time_remaining {
+        return Err(NoPathError);
+    }
 
-    let quick_speed_required = car_location.distance(target) / time_remaining;
+    let quick_speed_required = car.location.distance(target) / time_remaining;
     if quick_speed_required > MAX_SPEED {
         return Err(NoPathError);
     }
@@ -222,25 +226,28 @@ pub fn aerial_shot_is_viable(car: &Car, mutators: Mutators, gravity: Vec3A, targ
     let boost_accel = mutators.boost_accel + AERIAL_THROTTLE_ACCEL;
 
     let vf_base = car.velocity + gravity * time_remaining;
-    let xf_base = car.location + car.velocity * time_remaining + gravity * 0.5 * time_remaining.powi(2);
-
-    let basic_aerial_info = BasicAerialInfo {
-        car_forward: if is_on_ground { car.landing_forward } else { car.forward },
-        car_boost: car.boost as f32,
-        boost_amount: mutators.boost_amount,
-        boost_accel,
-        target,
-        time_remaining: if is_on_ground { time_remaining - car.landing_time } else { time_remaining },
-        // car,
-    };
+    let xf_base = car.velocity * time_remaining + gravity * 0.5 * time_remaining.powi(2);
 
     if is_on_ground {
-        let total_jump_acc = JUMP_SPEED + JUMP_ACC * JUMP_MAX_DURATION;
-        let partial_jump_loc = JUMP_ACC * (time_remaining * JUMP_MAX_DURATION - 0.5 * JUMP_MAX_DURATION.powi(2));
+        let basic_aerial_info = BasicAerialInfo {
+            car_forward: car.landing_forward,
+            car_boost: car.boost as f32,
+            boost_amount: mutators.boost_amount,
+            boost_accel,
+            target,
+            time_remaining: time_remaining - car.landing_time,
+            // car,
+        };
+
+        const TOTAL_JUMP_ACC: f32 = JUMP_SPEED + JUMP_ACC * JUMP_MAX_DURATION;
 
         if time_remaining > DOUBLE_JUMP_DURATION {
-            let vf = vf_base + car.up * (JUMP_SPEED + total_jump_acc);
-            let xf = xf_base + car.up * (JUMP_SPEED * (2. * time_remaining - JUMP_MAX_DURATION) + partial_jump_loc);
+            const TOTAL_JUMP_ACC_2: f32 = JUMP_SPEED + TOTAL_JUMP_ACC;
+            let vf = vf_base + car.up * TOTAL_JUMP_ACC_2;
+
+            const PARITAL_JUMP_LOC: f32 = 2. * JUMP_SPEED + JUMP_ACC * JUMP_MAX_DURATION;
+            const JUMP_LOC_P2: f32 = -(JUMP_SPEED * JUMP_MAX_DURATION + 0.5 * JUMP_MAX_DURATION * JUMP_MAX_DURATION * JUMP_ACC);
+            let xf = car.landing_location + xf_base + car.up * (time_remaining * PARITAL_JUMP_LOC + JUMP_LOC_P2);
 
             if let Some(result) = basic_aerial_info.validate(xf, vf, AerialJumpType::Double) {
                 found.push(result);
@@ -248,8 +255,11 @@ pub fn aerial_shot_is_viable(car: &Car, mutators: Mutators, gravity: Vec3A, targ
         }
 
         if time_remaining > JUMP_MAX_DURATION {
-            let vf = vf_base + car.up * total_jump_acc;
-            let xf = xf_base + car.up * (JUMP_SPEED * time_remaining + partial_jump_loc);
+            let vf = vf_base + car.up * TOTAL_JUMP_ACC;
+
+            const PARITAL_JUMP_LOC: f32 = JUMP_SPEED + JUMP_ACC * JUMP_MAX_DURATION;
+            const JUMP_LOC_P2: f32 = -0.5 * JUMP_MAX_DURATION * JUMP_MAX_DURATION * JUMP_ACC;
+            let xf = car.landing_location + xf_base + car.up * (time_remaining * PARITAL_JUMP_LOC + JUMP_LOC_P2);
 
             if let Some(result) = basic_aerial_info.validate(xf, vf, AerialJumpType::Normal) {
                 found.push(result);
@@ -257,9 +267,19 @@ pub fn aerial_shot_is_viable(car: &Car, mutators: Mutators, gravity: Vec3A, targ
         }
     }
 
+    let basic_aerial_info = BasicAerialInfo {
+        car_forward: car.forward,
+        car_boost: car.boost as f32,
+        boost_amount: mutators.boost_amount,
+        boost_accel,
+        target,
+        time_remaining,
+        // car,
+    };
+
     if !car.doublejumped && (!is_on_ground || (car.airborne && (car.velocity.z + gravity.z * car.landing_time) + mutators.boost_accel * car.landing_time + JUMP_SPEED > 0.)) {
         let vf = vf_base + car.up * JUMP_SPEED;
-        let xf = xf_base + car.up * (JUMP_SPEED * time_remaining);
+        let xf = car.location + xf_base + car.up * (JUMP_SPEED * time_remaining);
 
         if let Some(result) = basic_aerial_info.validate(xf, vf, AerialJumpType::Secondary) {
             found.push(result);
@@ -267,11 +287,16 @@ pub fn aerial_shot_is_viable(car: &Car, mutators: Mutators, gravity: Vec3A, targ
     }
 
     if !is_on_ground || car.up.z < 0. || (car.airborne && (car.velocity.z + gravity.z * car.landing_time) + mutators.boost_accel * car.landing_time > 0.) {
-        if let Some(result) = basic_aerial_info.validate(xf_base, vf_base, AerialJumpType::None) {
+        if let Some(result) = basic_aerial_info.validate(car.location + xf_base, vf_base, AerialJumpType::None) {
             found.push(result);
         }
     }
 
+    if found.is_empty() {
+        return Err(NoPathError);
+    }
+
+    println!("{found:?}");
     let min_boost_estimate = found
         .into_iter()
         .min_by(|(jump_type, boost_estimate), (jump_type_2, boost_estimate_2)| {

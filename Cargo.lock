@@ -27,6 +27,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
+name = "combo_vec"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6b909a2179b263535e6e70947b93512350563adf10a76903319f78546e72b4c"
+
+[[package]]
 name = "dubins_paths"
 version = "1.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -225,9 +231,9 @@ dependencies = [
 
 [[package]]
 name = "rand_core"
-version = "0.6.3"
+version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d34f1408f55294453790c48b2f1ebbb1c5b4b7563eb1f418bcfcfdbb06ebb4e7"
+checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
 dependencies = [
  "getrandom",
 ]
@@ -243,9 +249,9 @@ dependencies = [
 
 [[package]]
 name = "rl_ball_sym"
-version = "2.1.0"
+version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a58433fbf799913968f2769fac26224231dddb84f5b9a425b518bca8cb62f8b6"
+checksum = "30355302655d53ea8b21b820e0d5c3cd24e005bc926e348adc74aa57576f1286"
 dependencies = [
  "byteorder",
  "glam",
@@ -283,9 +289,9 @@ checksum = "c02424087780c9b71cc96799eaeddff35af2bc513278cda5c99fc1f5d026d3c1"
 
 [[package]]
 name = "unicode-ident"
-version = "1.0.3"
+version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c4f5b37a154999a8f3f98cc23a628d850e154479cd94decf3414696e12e31aaf"
+checksum = "dcc811dc4066ac62f84f11307873c4850cb653bfa9b1719cee2bd2204a4bc5dd"
 
 [[package]]
 name = "unindent"
@@ -297,6 +303,7 @@ checksum = "58ee9362deb4a96cef4d437d1ad49cffc9b9e92d202b6995674e928ce684f112"
 name = "virx_erlu_rlib"
 version = "0.11.0"
 dependencies = [
+ "combo_vec",
  "dubins_paths",
  "glam",
  "pyo3",

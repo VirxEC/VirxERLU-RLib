@@ -155,7 +155,7 @@ print()
 
 print("Benchmarking...")
 
-for _ in range(5000):
+for _ in range(1000):
     start = time_ns()
 
     rlru.tick(packet)
