@@ -28,9 +28,9 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "combo_vec"
-version = "0.1.1"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6b909a2179b263535e6e70947b93512350563adf10a76903319f78546e72b4c"
+checksum = "16e22bcc3f2de9ddde72775bb66e6c36c2ce9f8d25f02b6d641dd89c61754d68"
 
 [[package]]
 name = "dubins_paths"
