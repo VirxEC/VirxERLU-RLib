@@ -250,9 +250,8 @@ fn tick(py: Python, packet: PyObject, prediction_time: Option<f32>) -> PyResult<
 
         let py_ball_shape = py_ball.getattr("collision_shape")?;
 
-        ball.radius = py_ball_shape.getattr("sphere")?.getattr("diameter")?.extract::<f32>()? / 2.;
-        ball.collision_radius = ball.radius + 1.9;
-        ball.calculate_moi();
+        let radius = py_ball_shape.getattr("sphere")?.getattr("diameter")?.extract::<f32>()? / 2.;
+        ball.set_radius(radius, radius + 1.9);
     }
 
     // Predict future information about the ball
@@ -484,14 +483,14 @@ fn get_shot_with_target(
         };
 
         for (i, ball) in ball_prediction[target.options.min_slice..target.options.max_slice].iter().enumerate() {
-            if ball.location.y.abs() > 5120. + ball.collision_radius {
+            if ball.location.y.abs() > 5120. + ball.collision_radius() {
                 break;
             }
 
             let max_time_remaining = ball.time - game_time;
 
             if let Some(target_location) = &target.location {
-                let post_info = PostCorrection::from(ball.location, ball.collision_radius, target_location.left, target_location.right);
+                let post_info = PostCorrection::from(ball.location, ball.collision_radius(), target_location.left, target_location.right);
 
                 if !post_info.fits {
                     continue;
@@ -505,7 +504,7 @@ fn get_shot_with_target(
                 };
 
                 if shot_type == ShotType::Aerial {
-                    let ball_edge = ball.location - flatten(shot_vector) * ball.radius;
+                    let ball_edge = ball.location - flatten(shot_vector) * ball.radius();
                     let target_location = ball_edge - Vec3A::new(0., 0., shot_vector.z) * (car.hitbox_offset.x + car.hitbox.length) / 2.;
 
                     let target_info = match analyzer.aerial_shot(mutators, target_location, shot_vector, max_time_remaining) {
@@ -558,7 +557,7 @@ fn get_shot_with_target(
                 };
 
                 if shot_type == ShotType::Aerial {
-                    let ball_edge = ball.location - flatten(ball.location - car.location).normalize_or_zero() * ball.radius;
+                    let ball_edge = ball.location - flatten(ball.location - car.location).normalize_or_zero() * ball.radius();
                     let shot_vector = (ball_edge - car.location).normalize_or_zero();
                     let target_location = ball_edge - shot_vector * (car.hitbox_offset.x + car.hitbox.length) / 2.;
 

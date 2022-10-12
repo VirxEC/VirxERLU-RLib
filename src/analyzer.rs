@@ -137,7 +137,7 @@ impl<'a> Analyzer<'a> {
 
         let time_remaining = time_remaining - self.car.landing_time;
         let car_location = flatten(self.car.landing_location);
-        let max_distance = time_remaining * max_speed + car_front_length + ball.radius;
+        let max_distance = time_remaining * max_speed + car_front_length + ball.radius();
 
         // check if a simplified path is longer than the longest distance we can possibly travel
         if car_location.distance(flatten(ball.location)) > max_distance {
@@ -175,8 +175,8 @@ impl<'a> Analyzer<'a> {
 
         // compute the distance of each path, validating that it is within our current maximum travel distance (returning an error if neither are)
 
-        let turn_final_distance = turn_target.distance(ball.location) - ball.radius - car_front_length;
-        let offset_distance = end_distance - car_front_length - ball.radius;
+        let turn_final_distance = turn_target.distance(ball.location) - ball.radius() - car_front_length;
+        let offset_distance = end_distance - car_front_length - ball.radius();
 
         if turn_final_distance < offset_distance || turn_final_distance + turn_target.distance(car_location) > max_distance {
             return Err(NoPathError);
@@ -230,7 +230,7 @@ impl<'a> Analyzer<'a> {
     }
 
     pub fn target(&self, ball: &Ball, shot_vector: Vec3A, time_remaining: f32, slice_num: usize, shot_type: ShotType) -> DubinsResult<GroundTargetInfo> {
-        let offset_target = ball.location - (shot_vector * ball.radius);
+        let offset_target = ball.location - (shot_vector * ball.radius());
         let car_front_length = (self.car.hitbox_offset.x + self.car.hitbox.length) / 2.;
 
         let max_speed = self.get_max_speed(slice_num);
