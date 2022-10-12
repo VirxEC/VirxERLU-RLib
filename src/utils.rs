@@ -46,11 +46,11 @@ pub fn get_vec3_named(py_vec: &PyAny) -> PyResult<Vec3A> {
     ))
 }
 
-pub fn get_vec3_from_vec(vec: Vec<f32>, name: &str) -> PyResult<Vec3A> {
-    if vec.len() != 3 {
-        Err(PyErr::new::<exceptions::PyIndexError, _>(format!("Key '{}' needs to be a list of exactly 3 numbers", name)))
-    } else {
+pub fn get_vec3_from_vec(vec: &Vec<f32>, name: &str) -> PyResult<Vec3A> {
+    if vec.len() == 3 {
         Ok(Vec3A::new(vec[0], vec[1], vec[2]))
+    } else {
+        Err(PyErr::new::<exceptions::PyIndexError, _>(format!("Key '{}' needs to be a list of exactly 3 numbers", name)))
     }
 }
 

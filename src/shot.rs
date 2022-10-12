@@ -72,7 +72,7 @@ impl AirBasedShot {
     }
 
     #[inline]
-    pub const fn from(ball: &Ball, target_info: AerialTargetInfo) -> Self {
+    pub const fn from(ball: &Ball, target_info: &AerialTargetInfo) -> Self {
         Self {
             time: ball.time,
             final_target: target_info.final_target,

@@ -114,7 +114,6 @@ pub enum BoostAmount {
 impl BoostAmount {
     fn from(item: u8) -> BoostAmount {
         match item {
-            0 => BoostAmount::Default,
             1 => BoostAmount::Unlimited,
             2 => BoostAmount::SlowRecharge,
             3 => BoostAmount::FastRecharge,
@@ -132,6 +131,7 @@ pub struct Mutators {
 
 impl Mutators {
     #[inline]
+    #[must_use]
     pub const fn new() -> Self {
         Mutators {
             boost_amount: BoostAmount::Default,
@@ -143,7 +143,6 @@ impl Mutators {
         Ok(Mutators {
             boost_amount: BoostAmount::from(mutators.call_method("BoostOption", (), None)?.extract()?),
             boost_accel: match mutators.call_method("BoostStrengthOption", (), None)?.extract()? {
-                0 => BOOST_ACCEL,
                 1 => BOOST_ACCEL * 1.5,
                 2 => BOOST_ACCEL * 2.,
                 3 => BOOST_ACCEL * 10.,
@@ -306,29 +305,26 @@ fn new_target(left_target: Vec<f32>, right_target: Vec<f32>, car_index: usize, o
         return Err(PyErr::new::<NoSlicesPyErr, _>(NO_SLICES_ERR));
     }
 
-    let target_left = get_vec3_from_vec(left_target, "target_left")?;
-    let target_right = get_vec3_from_vec(right_target, "target_right")?;
+    let target_left = get_vec3_from_vec(&left_target, "target_left")?;
+    let target_right = get_vec3_from_vec(&right_target, "target_right")?;
     let options = Options::from(options, num_slices);
 
     {
         let mut cars = CARS.write().unwrap();
         let car = cars.get_mut(car_index).ok_or_else(|| PyErr::new::<NoCarPyErr, _>(NO_CAR_ERR))?;
-        car.init(GRAVITY.read().unwrap().z, num_slices, &*MUTATORS.read().unwrap());
+        car.init(GRAVITY.read().unwrap().z, num_slices, *MUTATORS.read().unwrap());
     }
 
     let target = Some(Target::new(target_left, target_right, car_index, options));
     let mut targets = TARGETS.write().unwrap();
 
-    let target_position = targets.iter().position(|x| x.is_none());
-    let target_index = match target_position {
-        Some(i) => {
-            targets[i] = target;
-            i
-        }
-        None => {
-            targets.push(target);
-            targets.len() - 1
-        }
+    let target_position = targets.iter().position(Option::is_none);
+    let target_index = if let Some(i) = target_position {
+        targets[i] = target;
+        i
+    } else {
+        targets.push(target);
+        targets.len() - 1
     };
 
     Ok(target_index)
@@ -347,22 +343,19 @@ fn new_any_target(car_index: usize, options: Option<TargetOptions>) -> PyResult<
     {
         let mut cars = CARS.write().unwrap();
         let car = cars.get_mut(car_index).ok_or_else(|| PyErr::new::<NoCarPyErr, _>(NO_CAR_ERR))?;
-        car.init(GRAVITY.read().unwrap().z, num_slices, &*MUTATORS.read().unwrap());
+        car.init(GRAVITY.read().unwrap().z, num_slices, *MUTATORS.read().unwrap());
     }
 
     let target = Some(Target::new_any(car_index, options));
     let mut targets = TARGETS.write().unwrap();
 
-    let target_position = targets.iter().position(|x| x.is_none());
-    let target_index = match target_position {
-        Some(i) => {
-            targets[i] = target;
-            i
-        }
-        None => {
-            targets.push(target);
-            targets.len() - 1
-        }
+    let target_position = targets.iter().position(Option::is_none);
+    let target_index = if let Some(i) = target_position {
+        targets[i] = target;
+        i
+    } else {
+        targets.push(target);
+        targets.len() - 1
     };
 
     Ok(target_index)
@@ -515,7 +508,7 @@ fn get_shot_with_target(
                     if found_shot.is_none() {
                         basic_shot_info = Some(target_info.get_basic_shot_info(ball.time));
 
-                        found_shot = Some(if temporary { AirBasedShot::default() } else { AirBasedShot::from(ball, target_info) }.into());
+                        found_shot = Some(if temporary { AirBasedShot::default() } else { AirBasedShot::from(ball, &target_info) }.into());
 
                         if !target.options.all {
                             break;
@@ -530,7 +523,7 @@ fn get_shot_with_target(
                     Err(_) => continue,
                 };
 
-                if target_info.can_reach(car, max_time_remaining, &mutators).is_err() {
+                if target_info.can_reach(car, max_time_remaining, mutators).is_err() {
                     continue;
                 }
 
@@ -569,7 +562,7 @@ fn get_shot_with_target(
                     if found_shot.is_none() {
                         basic_shot_info = Some(target_info.get_basic_shot_info(ball.time));
 
-                        found_shot = Some(if temporary { AirBasedShot::default() } else { AirBasedShot::from(ball, target_info) }.into());
+                        found_shot = Some(if temporary { AirBasedShot::default() } else { AirBasedShot::from(ball, &target_info) }.into());
 
                         if !target.options.all {
                             break;
@@ -584,7 +577,7 @@ fn get_shot_with_target(
                     Err(_) => continue,
                 };
 
-                if target_info.can_reach(car, max_time_remaining, &mutators).is_err() {
+                if target_info.can_reach(car, max_time_remaining, mutators).is_err() {
                     continue;
                 }
 

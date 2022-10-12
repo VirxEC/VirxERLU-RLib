@@ -120,7 +120,7 @@ impl<'a> Analyzer<'a> {
 
                 (Some(time), time * max_speed + 128.)
             }
-            _ => unreachable!(),
+            ShotType::Aerial => unreachable!(),
         })
     }
 
@@ -146,10 +146,10 @@ impl<'a> Analyzer<'a> {
 
         let car_to_ball = (ball.location - self.car.location).normalize_or_zero();
 
-        let (jump_time, end_distance) = if shot_type != ShotType::Ground {
-            self.get_jump_info(ball.location, ball.location, car_to_ball, max_speed, time_remaining, shot_type)?
-        } else {
+        let (jump_time, end_distance) = if shot_type == ShotType::Ground {
             (None, 0.)
+        } else {
+            self.get_jump_info(ball.location, ball.location, car_to_ball, max_speed, time_remaining, shot_type)?
         };
 
         if let Some(jump_time) = jump_time {

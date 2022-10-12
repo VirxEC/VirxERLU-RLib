@@ -215,12 +215,13 @@ impl AdvancedShotInfo {
 #[pymethods]
 impl AdvancedShotInfo {
     fn __str__(&self) -> String {
-        match self.required_jump_time {
-            Some(required_jump_time) => format!(
+        if let Some(required_jump_time) = self.required_jump_time {
+            format!(
                 "Final target: {:?}, distance remaining: {:.0}, required jump time: {:.1}, num_jumps: {:?}",
                 self.final_target, self.distance_remaining, required_jump_time, self.num_jumps
-            ),
-            None => format!("Final target: {:?}, distance remaining: {:.0}", self.final_target, self.distance_remaining),
+            )
+        } else {
+            format!("Final target: {:?}, distance remaining: {:.0}", self.final_target, self.distance_remaining)
         }
     }
 
@@ -263,7 +264,7 @@ impl AdvancedShotInfo {
         };
 
         // get all the samples from the vec after index
-        let samples = shot.all_samples.iter().skip(index / GroundBasedShot::ALL_STEP).cloned().collect();
+        let samples = shot.all_samples.iter().skip(index / GroundBasedShot::ALL_STEP).copied().collect();
 
         Some(Self {
             final_target: get_tuple_from_vec3(flatten(target)),

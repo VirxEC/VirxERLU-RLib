@@ -1,5 +1,5 @@
 use crate::{
-    car::{throttle_acceleration, Car, CarFieldRect},
+    car::{throttle_acceleration, Car, FieldRect},
     constants::*,
     pytypes::{BasicShotInfo, ShotType},
     utils::*,
@@ -9,7 +9,7 @@ use dubins_paths::{self, DubinsPath, Intermediate, NoPathError, PathType, PosRot
 use glam::Vec3A;
 use std::f32::{consts::E, INFINITY};
 
-/// https://stackoverflow.com/a/49987361/10930209
+/// <https://stackoverflow.com/a/49987361/10930209>
 fn get_turn_exit_tangets(target: Vec3A, circle_center: Vec3A, radius: f32) -> (Vec3A, Vec3A) {
     let circle_center_to_target = target - circle_center;
     let b = circle_center_to_target.length();
@@ -56,7 +56,7 @@ pub fn angle_2d(vec1: Vec3A, vec2: Vec3A) -> f32 {
     flatten(vec1).normalize_or_zero().dot(flatten(vec2).normalize_or_zero()).clamp(-1., 1.).acos()
 }
 
-pub fn shortest_path_in_validate(q0: PosRot, q1: PosRot, rho: f32, car_field: &CarFieldRect, max_distance: f32) -> dubins_paths::Result<DubinsPath> {
+pub fn shortest_path_in_validate(q0: PosRot, q1: PosRot, rho: f32, car_field: &FieldRect, max_distance: f32) -> dubins_paths::Result<DubinsPath> {
     let mut best_cost = INFINITY;
     let mut best_path = None;
 
@@ -115,7 +115,7 @@ impl GroundTargetInfo {
         }
     }
 
-    pub fn can_reach(&self, car: &Car, max_time: f32, mutators: &Mutators) -> Result<f32, ()> {
+    pub fn can_reach(&self, car: &Car, max_time: f32, mutators: Mutators) -> Result<f32, ()> {
         let is_curved = PathType::CCC.contains(&self.path.type_);
 
         let total_d = self.distances.iter().sum::<f32>();
@@ -131,8 +131,8 @@ impl GroundTargetInfo {
 
         let mut d = total_d;
         let mut t_r = max_time;
-        let b_s = car.boost.min(12) as f32;
-        let mut b = car.boost as f32 - b_s;
+        let b_s = f32::from(car.boost.min(12));
+        let mut b = f32::from(car.boost) - b_s;
         let mut v = flatten(car.landing_velocity).length() * direction;
 
         loop {

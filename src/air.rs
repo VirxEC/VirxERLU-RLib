@@ -229,9 +229,11 @@ pub fn aerial_shot_is_viable(car: &Car, mutators: Mutators, gravity: Vec3A, targ
     let xf_base = car.velocity * time_remaining + gravity * 0.5 * time_remaining.powi(2);
 
     if is_on_ground {
+        const TOTAL_JUMP_ACC: f32 = JUMP_SPEED + JUMP_ACC * JUMP_MAX_DURATION;
+
         let basic_aerial_info = BasicAerialInfo {
             car_forward: car.landing_forward,
-            car_boost: car.boost as f32,
+            car_boost: f32::from(car.boost),
             boost_amount: mutators.boost_amount,
             boost_accel,
             target,
@@ -239,14 +241,12 @@ pub fn aerial_shot_is_viable(car: &Car, mutators: Mutators, gravity: Vec3A, targ
             // car,
         };
 
-        const TOTAL_JUMP_ACC: f32 = JUMP_SPEED + JUMP_ACC * JUMP_MAX_DURATION;
-
         if time_remaining > DOUBLE_JUMP_DURATION {
             const TOTAL_JUMP_ACC_2: f32 = JUMP_SPEED + TOTAL_JUMP_ACC;
-            let vf = vf_base + car.up * TOTAL_JUMP_ACC_2;
-
             const PARITAL_JUMP_LOC: f32 = 2. * JUMP_SPEED + JUMP_ACC * JUMP_MAX_DURATION;
             const JUMP_LOC_P2: f32 = -(JUMP_SPEED * JUMP_MAX_DURATION + 0.5 * JUMP_MAX_DURATION * JUMP_MAX_DURATION * JUMP_ACC);
+
+            let vf = vf_base + car.up * TOTAL_JUMP_ACC_2;
             let xf = car.landing_location + xf_base + car.up * (time_remaining * PARITAL_JUMP_LOC + JUMP_LOC_P2);
 
             if let Some(result) = basic_aerial_info.validate(xf, vf, AerialJumpType::Double) {
@@ -255,10 +255,10 @@ pub fn aerial_shot_is_viable(car: &Car, mutators: Mutators, gravity: Vec3A, targ
         }
 
         if time_remaining > JUMP_MAX_DURATION {
-            let vf = vf_base + car.up * TOTAL_JUMP_ACC;
-
             const PARITAL_JUMP_LOC: f32 = JUMP_SPEED + JUMP_ACC * JUMP_MAX_DURATION;
             const JUMP_LOC_P2: f32 = -0.5 * JUMP_MAX_DURATION * JUMP_MAX_DURATION * JUMP_ACC;
+
+            let vf = vf_base + car.up * TOTAL_JUMP_ACC;
             let xf = car.landing_location + xf_base + car.up * (time_remaining * PARITAL_JUMP_LOC + JUMP_LOC_P2);
 
             if let Some(result) = basic_aerial_info.validate(xf, vf, AerialJumpType::Normal) {
@@ -269,7 +269,7 @@ pub fn aerial_shot_is_viable(car: &Car, mutators: Mutators, gravity: Vec3A, targ
 
     let basic_aerial_info = BasicAerialInfo {
         car_forward: car.forward,
-        car_boost: car.boost as f32,
+        car_boost: f32::from(car.boost),
         boost_amount: mutators.boost_amount,
         boost_accel,
         target,

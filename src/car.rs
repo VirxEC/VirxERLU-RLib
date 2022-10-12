@@ -32,7 +32,7 @@ pub fn curvature(v: f32) -> f32 {
     } else if (1000. ..1500.).contains(&v) {
         0.0043 - 1.95e-6 * v
     } else if (1500. ..1750.).contains(&v) {
-        0.003025 - 1.1e-6 * v
+        0.003_025 - 1.1e-6 * v
     } else if (1750. ..2305.).contains(&v) {
         0.0018 - 4e-7 * v
     } else {
@@ -65,14 +65,14 @@ impl Hitbox {
 }
 
 #[derive(Clone, Copy, Debug, Default)]
-pub struct CarFieldRect {
+pub struct FieldRect {
     goal_x: f32,
     goal_y: f32,
     field_y: f32,
     field_x: f32,
 }
 
-impl CarFieldRect {
+impl FieldRect {
     const CHECK_DISTANCE: f32 = 400.;
 
     #[inline]
@@ -134,7 +134,7 @@ pub struct Car {
     pub up: Vec3A,
     pub hitbox: Hitbox,
     pub hitbox_offset: Vec3A,
-    pub field: CarFieldRect,
+    pub field: FieldRect,
     pub pitch: f32,
     pub yaw: f32,
     pub roll: f32,
@@ -175,7 +175,7 @@ impl Car {
             up: Vec3A::ZERO,
             hitbox: Hitbox::new(),
             hitbox_offset: Vec3A::ZERO,
-            field: CarFieldRect::new(),
+            field: FieldRect::new(),
             pitch: 0.,
             yaw: 0.,
             roll: 0.,
@@ -238,7 +238,7 @@ impl Car {
         Ok(())
     }
 
-    pub fn init(&mut self, gravity: f32, max_ball_slice: usize, mutators: &Mutators) {
+    pub fn init(&mut self, gravity: f32, max_ball_slice: usize, mutators: Mutators) {
         if !self.init {
             Self::calculate_orientation_matrix(&mut self.forward, &mut self.right, &mut self.up, self.pitch, self.yaw, self.roll);
             self.calculate_field();
@@ -406,8 +406,8 @@ impl Car {
         up.z = c_p * c_r;
     }
 
-    pub fn calculate_max_values(&mut self, max_ball_slice: usize, mutators: &Mutators) {
-        let mut b = self.boost as f32;
+    pub fn calculate_max_values(&mut self, max_ball_slice: usize, mutators: Mutators) {
+        let mut b = f32::from(self.boost);
         let mut v = self.landing_velocity.dot(self.forward);
         let mut fast_forward = false;
 
@@ -485,7 +485,7 @@ impl Car {
             let throttle_accel = throttle_acceleration(v1);
             let mut accel = 0.;
 
-            if 1 == v1.signum() as usize {
+            if (1. - v1.signum()).abs() < f32::EPSILON {
                 accel += throttle_accel * SIMULATION_DT;
             } else {
                 accel += BRAKE_ACC_DT;
@@ -511,7 +511,7 @@ impl Car {
             let throttle_accel = throttle_acceleration(v2);
             let mut accel = 0.;
 
-            if 1 == v2.signum() as usize {
+            if (1. - v2.signum()).abs() < f32::EPSILON {
                 accel += throttle_accel * SIMULATION_DT;
             } else {
                 accel += BRAKE_ACC_DT;
@@ -534,7 +534,7 @@ impl Car {
     }
 
     pub fn calculate_field(&mut self) {
-        self.field = CarFieldRect::from(&self.hitbox);
+        self.field = FieldRect::from(&self.hitbox);
     }
 
     #[inline]
@@ -623,7 +623,7 @@ impl Car {
 
 #[allow(clippy::field_reassign_with_default)]
 #[allow(dead_code)]
-pub fn get_a_car() -> Car {
+pub fn get_one() -> Car {
     let mut car = super::Car::default();
 
     // set all the values in the car
@@ -645,17 +645,17 @@ pub fn get_a_car() -> Car {
     car.jumped = false;
     car.doublejumped = false;
 
-    car.init(-650., 720, &Mutators::new());
+    car.init(-650., 720, Mutators::new());
 
     car
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::car::get_a_car;
+    use crate::car::get_one;
 
     #[test]
     pub fn init_car() {
-        get_a_car();
+        get_one();
     }
 }
