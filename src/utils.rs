@@ -1,6 +1,6 @@
 use dubins_paths::{DubinsPath, PosRot};
 use glam::Vec3A;
-use pyo3::{exceptions, PyAny, PyErr, PyResult};
+use pyo3::{exceptions, PyErr, PyResult};
 use std::ops::{Add, Mul, Sub};
 
 /// Get a vec of samples from a path
@@ -37,27 +37,21 @@ pub fn get_samples_from_line(start: PosRot, direction: Vec3A, distance: f32, ste
     samples
 }
 
-pub fn get_vec3_named(py_vec: &PyAny) -> PyResult<Vec3A> {
-    Ok(Vec3A::new(
-        py_vec.getattr("x")?.extract()?,
-        py_vec.getattr("y")?.extract()?,
-        py_vec.getattr("z")?.extract()?,
-    ))
-}
-
-pub fn get_vec3_from_vec(vec: Vec<f32>, name: &str) -> PyResult<Vec3A> {
-    if vec.len() != 3 {
-        Err(PyErr::new::<exceptions::PyIndexError, _>(format!("Key '{}' needs to be a list of exactly 3 numbers", name)))
-    } else {
+pub fn get_vec3_from_vec(vec: &Vec<f32>, name: &str) -> PyResult<Vec3A> {
+    if vec.len() == 3 {
         Ok(Vec3A::new(vec[0], vec[1], vec[2]))
+    } else {
+        Err(PyErr::new::<exceptions::PyIndexError, _>(format!("Key '{}' needs to be a list of exactly 3 numbers", name)))
     }
 }
 
+#[inline]
 pub const fn get_tuple_from_vec3(vec: Vec3A) -> (f32, f32, f32) {
     let [x, y, z] = vec.to_array();
     (x, y, z)
 }
 
+#[inline]
 pub fn lerp<T: Copy + Add<Output = T> + Sub<Output = T> + Mul<f32, Output = T>>(a: T, b: T, t: f32) -> T {
     // Linearly interpolate from a to b using t
     // For instance, when t == 0, a is returned, and when t is 1, b is returned
@@ -65,6 +59,7 @@ pub fn lerp<T: Copy + Add<Output = T> + Sub<Output = T> + Mul<f32, Output = T>>(
     (b - a) * t + a
 }
 
+// #[inline]
 // fn invlerp<T: Copy + Sub<Output = T> + Div<Output = f32>>(a: T, b: T, v: T) -> f32 {
 //     // Inverse linear interpolation from a to b with value v
 //     // For instance, it returns 0 if v is a, and returns 1 if v is b, and returns 0.5 if v is exactly between a and b
@@ -87,6 +82,7 @@ fn clamp_index(s: Vec3A, start: Vec3A, end: Vec3A) -> usize {
     }
 }
 
+#[inline]
 pub const fn flatten(vec: Vec3A) -> Vec3A {
     let [x, y, _] = vec.to_array();
     Vec3A::new(x, y, 0.)
@@ -167,6 +163,7 @@ impl PostCorrection {
     }
 }
 
+#[inline]
 pub fn minimum_non_negative(x1: f32, x2: f32) -> f32 {
     // get the smallest, non-negative value
     if x1 < 0. {

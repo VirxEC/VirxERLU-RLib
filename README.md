@@ -27,7 +27,7 @@ VirxERLU-RLib is the high-performance Rust code with links to Python in order to
 Currently, VirxERLU-RLib has:
 
 + 120tps ball prediction analysis
-+ Near on-point shots and distance calculations (always WIP but fairly good)
++ Near on-shots and very accurate distance calculations (always WIP but fairly good)
 + 120tps acceleration simulation using modified RLU speed controller
 + Pathing using Dubin's Paths that says in the field
 + Semi-variable turn radius calculations for pathing
@@ -44,6 +44,15 @@ Currently, VirxERLU-RLib has:
     - Using the car's true max speed (2300) instead of the value based off of the current boost amount
     - More coming
 + SIMD vector math
++ Gravity mutator support
++ (Partial) Ball size mutator support
++ Boost amount mutator support
++ Aerials consider multiple jump types and pick the best
+    - Not jumping from the ground when upside down
+    - Not jump when in the air
+    - Jumping once from the ground
+    - Jumping once in the air
+    - Jumping twice from the ground
 
 ## Using the car's true max speed
 

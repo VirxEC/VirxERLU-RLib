@@ -1,5 +1,5 @@
+from enum import Enum
 from typing import Optional
-
 
 __doc__: str
 
@@ -41,8 +41,8 @@ def load_soccer_throwback() -> None:
 
 
 try:
-    from rlbot.utils.structures.game_data_struct import GameTickPacket
     from rlbot.messages.flat.MutatorSettings import MutatorSettings
+    from rlbot.utils.structures.game_data_struct import GameTickPacket
 except ImportError:
     pass
 
@@ -61,11 +61,11 @@ def tick(mutators: MutatorSettings) -> None:
     """
 
 
-class ShotType:
-    GROUND: int = 0
-    JUMP: int = 1
-    DOUBLE_JUMP: int = 2
-    # AERIAL: int = 3
+class ShotType(Enum):
+    Ground: int = 0
+    Jump: int = 1
+    DoubleJump: int = 2
+    Aerial: int = 3
 
 
 class TargetOptions:
@@ -169,7 +169,7 @@ class BasicShotInfo:
     def __repr__(self) -> str: ...
 
 
-def get_shot_with_target(target_id: int, temporary: bool=False, may_ground_shot: Optional[bool]=None, may_jump_shot: Optional[bool]=None, may_double_jump_shot: Optional[bool]=None, only: bool=False) -> BasicShotInfo:
+def get_shot_with_target(target_id: int, temporary: bool=False, may_ground_shot: Optional[bool]=None, may_jump_shot: Optional[bool]=None, may_double_jump_shot: Optional[bool]=None, may_aerial_shot: Optional[bool]=None, only: bool=False) -> BasicShotInfo:
     """
     Searches the ball prediction struct for a shot
 
@@ -177,17 +177,18 @@ def get_shot_with_target(target_id: int, temporary: bool=False, may_ground_shot:
     may_ground_shot: Setting this to True will enable searching for ground shots, default is the opposite of only
     may_jump_shot: Setting this to True will enable searching for jump shots, default is the opposite of only
     may_double_jump_shot: Setting this to True will enable searching for double jump shots, default is the opposite of only
+    may_aerial_shot: Setting this to True will enable searching for aerial shots, default is the opposite of only
     only: Default False, set to True if you only want to search for the specified shot(s)
     """
 
 
 class AdvancedShotInfo:
-    shot_vector: tuple[float, float, float]
     final_target: tuple[float, float, float]
     distance_remaining: float
     required_jump_time: Optional[float]
     path_samples: list[tuple[float, float]]
     current_path_point: tuple[float, float, float]
+    num_jumps: Optional[int]
 
     def __str__(self) -> str: ...
     def __repr__(self) -> str: ...

@@ -1,7 +1,7 @@
 from time import time_ns
-from rlbot.utils.structures.game_data_struct import *
 
 import virx_erlu_rlib as rlru
+from rlbot.utils.structures.game_data_struct import *
 
 print()
 
@@ -25,8 +25,8 @@ for i in range(packet.num_cars):
             angular_velocity=Vector3(0, 0, 0),
         ),
         # physics=Physics(
-        #     location=Vector3(-186.17, -3768.27, 17.01),
-        #     rotation=Rotator(0, -1.861, 0),
+        #     location=Vector3(-88.84, -1071.1, 17.01),
+        #     rotation=Rotator(0, -1.894, 0),
         #     velocity=Vector3(0, 0, 0),
         #     angular_velocity=Vector3(0, 0, 0),
         # ),
@@ -155,7 +155,7 @@ print()
 
 print("Benchmarking...")
 
-for _ in range(5000):
+for _ in range(1000):
     start = time_ns()
 
     rlru.tick(packet)
@@ -257,24 +257,6 @@ print(f"Avg. time of execution: {round(sum(times[7]) / len(times[0]) / 8, 1)}ns"
 
 print()
 
-print("get_shot_with_target(use_absolute_max_values) worst-case:")
-print(f"Total test time: {round(sum(times[4]) / 1000000000, 4)}s")
-print(f"Avg. time of execution: {round(sum(times[4]) / len(times[1]) / 1000000, 3)}ms")
-
-print()
-
-print("get_shot_with_target(use_absolute_max_values):")
-print(f"Total test time: {round(sum(times[5]) / 1000000000, 4)}s")
-print(f"Avg. time of execution: {round(sum(times[5]) / len(times[1]) / 1000000, 3)}ms")
-
-print()
-
-print("get_shot_with_target() worst-case:")
-print(f"Total test time: {round(sum(times[1]) / 1000000000, 4)}s")
-print(f"Avg. time of execution: {round(sum(times[1]) / len(times[1]) / 1000000, 3)}ms")
-
-print()
-
 print("get_shot_with_target():")
 print(f"Total test time: {round(sum(times[2]) / 1000000000, 4)}s")
 print(f"Avg. time of execution: {round(sum(times[2]) / len(times[2]) / 1000000, 3)}ms")
@@ -284,24 +266,6 @@ print()
 print("get_shot_with_target(temporary):")
 print(f"Total test time: {round(sum(times[6]) / 1000000000, 4)}s")
 print(f"Avg. time of execution: {round(sum(times[6]) / len(times[6]) / 1000000, 3)}ms")
-
-print()
-
-print("get_shot_with_target(any, use_absolute_max_values) worst-case:")
-print(f"Total test time: {round(sum(times[8]) / 1000000000, 4)}s")
-print(f"Avg. time of execution: {round(sum(times[8]) / len(times[8]) / 1000000, 3)}ms")
-
-print()
-
-print("get_shot_with_target(any, use_absolute_max_values):")
-print(f"Total test time: {round(sum(times[9]) / 1000000000, 4)}s")
-print(f"Avg. time of execution: {round(sum(times[9]) / len(times[9]) / 1000000, 3)}ms")
-
-print()
-
-print("get_shot_with_target(any) worst-case:")
-print(f"Total test time: {round(sum(times[10]) / 1000000000, 4)}s")
-print(f"Avg. time of execution: {round(sum(times[10]) / len(times[10]) / 1000000, 3)}ms")
 
 print()
 
@@ -320,5 +284,41 @@ print()
 print("get_data_for_shot_with_target():")
 print(f"Total test time: {round(sum(times[3]) / 1000000000, 6)}s")
 print(f"Avg. time of execution: {round(sum(times[3]) / len(times[3]), 1)}ns")
+
+print()
+
+print("get_shot_with_target(use_absolute_max_values):")
+print(f"Total test time: {round(sum(times[5]) / 1000000000, 4)}s")
+print(f"Avg. time of execution: {round(sum(times[5]) / len(times[1]) / 1000000, 3)}ms")
+
+print()
+
+print("get_shot_with_target(any, use_absolute_max_values):")
+print(f"Total test time: {round(sum(times[9]) / 1000000000, 4)}s")
+print(f"Avg. time of execution: {round(sum(times[9]) / len(times[9]) / 1000000, 3)}ms")
+
+print()
+
+print("get_shot_with_target() worst-case:")
+print(f"Total test time: {round(sum(times[1]) / 1000000000, 4)}s")
+print(f"Avg. time of execution: {round(sum(times[1]) / len(times[1]) / 1000000, 3)}ms")
+
+print()
+
+print("get_shot_with_target(any) worst-case:")
+print(f"Total test time: {round(sum(times[10]) / 1000000000, 4)}s")
+print(f"Avg. time of execution: {round(sum(times[10]) / len(times[10]) / 1000000, 3)}ms")
+
+print()
+
+print("get_shot_with_target(use_absolute_max_values) worst-case:")
+print(f"Total test time: {round(sum(times[4]) / 1000000000, 4)}s")
+print(f"Avg. time of execution: {round(sum(times[4]) / len(times[1]) / 1000000, 3)}ms")
+
+print()
+
+print("get_shot_with_target(any, use_absolute_max_values) worst-case:")
+print(f"Total test time: {round(sum(times[8]) / 1000000000, 4)}s")
+print(f"Avg. time of execution: {round(sum(times[8]) / len(times[8]) / 1000000, 3)}ms")
 
 print()

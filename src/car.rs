@@ -1,46 +1,10 @@
 use crate::{
     constants::*,
-    utils::{flatten, get_vec3_named, minimum_non_negative, vertex_quadratic_solve_for_x},
-    BoostAmount, Mutators,
+    utils::{flatten, minimum_non_negative, vertex_quadratic_solve_for_x},
+    BoostAmount, Mutators, pytypes::{Hitbox, GameCar},
 };
 use dubins_paths::DubinsPath;
 use glam::Vec3A;
-use pyo3::{FromPyObject, PyAny, PyResult};
-
-// pub fn naive_double_jump_simulation(time_allowed: f32) {
-//     let gravity = -650.;
-//     let jump_impulse = 292.;
-//     let time_increment = 1. / 120.;
-//     let sticky_force = -325.;
-//     let sticky_timer = time_increment * 3.;
-//     let hold_bonus_increment = (292. * 5.) * time_increment;
-//     let max_hold_time = 0.2;
-//     let mut simulated_z_velocity = 0.;
-//     let mut simulated_height = 17.;
-//     let mut simulation_time = 0.;
-//     let mut double_jumped = false;
-
-//     while simulation_time < time_allowed {
-//         if simulation_time <= f32::EPSILON {
-//             simulated_z_velocity += jump_impulse
-//         } else if simulation_time > max_hold_time + time_increment && !double_jumped {
-//             simulated_z_velocity += jump_impulse;
-//             double_jumped = true;
-//         }
-
-//         if simulation_time < max_hold_time {
-//             simulated_z_velocity += hold_bonus_increment;
-//         }
-
-//         if simulation_time < sticky_timer {
-//             simulated_z_velocity += sticky_force * time_increment;
-//         }
-
-//         simulated_z_velocity += gravity * time_increment;
-//         simulated_height += simulated_z_velocity * time_increment;
-//         simulation_time += time_increment;
-//     }
-// }
 
 pub fn throttle_acceleration(forward_velocity: f32) -> f32 {
     let x = forward_velocity.abs();
@@ -67,7 +31,7 @@ pub fn curvature(v: f32) -> f32 {
     } else if (1000. ..1500.).contains(&v) {
         0.0043 - 1.95e-6 * v
     } else if (1500. ..1750.).contains(&v) {
-        0.003025 - 1.1e-6 * v
+        0.003_025 - 1.1e-6 * v
     } else if (1750. ..2305.).contains(&v) {
         0.0018 - 4e-7 * v
     } else {
@@ -76,38 +40,23 @@ pub fn curvature(v: f32) -> f32 {
     }
 }
 
+#[inline]
 pub fn turn_radius(v: f32) -> f32 {
     1. / curvature(v)
 }
 
-#[derive(Clone, Copy, Debug, Default, FromPyObject)]
-pub struct Hitbox {
-    pub length: f32,
-    pub width: f32,
-    pub height: f32,
-}
-
-impl Hitbox {
-    pub const fn new() -> Self {
-        Self {
-            length: 0.,
-            width: 0.,
-            height: 0.,
-        }
-    }
-}
-
 #[derive(Clone, Copy, Debug, Default)]
-pub struct CarFieldRect {
+pub struct FieldRect {
     goal_x: f32,
     goal_y: f32,
     field_y: f32,
     field_x: f32,
 }
 
-impl CarFieldRect {
+impl FieldRect {
     const CHECK_DISTANCE: f32 = 400.;
 
+    #[inline]
     pub const fn new() -> Self {
         Self {
             goal_x: 0.,
@@ -166,7 +115,7 @@ pub struct Car {
     pub up: Vec3A,
     pub hitbox: Hitbox,
     pub hitbox_offset: Vec3A,
-    pub field: CarFieldRect,
+    pub field: FieldRect,
     pub pitch: f32,
     pub yaw: f32,
     pub roll: f32,
@@ -182,16 +131,20 @@ pub struct Car {
     pub landing_forward: Vec3A,
     pub landing_right: Vec3A,
     pub landing_up: Vec3A,
+    last_landing_game_time: f32,
+    pub last_landing_time: f32,
     pub max_speed: Vec<f32>,
     /// turn radius at calculated max speed
     pub ctrms: Vec<f32>,
     pub max_jump_time: f32,
     pub max_jump_height: f32,
+    pub max_double_jump_time: f32,
     pub max_double_jump_height: f32,
     pub init: bool,
 }
 
 impl Car {
+    #[inline]
     pub const fn new() -> Self {
         Self {
             location: Vec3A::ZERO,
@@ -203,7 +156,7 @@ impl Car {
             up: Vec3A::ZERO,
             hitbox: Hitbox::new(),
             hitbox_offset: Vec3A::ZERO,
-            field: CarFieldRect::new(),
+            field: FieldRect::new(),
             pitch: 0.,
             yaw: 0.,
             roll: 0.,
@@ -219,43 +172,83 @@ impl Car {
             landing_forward: Vec3A::ZERO,
             landing_right: Vec3A::ZERO,
             landing_up: Vec3A::ZERO,
+            last_landing_game_time: 0.,
+            last_landing_time: 0.,
             max_speed: Vec::new(),
             ctrms: Vec::new(),
             max_jump_time: 0.,
             max_jump_height: 0.,
+            max_double_jump_time: 0.,
             max_double_jump_height: 0.,
             init: false,
         }
     }
 
-    pub fn update(&mut self, py_car: &PyAny) -> PyResult<()> {
-        let py_car_physics = py_car.getattr("physics")?;
+    // pub fn update(&mut self, py_car: &PyAny, game_time: f32) -> PyResult<()> {
+    //     let py_car_physics = py_car.getattr("physics")?;
 
-        self.location = get_vec3_named(py_car_physics.getattr("location")?)?;
-        self.velocity = get_vec3_named(py_car_physics.getattr("velocity")?)?;
-        self.angular_velocity = get_vec3_named(py_car_physics.getattr("angular_velocity")?)?;
+    //     self.location = get_vec3_named(py_car_physics.getattr("location")?)?;
+    //     self.velocity = get_vec3_named(py_car_physics.getattr("velocity")?)?;
+    //     self.angular_velocity = get_vec3_named(py_car_physics.getattr("angular_velocity")?)?;
 
-        let py_car_rotator = py_car_physics.getattr("rotation")?;
+    //     let py_car_rotator = py_car_physics.getattr("rotation")?;
 
-        self.pitch = py_car_rotator.getattr("pitch")?.extract()?;
-        self.yaw = py_car_rotator.getattr("yaw")?.extract()?;
-        self.roll = py_car_rotator.getattr("roll")?.extract()?;
+    //     self.pitch = py_car_rotator.getattr("pitch")?.extract()?;
+    //     self.yaw = py_car_rotator.getattr("yaw")?.extract()?;
+    //     self.roll = py_car_rotator.getattr("roll")?.extract()?;
 
-        self.hitbox = py_car.getattr("hitbox")?.extract()?;
-        self.hitbox_offset = get_vec3_named(py_car.getattr("hitbox_offset")?)?;
+    //     self.hitbox = py_car.getattr("hitbox")?.extract()?;
+    //     self.hitbox_offset = get_vec3_named(py_car.getattr("hitbox_offset")?)?;
 
-        self.boost = py_car.getattr("boost")?.extract()?;
-        self.demolished = py_car.getattr("is_demolished")?.extract()?;
-        self.airborne = !py_car.getattr("has_wheel_contact")?.extract()?;
-        self.jumped = py_car.getattr("jumped")?.extract()?;
-        self.doublejumped = py_car.getattr("double_jumped")?.extract()?;
+    //     self.boost = py_car.getattr("boost")?.extract()?;
+    //     self.demolished = py_car.getattr("is_demolished")?.extract()?;
+    //     self.jumped = py_car.getattr("jumped")?.extract()?;
+    //     self.doublejumped = py_car.getattr("double_jumped")?.extract()?;
+
+    //     let airborne = !py_car.getattr("has_wheel_contact")?.extract::<bool>()?;
+
+    //     if self.airborne && !airborne {
+    //         self.last_landing_game_time = game_time;
+    //     }
+
+    //     self.last_landing_time = self.last_landing_game_time - game_time;
+    //     self.airborne = airborne;
+
+    //     self.init = false;
+
+    //     Ok(())
+    // }
+
+    pub fn update(&mut self, py_car: GameCar, game_time: f32) {
+        self.location = py_car.physics.location.into();
+        self.velocity = py_car.physics.velocity.into();
+        self.angular_velocity = py_car.physics.angular_velocity.into();
+
+        self.pitch = py_car.physics.rotation.pitch;
+        self.yaw = py_car.physics.rotation.yaw;
+        self.roll = py_car.physics.rotation.roll;
+
+        self.hitbox = py_car.hitbox;
+        self.hitbox_offset = py_car.hitbox_offset.into();
+
+        self.boost = py_car.boost;
+        self.demolished = py_car.is_demolished;
+        self.jumped = py_car.jumped;
+        self.doublejumped = py_car.double_jumped;
+        
+        let airborne = !py_car.has_wheel_contact;
+
+        if self.airborne && !airborne {
+            self.last_landing_game_time = game_time;
+        }
+
+        self.last_landing_time = self.last_landing_game_time - game_time;
+        self.airborne = airborne;
 
         self.init = false;
-
-        Ok(())
     }
 
-    pub fn init(&mut self, gravity: f32, max_ball_slice: usize, mutators: &Mutators) {
+    pub fn init(&mut self, gravity: f32, max_ball_slice: usize, mutators: Mutators) {
         if !self.init {
             Self::calculate_orientation_matrix(&mut self.forward, &mut self.right, &mut self.up, self.pitch, self.yaw, self.roll);
             self.calculate_field();
@@ -278,7 +271,7 @@ impl Car {
 
         while v_z > 0. || t < MAX_HOLD_TIME {
             if t <= f32::EPSILON {
-                v_z += JUMP_IMPULSE;
+                v_z += JUMP_SPEED;
             }
 
             if t < MAX_HOLD_TIME {
@@ -308,9 +301,9 @@ impl Car {
 
         while v_z > 0. || t < MAX_HOLD_TIME {
             if t <= f32::EPSILON {
-                v_z += JUMP_IMPULSE;
+                v_z += JUMP_SPEED;
             } else if t > MAX_HOLD_TIME + SIMULATION_DT && !double_jumped {
-                v_z += JUMP_IMPULSE;
+                v_z += JUMP_SPEED;
                 double_jumped = true;
             }
 
@@ -327,6 +320,7 @@ impl Car {
             t += SIMULATION_DT;
         }
 
+        self.max_double_jump_time = t;
         self.max_double_jump_height = l_z;
     }
 
@@ -422,8 +416,8 @@ impl Car {
         up.z = c_p * c_r;
     }
 
-    pub fn calculate_max_values(&mut self, max_ball_slice: usize, mutators: &Mutators) {
-        let mut b = self.boost as f32;
+    pub fn calculate_max_values(&mut self, max_ball_slice: usize, mutators: Mutators) {
+        let mut b = f32::from(self.boost);
         let mut v = self.landing_velocity.dot(self.forward);
         let mut fast_forward = false;
 
@@ -501,7 +495,7 @@ impl Car {
             let throttle_accel = throttle_acceleration(v1);
             let mut accel = 0.;
 
-            if 1 == v1.signum() as usize {
+            if (1. - v1.signum()).abs() < f32::EPSILON {
                 accel += throttle_accel * SIMULATION_DT;
             } else {
                 accel += BRAKE_ACC_DT;
@@ -527,7 +521,7 @@ impl Car {
             let throttle_accel = throttle_acceleration(v2);
             let mut accel = 0.;
 
-            if 1 == v2.signum() as usize {
+            if (1. - v2.signum()).abs() < f32::EPSILON {
                 accel += throttle_accel * SIMULATION_DT;
             } else {
                 accel += BRAKE_ACC_DT;
@@ -550,13 +544,15 @@ impl Car {
     }
 
     pub fn calculate_field(&mut self) {
-        self.field = CarFieldRect::from(&self.hitbox);
+        self.field = FieldRect::from(&self.hitbox);
     }
 
+    #[inline]
     pub fn localize_2d_location(&self, vec: Vec3A) -> Vec3A {
         self.localize_2d(vec - self.landing_location)
     }
 
+    #[inline]
     pub fn localize_2d(&self, vec: Vec3A) -> Vec3A {
         Vec3A::new(vec.dot(self.landing_forward), vec.dot(self.landing_right), 0.)
     }
@@ -565,6 +561,7 @@ impl Car {
     //     localize(car, vec - car.location)
     // }
 
+    #[inline]
     pub fn localize(&self, vec: Vec3A) -> Vec3A {
         Vec3A::new(vec.dot(self.forward), vec.dot(self.right), vec.dot(self.up))
     }
@@ -582,7 +579,7 @@ impl Car {
 
         while l_z < height_goal && (v_z > 0. || t < MAX_HOLD_TIME) {
             if t <= f32::EPSILON {
-                v_z += JUMP_IMPULSE;
+                v_z += JUMP_SPEED;
             }
 
             if t < MAX_HOLD_TIME {
@@ -611,9 +608,9 @@ impl Car {
 
         while l_z < height_goal && (v_z > 0. || t < MAX_HOLD_TIME) {
             if t <= f32::EPSILON {
-                v_z += JUMP_IMPULSE;
+                v_z += JUMP_SPEED;
             } else if t > MAX_HOLD_TIME + SIMULATION_DT && !double_jumped {
-                v_z += JUMP_IMPULSE;
+                v_z += JUMP_SPEED;
                 double_jumped = true;
             }
 
@@ -636,7 +633,7 @@ impl Car {
 
 #[allow(clippy::field_reassign_with_default)]
 #[allow(dead_code)]
-pub fn get_a_car() -> Car {
+pub fn get_one() -> Car {
     let mut car = super::Car::default();
 
     // set all the values in the car
@@ -658,17 +655,17 @@ pub fn get_a_car() -> Car {
     car.jumped = false;
     car.doublejumped = false;
 
-    car.init(-650., 720, &Mutators::new());
+    car.init(-650., 720, Mutators::new());
 
     car
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::car::get_a_car;
+    use crate::car::get_one;
 
     #[test]
     pub fn init_car() {
-        get_a_car();
+        get_one();
     }
 }

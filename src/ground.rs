@@ -1,8 +1,7 @@
 use crate::{
-    car::{throttle_acceleration, Car, CarFieldRect},
+    car::{throttle_acceleration, Car, FieldRect},
     constants::*,
-    pytypes::{AdvancedShotInfo, BasicShotInfo},
-    shot::Shot,
+    pytypes::{BasicShotInfo, ShotType},
     utils::*,
     BoostAmount, Mutators,
 };
@@ -10,7 +9,7 @@ use dubins_paths::{self, DubinsPath, Intermediate, NoPathError, PathType, PosRot
 use glam::Vec3A;
 use std::f32::{consts::E, INFINITY};
 
-/// https://stackoverflow.com/a/49987361/10930209
+/// <https://stackoverflow.com/a/49987361/10930209>
 fn get_turn_exit_tangets(target: Vec3A, circle_center: Vec3A, radius: f32) -> (Vec3A, Vec3A) {
     let circle_center_to_target = target - circle_center;
     let b = circle_center_to_target.length();
@@ -23,9 +22,15 @@ fn get_turn_exit_tangets(target: Vec3A, circle_center: Vec3A, radius: f32) -> (V
 }
 
 /// Get the exit turn point on a circle where the car will face the target
-pub fn get_turn_exit_tanget(car: &Car, target: Vec3A, circle_center: Vec3A, rho: f32, target_is_forwards: bool) -> (Vec3A, Vec3A) {
+pub fn get_turn_exit_tanget(car: &Car, target: Vec3A, circle_center: Vec3A, rho: f32, mut target_is_forwards: bool, travel_forwards: bool) -> (Vec3A, Vec3A) {
     let (t1, t2) = get_turn_exit_tangets(target, circle_center, rho);
-    let (t1_local, t2_local) = (car.localize_2d_location(t1), car.localize_2d_location(t2));
+    let (mut t1_local, mut t2_local) = (car.localize_2d_location(t1), car.localize_2d_location(t2));
+
+    if !travel_forwards {
+        t1_local.x *= -1.;
+        t2_local.x *= -1.;
+        target_is_forwards = !target_is_forwards;
+    }
 
     if !target_is_forwards {
         if t1_local.x >= 0. && t1_local.y.abs() < rho {
@@ -46,11 +51,12 @@ pub fn get_turn_exit_tanget(car: &Car, target: Vec3A, circle_center: Vec3A, rho:
     }
 }
 
+#[inline]
 pub fn angle_2d(vec1: Vec3A, vec2: Vec3A) -> f32 {
     flatten(vec1).normalize_or_zero().dot(flatten(vec2).normalize_or_zero()).clamp(-1., 1.).acos()
 }
 
-pub fn shortest_path_in_validate(q0: PosRot, q1: PosRot, rho: f32, car_field: &CarFieldRect, max_distance: f32) -> dubins_paths::Result<DubinsPath> {
+pub fn shortest_path_in_validate(q0: PosRot, q1: PosRot, rho: f32, car_field: &FieldRect, max_distance: f32) -> dubins_paths::Result<DubinsPath> {
     let mut best_cost = INFINITY;
     let mut best_path = None;
 
@@ -77,20 +83,21 @@ pub fn shortest_path_in_validate(q0: PosRot, q1: PosRot, rho: f32, car_field: &C
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct TargetInfo {
+pub struct GroundTargetInfo {
     pub distances: [f32; 4],
     pub path: DubinsPath,
-    pub shot_type: usize,
+    pub shot_type: ShotType,
     pub jump_time: Option<f32>,
     pub is_forwards: bool,
     pub shot_vector: Vec3A,
     pub turn_targets: Option<(Vec3A, Vec3A)>,
 }
 
-impl TargetInfo {
+impl GroundTargetInfo {
+    #[inline]
     pub const fn from(
         distances: [f32; 4],
-        shot_type: usize,
+        shot_type: ShotType,
         path: DubinsPath,
         jump_time: Option<f32>,
         is_forwards: bool,
@@ -108,7 +115,7 @@ impl TargetInfo {
         }
     }
 
-    pub fn can_reach(&self, car: &Car, max_time: f32, mutators: &Mutators) -> Result<f32, ()> {
+    pub fn can_reach(&self, car: &Car, max_time: f32, mutators: Mutators) -> Result<f32, ()> {
         let is_curved = PathType::CCC.contains(&self.path.type_);
 
         let total_d = self.distances.iter().sum::<f32>();
@@ -120,13 +127,13 @@ impl TargetInfo {
             start..end
         };
 
+        let direction = if self.is_forwards { 1. } else { -1. };
+
         let mut d = total_d;
         let mut t_r = max_time;
-        let b_s = car.boost.min(12) as f32;
-        let mut b = car.boost as f32 - b_s;
-        let mut v = flatten(car.landing_velocity).length();
-
-        let direction = if self.is_forwards { 1. } else { -1. };
+        let b_s = f32::from(car.boost.min(12));
+        let mut b = f32::from(car.boost) - b_s;
+        let mut v = flatten(car.landing_velocity).length() * direction;
 
         loop {
             if self.distances[3] < f32::EPSILON && d < 1. {
@@ -174,7 +181,19 @@ impl TargetInfo {
             }
 
             let throttle_accel = throttle_acceleration(v);
-            let (throttle, boost) = get_throttle_and_boost(throttle_accel, b, t);
+            let (throttle, boost) = {
+                let (mut throttle, mut boost) = get_throttle_and_boost(throttle_accel, b, if v < 0. { -t } else { t });
+
+                if t <= 0. {
+                    boost = false;
+                }
+
+                if v < 0. {
+                    throttle *= -1.;
+                }
+
+                (throttle, boost)
+            };
             let mut accel = 0.;
 
             if throttle == 0. {
@@ -207,6 +226,7 @@ impl TargetInfo {
         Ok(t_r)
     }
 
+    #[inline]
     pub const fn get_basic_shot_info(&self, time: f32) -> BasicShotInfo {
         BasicShotInfo::found(time, self.shot_type, self.shot_vector, self.is_forwards)
     }
@@ -220,52 +240,12 @@ fn get_throttle_and_boost(throttle_accel: f32, b: f32, t: f32) -> (f32, bool) {
         (-1., false)
     } else if BRAKE_COAST_TRANSITION < acceleration && acceleration < COASTING_THROTTLE_TRANSITION {
         (0., false)
-    } else if COASTING_THROTTLE_TRANSITION <= acceleration && acceleration <= throttle_boost_transition {
+    } else if (COASTING_THROTTLE_TRANSITION..throttle_boost_transition).contains(&acceleration) {
         let throttle = if throttle_accel == 0. { 1. } else { (acceleration / throttle_accel).clamp(0.02, 1.) };
         (throttle, false)
     } else if throttle_boost_transition < acceleration {
         (1., b >= MIN_BOOST_CONSUMPTION && t > 0.)
     } else {
         (0., false)
-    }
-}
-
-impl AdvancedShotInfo {
-    pub fn get(car: &Car, shot: &Shot) -> Option<Self> {
-        let (segment, pre_index) = shot.find_min_distance_index(car.location);
-        let (distance_along, index) = shot.get_distance_along_shot_and_index(segment, pre_index);
-        let current_path_point = shot.samples[segment][pre_index];
-
-        if current_path_point.distance(flatten(car.location)) > car.hitbox.length / 2. {
-            return None;
-        }
-
-        let distance = car.local_velocity.x.max(500.) * STEER_REACTION_TIME;
-
-        let path_length = shot.distances[0] + shot.distances[1] + shot.distances[2];
-        let max_path_distance = path_length - distance_along;
-        let distance_to_ball = path_length + shot.distances[3] - distance_along;
-
-        let target = if distance > max_path_distance {
-            let distance_remaining = distance - max_path_distance;
-            let additional_space = shot.direction * distance_remaining;
-
-            shot.path_endpoint.pos + additional_space
-        } else {
-            shot.path.sample(distance_along + distance).pos
-        };
-
-        // get all the samples from the vec after index
-        let samples = shot.all_samples.iter().skip(index / Shot::ALL_STEP).cloned().collect();
-
-        Some(Self::from(
-            shot.direction,
-            target,
-            distance_to_ball,
-            samples,
-            shot.jump_time,
-            current_path_point,
-            shot.turn_targets,
-        ))
     }
 }

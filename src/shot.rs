@@ -1,19 +1,89 @@
 use crate::{
-    ground::TargetInfo,
-    pytypes::TargetOptions,
+    air::{AerialJumpType, AerialTargetInfo},
+    ground::GroundTargetInfo,
+    pytypes::{ShotType, TargetOptions},
     utils::{get_samples_from_line, get_samples_from_path},
 };
 use dubins_paths::{DubinsPath, PathType, PosRot};
 use glam::Vec3A;
 use rl_ball_sym::simulation::ball::Ball;
 
+#[inline]
 const fn posrot_to_xy_tuple(posrot: &PosRot) -> (f32, f32) {
     let [x, y, _] = posrot.pos.to_array();
     (x, y)
 }
 
 #[derive(Clone, Debug)]
-pub struct Shot {
+pub enum Shot {
+    GroundBased(Box<GroundBasedShot>),
+    AirBased(AirBasedShot),
+}
+
+impl Shot {
+    #[inline]
+    pub const fn time(&self) -> f32 {
+        match self {
+            Shot::GroundBased(shot) => shot.time,
+            Shot::AirBased(shot) => shot.time,
+        }
+    }
+
+    #[inline]
+    pub const fn ball_location(&self) -> Vec3A {
+        match self {
+            Shot::GroundBased(shot) => shot.ball_location,
+            Shot::AirBased(shot) => shot.ball_location,
+        }
+    }
+}
+
+impl From<GroundBasedShot> for Shot {
+    #[inline]
+    fn from(shot: GroundBasedShot) -> Self {
+        Shot::GroundBased(Box::new(shot))
+    }
+}
+
+impl From<AirBasedShot> for Shot {
+    #[inline]
+    fn from(shot: AirBasedShot) -> Self {
+        Shot::AirBased(shot)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct AirBasedShot {
+    pub time: f32,
+    pub final_target: Vec3A,
+    pub jump_type: AerialJumpType,
+    pub ball_location: Vec3A,
+}
+
+impl AirBasedShot {
+    #[inline]
+    pub const fn default() -> Self {
+        Self {
+            time: 0.,
+            final_target: Vec3A::ZERO,
+            jump_type: AerialJumpType::None,
+            ball_location: Vec3A::ZERO,
+        }
+    }
+
+    #[inline]
+    pub const fn from(ball: &Ball, target_info: &AerialTargetInfo) -> Self {
+        Self {
+            time: ball.time,
+            final_target: target_info.final_target,
+            jump_type: target_info.jump_type,
+            ball_location: ball.location,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct GroundBasedShot {
     pub time: f32,
     pub ball_location: Vec3A,
     pub direction: Vec3A,
@@ -22,15 +92,16 @@ pub struct Shot {
     pub samples: [Vec<Vec3A>; 4],
     pub path: DubinsPath,
     pub path_endpoint: PosRot,
-    pub shot_type: usize,
+    pub shot_type: ShotType,
     pub jump_time: Option<f32>,
     pub turn_targets: Option<(Vec3A, Vec3A)>,
 }
 
-impl Shot {
+impl GroundBasedShot {
     const STEP_DISTANCE: f32 = 10.;
     pub const ALL_STEP: usize = 3;
 
+    #[inline]
     pub const fn default() -> Self {
         const NEW_VEC: Vec<Vec3A> = Vec::new();
 
@@ -48,13 +119,13 @@ impl Shot {
                 type_: PathType::LSL,
             },
             path_endpoint: PosRot { pos: Vec3A::ZERO, rot: 0. },
-            shot_type: 0,
+            shot_type: ShotType::Ground,
             jump_time: None,
             turn_targets: None,
         }
     }
 
-    pub fn from(ball: &Ball, target: &TargetInfo) -> Self {
+    pub fn from(ball: &Ball, target: &GroundTargetInfo) -> Self {
         let direction = target.shot_vector;
         let path_endpoint = target.path.endpoint();
 
@@ -212,6 +283,7 @@ pub struct TargetLocation {
 }
 
 impl TargetLocation {
+    #[inline]
     pub const fn new(left: Vec3A, right: Vec3A) -> Self {
         Self { left, right }
     }
@@ -227,6 +299,7 @@ pub struct Target {
 }
 
 impl Target {
+    #[inline]
     pub const fn new(target_left: Vec3A, target_right: Vec3A, car_index: usize, options: Options) -> Self {
         Self {
             car_index,
@@ -237,6 +310,7 @@ impl Target {
         }
     }
 
+    #[inline]
     pub const fn new_any(car_index: usize, options: Options) -> Self {
         Self {
             car_index,
@@ -251,6 +325,7 @@ impl Target {
         self.confirmed = true;
     }
 
+    #[inline]
     pub const fn is_confirmed(&self) -> bool {
         self.confirmed
     }
