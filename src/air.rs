@@ -112,6 +112,28 @@ impl AerialTargetInfo {
     }
 }
 
+/// Estimation of if a pre-established aerial shot is still possible
+pub fn partial_validate(target: Vec3A, xf: Vec3A, vf: Vec3A, boost_amount: BoostAmount, boost_accel: f32, car_boost: f32, time_remaining: f32) -> bool {
+    let delta_x = target - xf;
+    let f = match delta_x.try_normalize() {
+        Some(f) => f,
+        None => return true,
+    };
+
+    let required_acc = delta_x.length() / time_remaining.powi(2);
+    let ratio = required_acc / boost_accel;
+    if ratio.abs() > 1. {
+        return false;
+    }
+
+    let tau2 = time_remaining - time_remaining * (1. - ratio).sqrt();
+    if boost_amount != BoostAmount::Unlimited && (tau2.floor() * BOOST_CONSUMPTION).ceil() >= car_boost {
+        return false;
+    }
+
+    (vf + f * (boost_accel * tau2)).length() <= MAX_SPEED
+}
+
 #[derive(Debug)]
 struct BasicAerialInfo /*<'a>*/ {
     car_forward: Vec3A,
@@ -148,6 +170,7 @@ impl BasicAerialInfo /*<'a>*/ {
     //     t
     // }
 
+    /// Estimation of if the aerial is valid
     fn validate(&self, xf: Vec3A, vf: Vec3A, jump_type: AerialJumpType) -> Option<(AerialJumpType, f32)> {
         let delta_x = self.target - xf;
         let f = delta_x.try_normalize()?;
@@ -161,19 +184,21 @@ impl BasicAerialInfo /*<'a>*/ {
         // let turn_time = self.time_to_face_target(car.into(), jump_type, delta_x, f, estimated_turn_time);
         // println!("{}: {turn_time}; {}", self.time_remaining, 2. * (phi / 9.).sqrt());
 
-        let turn_time = 2. * (phi / 9.).sqrt();
+        let turn_time = 3. * (phi / 9.).sqrt();
         if turn_time > self.time_remaining {
             return None;
         }
 
-        let tau1 = turn_time * (1. - 0.3 / phi.max(f32::EPSILON)).clamp(0., 1.);
-        let required_acc = 2. * delta_x.length() / (self.time_remaining - tau1).powi(2);
+        // when we start boosting
+        let tau1 = turn_time * (1. - AERIAL_START_BOOST_ANGLE / phi.max(f32::EPSILON)).clamp(0., 1.);
 
+        let required_acc = 2. * delta_x.length() / (self.time_remaining - tau1).powi(2);
         let ratio = required_acc / self.boost_accel;
-        if ratio.abs() >= 1. {
+        if ratio.abs() >= 0.9 {
             return None;
         }
 
+        // when we stop boosting
         let tau2 = self.time_remaining - (self.time_remaining - tau1) * (1. - ratio.clamp(0., 1.)).sqrt();
 
         let boost_estimate = (tau2 - tau1).floor() * BOOST_CONSUMPTION;
@@ -182,11 +207,10 @@ impl BasicAerialInfo /*<'a>*/ {
         }
 
         // velocity estimate
-        if (vf + f * (self.boost_accel * (tau2 - tau1))).length() >= MAX_SPEED {
+        if (vf + f * (self.boost_accel * (tau2 - tau1))).length() >= MAX_SPEED * 0.9 {
             return None;
         }
 
-        println!("{jump_type:?}: {tau1} | {tau2}");
         Some((jump_type, boost_estimate))
     }
 }
@@ -228,7 +252,8 @@ pub fn aerial_shot_is_viable(car: &Car, mutators: Mutators, gravity: Vec3A, targ
     let vf_base = car.velocity + gravity * time_remaining;
     let xf_base = car.velocity * time_remaining + gravity * 0.5 * time_remaining.powi(2);
 
-    if is_on_ground {
+    let ground_time_remaining = time_remaining - car.landing_time;
+    if is_on_ground && ground_time_remaining > 0. {
         const TOTAL_JUMP_ACC: f32 = JUMP_SPEED + JUMP_ACC * JUMP_MAX_DURATION;
 
         let basic_aerial_info = BasicAerialInfo {
@@ -237,7 +262,7 @@ pub fn aerial_shot_is_viable(car: &Car, mutators: Mutators, gravity: Vec3A, targ
             boost_amount: mutators.boost_amount,
             boost_accel,
             target,
-            time_remaining: time_remaining - car.landing_time,
+            time_remaining: ground_time_remaining,
             // car,
         };
 
@@ -296,7 +321,7 @@ pub fn aerial_shot_is_viable(car: &Car, mutators: Mutators, gravity: Vec3A, targ
         return Err(NoPathError);
     }
 
-    println!("{found:?}");
+    // println!("{found:?}");
     let min_boost_estimate = found
         .into_iter()
         .min_by(|(jump_type, boost_estimate), (jump_type_2, boost_estimate_2)| {

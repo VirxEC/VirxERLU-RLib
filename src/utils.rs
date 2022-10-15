@@ -1,6 +1,6 @@
 use dubins_paths::{DubinsPath, PosRot};
 use glam::Vec3A;
-use pyo3::{exceptions, PyAny, PyErr, PyResult};
+use pyo3::{exceptions, PyErr, PyResult};
 use std::ops::{Add, Mul, Sub};
 
 /// Get a vec of samples from a path
@@ -35,15 +35,6 @@ pub fn get_samples_from_line(start: PosRot, direction: Vec3A, distance: f32, ste
     }
 
     samples
-}
-
-#[inline]
-pub fn get_vec3_named(py_vec: &PyAny) -> PyResult<Vec3A> {
-    Ok(Vec3A::new(
-        py_vec.getattr("x")?.extract()?,
-        py_vec.getattr("y")?.extract()?,
-        py_vec.getattr("z")?.extract()?,
-    ))
 }
 
 pub fn get_vec3_from_vec(vec: &Vec<f32>, name: &str) -> PyResult<Vec3A> {

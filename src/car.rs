@@ -1,11 +1,10 @@
 use crate::{
     constants::*,
-    utils::{flatten, get_vec3_named, minimum_non_negative, vertex_quadratic_solve_for_x},
-    BoostAmount, Mutators,
+    utils::{flatten, minimum_non_negative, vertex_quadratic_solve_for_x},
+    BoostAmount, Mutators, pytypes::{Hitbox, GameCar},
 };
 use dubins_paths::DubinsPath;
 use glam::Vec3A;
-use pyo3::{FromPyObject, PyAny, PyResult};
 
 pub fn throttle_acceleration(forward_velocity: f32) -> f32 {
     let x = forward_velocity.abs();
@@ -44,24 +43,6 @@ pub fn curvature(v: f32) -> f32 {
 #[inline]
 pub fn turn_radius(v: f32) -> f32 {
     1. / curvature(v)
-}
-
-#[derive(Clone, Copy, Debug, Default, FromPyObject)]
-pub struct Hitbox {
-    pub length: f32,
-    pub width: f32,
-    pub height: f32,
-}
-
-impl Hitbox {
-    #[inline]
-    pub const fn new() -> Self {
-        Self {
-            length: 0.,
-            width: 0.,
-            height: 0.,
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -203,28 +184,59 @@ impl Car {
         }
     }
 
-    pub fn update(&mut self, py_car: &PyAny, game_time: f32) -> PyResult<()> {
-        let py_car_physics = py_car.getattr("physics")?;
+    // pub fn update(&mut self, py_car: &PyAny, game_time: f32) -> PyResult<()> {
+    //     let py_car_physics = py_car.getattr("physics")?;
 
-        self.location = get_vec3_named(py_car_physics.getattr("location")?)?;
-        self.velocity = get_vec3_named(py_car_physics.getattr("velocity")?)?;
-        self.angular_velocity = get_vec3_named(py_car_physics.getattr("angular_velocity")?)?;
+    //     self.location = get_vec3_named(py_car_physics.getattr("location")?)?;
+    //     self.velocity = get_vec3_named(py_car_physics.getattr("velocity")?)?;
+    //     self.angular_velocity = get_vec3_named(py_car_physics.getattr("angular_velocity")?)?;
 
-        let py_car_rotator = py_car_physics.getattr("rotation")?;
+    //     let py_car_rotator = py_car_physics.getattr("rotation")?;
 
-        self.pitch = py_car_rotator.getattr("pitch")?.extract()?;
-        self.yaw = py_car_rotator.getattr("yaw")?.extract()?;
-        self.roll = py_car_rotator.getattr("roll")?.extract()?;
+    //     self.pitch = py_car_rotator.getattr("pitch")?.extract()?;
+    //     self.yaw = py_car_rotator.getattr("yaw")?.extract()?;
+    //     self.roll = py_car_rotator.getattr("roll")?.extract()?;
 
-        self.hitbox = py_car.getattr("hitbox")?.extract()?;
-        self.hitbox_offset = get_vec3_named(py_car.getattr("hitbox_offset")?)?;
+    //     self.hitbox = py_car.getattr("hitbox")?.extract()?;
+    //     self.hitbox_offset = get_vec3_named(py_car.getattr("hitbox_offset")?)?;
 
-        self.boost = py_car.getattr("boost")?.extract()?;
-        self.demolished = py_car.getattr("is_demolished")?.extract()?;
-        self.jumped = py_car.getattr("jumped")?.extract()?;
-        self.doublejumped = py_car.getattr("double_jumped")?.extract()?;
+    //     self.boost = py_car.getattr("boost")?.extract()?;
+    //     self.demolished = py_car.getattr("is_demolished")?.extract()?;
+    //     self.jumped = py_car.getattr("jumped")?.extract()?;
+    //     self.doublejumped = py_car.getattr("double_jumped")?.extract()?;
 
-        let airborne = !py_car.getattr("has_wheel_contact")?.extract::<bool>()?;
+    //     let airborne = !py_car.getattr("has_wheel_contact")?.extract::<bool>()?;
+
+    //     if self.airborne && !airborne {
+    //         self.last_landing_game_time = game_time;
+    //     }
+
+    //     self.last_landing_time = self.last_landing_game_time - game_time;
+    //     self.airborne = airborne;
+
+    //     self.init = false;
+
+    //     Ok(())
+    // }
+
+    pub fn update(&mut self, py_car: GameCar, game_time: f32) {
+        self.location = py_car.physics.location.into();
+        self.velocity = py_car.physics.velocity.into();
+        self.angular_velocity = py_car.physics.angular_velocity.into();
+
+        self.pitch = py_car.physics.rotation.pitch;
+        self.yaw = py_car.physics.rotation.yaw;
+        self.roll = py_car.physics.rotation.roll;
+
+        self.hitbox = py_car.hitbox;
+        self.hitbox_offset = py_car.hitbox_offset.into();
+
+        self.boost = py_car.boost;
+        self.demolished = py_car.is_demolished;
+        self.jumped = py_car.jumped;
+        self.doublejumped = py_car.double_jumped;
+        
+        let airborne = !py_car.has_wheel_contact;
 
         if self.airborne && !airborne {
             self.last_landing_game_time = game_time;
@@ -234,8 +246,6 @@ impl Car {
         self.airborne = airborne;
 
         self.init = false;
-
-        Ok(())
     }
 
     pub fn init(&mut self, gravity: f32, max_ball_slice: usize, mutators: Mutators) {

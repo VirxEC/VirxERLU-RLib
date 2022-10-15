@@ -5,8 +5,133 @@ use crate::{
     utils::{flatten, get_tuple_from_vec3},
 };
 use glam::Vec3A;
-use pyo3::{pyclass, pymethods};
+use pyo3::{pyclass, pymethods, FromPyObject};
 use rl_ball_sym::simulation::ball::Ball;
+
+#[derive(Clone, Copy, Debug, Default, FromPyObject)]
+pub struct Hitbox {
+    pub length: f32,
+    pub width: f32,
+    pub height: f32,
+}
+
+impl Hitbox {
+    #[inline]
+    pub const fn new() -> Self {
+        Self {
+            length: 0.,
+            width: 0.,
+            height: 0.,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, FromPyObject)]
+pub struct GameVec {
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+}
+
+impl From<GameVec> for Vec3A {
+    #[inline]
+    fn from(gv: GameVec) -> Self {
+        Vec3A::new(gv.x, gv.y, gv.z)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, FromPyObject)]
+pub struct GameRot {
+    pub pitch: f32,
+    pub yaw: f32,
+    pub roll: f32,
+}
+
+impl From<GameRot> for Vec3A {
+    #[inline]
+    fn from(gv: GameRot) -> Self {
+        Vec3A::new(gv.pitch, gv.yaw, gv.roll)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, FromPyObject)]
+pub struct GameSphere {
+    pub diameter: f32,
+}
+
+#[derive(Clone, Copy, Debug, Default, FromPyObject)]
+pub struct GameBox {
+    pub length: f32,
+    pub width: f32,
+    pub height: f32,
+}
+
+#[derive(Clone, Copy, Debug, Default, FromPyObject)]
+pub struct GameCylinder {
+    pub diameter: f32,
+    pub height: f32,
+}
+
+#[derive(Clone, Copy, Debug, Default, FromPyObject)]
+pub struct GameCollisionShape {
+    #[pyo3(attribute("type"))]
+    shape_type: usize,
+    #[pyo3(attribute("box"))]
+    box_: GameBox,
+    sphere: GameSphere,
+    cylinder: GameCylinder,
+}
+
+impl GameCollisionShape {
+    #[inline]
+    pub fn get_radius(&self) -> f32 {
+        match self.shape_type {
+            0 => (self.box_.length + self.box_.width + self.box_.height) / 6.,
+            1 => self.sphere.diameter / 2.,
+            2 => self.cylinder.diameter / 2.,
+            _ => panic!("Invalid shape type: {}", self.shape_type),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, FromPyObject)]
+pub struct GamePhysics {
+    pub location: GameVec,
+    pub velocity: GameVec,
+    pub angular_velocity: GameVec,
+    pub rotation: GameRot,
+}
+
+#[derive(Clone, Copy, Debug, Default, FromPyObject)]
+pub struct GameBall {
+    pub physics: GamePhysics,
+    pub collision_shape: GameCollisionShape,
+}
+
+#[derive(Clone, Copy, Debug, Default, FromPyObject)]
+pub struct GameInfo {
+    pub seconds_elapsed: f32,
+    pub world_gravity_z: f32,
+}
+
+#[derive(Clone, Copy, Debug, Default, FromPyObject)]
+pub struct GameCar {
+    pub physics: GamePhysics,
+    pub hitbox: Hitbox,
+    pub hitbox_offset: GameVec,
+    pub boost: u8,
+    pub jumped: bool,
+    pub double_jumped: bool,
+    pub is_demolished: bool,
+    pub has_wheel_contact: bool,
+}
+
+#[derive(Clone, Copy, Debug, Default, FromPyObject)]
+pub struct GamePacket {
+    pub game_info: GameInfo,
+    pub game_ball: GameBall,
+    pub num_cars: usize,
+}
 
 #[pyclass(frozen)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -210,6 +335,11 @@ impl AdvancedShotInfo {
     pub const fn get_distance_remaining(&self) -> f32 {
         self.distance_remaining
     }
+
+    #[inline]
+    pub const fn get_final_target(&self) -> PyVec3A {
+        self.final_target
+    }
 }
 
 #[pymethods]
@@ -282,8 +412,8 @@ impl AdvancedShotInfo {
     }
 
     #[inline]
-    pub fn get_from_air(car: &Car, shot: &AirBasedShot) -> Option<Self> {
-        Some(Self {
+    pub fn get_from_air(car: &Car, shot: &AirBasedShot) -> Self {
+        Self {
             final_target: get_tuple_from_vec3(shot.final_target),
             distance_remaining: car.location.distance(shot.final_target),
             path_samples: Vec::new(),
@@ -291,6 +421,6 @@ impl AdvancedShotInfo {
             current_path_point: get_tuple_from_vec3(car.location),
             turn_targets: None,
             num_jumps: Some(shot.jump_type as u8),
-        })
+        }
     }
 }

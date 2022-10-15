@@ -33,32 +33,27 @@ static BALL: RwLock<Option<Ball>> = RwLock::new(None);
 static MUTATORS: RwLock<Mutators> = RwLock::new(Mutators::new());
 static TARGETS: RwLock<ReArr<Option<Target>, 16>> = RwLock::new(rearr![]);
 
-/// VirxERLU-RLib is written in Rust with Python bindings to make analyzing the ball prediction struct much faster.
-#[pymodule]
-fn virx_erlu_rlib(_py: Python, m: &PyModule) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(load_soccer, m)?)?;
-    m.add_function(wrap_pyfunction!(load_soccar, m)?)?;
-    m.add_function(wrap_pyfunction!(load_dropshot, m)?)?;
-    m.add_function(wrap_pyfunction!(load_hoops, m)?)?;
-    m.add_function(wrap_pyfunction!(load_soccer_throwback, m)?)?;
-    m.add_function(wrap_pyfunction!(load_soccar_throwback, m)?)?;
-    m.add_function(wrap_pyfunction!(tick, m)?)?;
-    m.add_function(wrap_pyfunction!(get_slice, m)?)?;
-    m.add_function(wrap_pyfunction!(get_slice_index, m)?)?;
-    m.add_function(wrap_pyfunction!(get_num_ball_slices, m)?)?;
-    m.add_function(wrap_pyfunction!(new_target, m)?)?;
-    m.add_function(wrap_pyfunction!(new_any_target, m)?)?;
-    m.add_function(wrap_pyfunction!(confirm_target, m)?)?;
-    m.add_function(wrap_pyfunction!(remove_target, m)?)?;
-    m.add_function(wrap_pyfunction!(print_targets, m)?)?;
-    m.add_function(wrap_pyfunction!(get_targets_length, m)?)?;
-    m.add_function(wrap_pyfunction!(get_shot_with_target, m)?)?;
-    m.add_function(wrap_pyfunction!(get_data_for_shot_with_target, m)?)?;
-    m.add_function(wrap_pyfunction!(set_mutator_settings, m)?)?;
-    m.add_class::<TargetOptions>()?;
-    m.add_class::<ShotType>()?;
-    Ok(())
+macro_rules! pynamedmodule {
+    (doc: $doc:literal, name: $name:tt, funcs: [$($func_name:path),*], classes: [$($class_name:ident),*]) => {
+        #[doc = $doc]
+        #[pymodule]
+        fn $name(_py: Python, m: &PyModule) -> PyResult<()> {
+            $(m.add_function(wrap_pyfunction!($func_name, m)?)?);*;
+            $(m.add_class::<$class_name>()?);*;
+            Ok(())
+        }
+    };
 }
+
+pynamedmodule!(
+    doc: "VirxERLU-RLib is written in Rust with Python bindings to make analyzing the ball prediction struct much faster.",
+    name: virx_erlu_rlib,
+    funcs: [load_soccer, load_soccar, load_dropshot, load_hoops, load_soccer_throwback, load_soccar_throwback,
+    tick, get_slice, get_slice_index, get_num_ball_slices, set_mutator_settings,
+    new_target, new_any_target, confirm_target, remove_target, print_targets, get_targets_length,
+    get_shot_with_target, get_data_for_shot_with_target],
+    classes: [TargetOptions, ShotType]
+);
 
 #[pyfunction]
 fn load_soccar() {
@@ -225,54 +220,44 @@ fn tick(py: Python, packet: PyObject, prediction_time: Option<f32>) -> PyResult<
 
     let mut ball = BALL.read().unwrap().ok_or_else(|| PyErr::new::<NoBallPyErr, _>(NO_BALL_ERR))?;
 
-    let packet = packet.as_ref(py);
+    let py_packet = packet.as_ref(py);
+    let packet = py_packet.extract::<GamePacket>()?;
 
-    {
-        // Get the general game information
-        let py_game_info = packet.getattr("game_info")?;
+    // Get general game information
+    *GAME_TIME.write().unwrap() = packet.game_info.seconds_elapsed;
+    game.gravity.z = packet.game_info.world_gravity_z;
+    *GRAVITY.write().unwrap() = game.gravity;
 
-        *GAME_TIME.write().unwrap() = py_game_info.getattr("seconds_elapsed")?.extract::<f32>()?;
-        game.gravity.z = py_game_info.getattr("world_gravity_z")?.extract()?;
-        *GRAVITY.write().unwrap() = game.gravity;
+    // Get information about the ball
+    ball.update(
+        packet.game_info.seconds_elapsed,
+        packet.game_ball.physics.location.into(),
+        packet.game_ball.physics.velocity.into(),
+        packet.game_ball.physics.angular_velocity.into(),
+    );
 
-        // Get information about the ball
+    let radius = packet.game_ball.collision_shape.get_radius();
 
-        let py_ball = packet.getattr("game_ball")?;
-        let py_ball_physics = py_ball.getattr("physics")?;
-
-        ball.update(
-            *GAME_TIME.read().unwrap(),
-            get_vec3_named(py_ball_physics.getattr("location")?)?,
-            get_vec3_named(py_ball_physics.getattr("velocity")?)?,
-            get_vec3_named(py_ball_physics.getattr("angular_velocity")?)?,
-        );
-
-        let py_ball_shape = py_ball.getattr("collision_shape")?;
-
-        let radius = py_ball_shape.getattr("sphere")?.getattr("diameter")?.extract::<f32>()? / 2.;
+    // check if the new radius is different
+    // if is is, set it
+    if (ball.radius() - radius).abs() > 0.1 {
         ball.set_radius(radius, radius + 1.9);
     }
 
     // Predict future information about the ball
-    *BALL_STRUCT.write().unwrap() = ball.get_ball_prediction_struct_for_time(game, &prediction_time.unwrap_or(6.));
+    *BALL_STRUCT.write().unwrap() = ball.get_ball_prediction_struct_for_time(game, prediction_time.unwrap_or(6.));
 
     // Get information about the cars on the field
-    {
-        let mut cars = CARS.write().unwrap();
-
-        let num_cars = packet.getattr("num_cars")?.extract::<usize>()?;
-        let py_game_cars = packet.getattr("game_cars")?;
-
-        if cars.len() != num_cars {
-            const NEW_CAR: Car = Car::new();
-            cars.resize(num_cars, NEW_CAR);
-        }
-
-        let game_time = *GAME_TIME.read().unwrap();
-
-        for (i, car) in cars.iter_mut().enumerate() {
-            car.update(py_game_cars.get_item(i)?, game_time)?;
-        }
+    let mut cars = CARS.write().unwrap();
+    
+    if cars.len() != packet.num_cars {
+        const NEW_CAR: Car = Car::new();
+        cars.resize(packet.num_cars, NEW_CAR);
+    }
+    
+    let py_game_cars = py_packet.getattr("game_cars")?;
+    for (i, car) in cars.iter_mut().enumerate() {
+        car.update(py_game_cars.get_item(i)?.extract()?, packet.game_info.seconds_elapsed);
     }
 
     Ok(())
@@ -453,7 +438,7 @@ fn get_shot_with_target(
         let cars = CARS.read().unwrap();
         let car = cars.get(target.car_index).ok_or_else(|| PyErr::new::<NoCarPyErr, _>(NO_CAR_ERR))?;
 
-        if ball_prediction.len() == 0 || car.demolished || car.landing_time >= ball_prediction[ball_prediction.len() - 1].time {
+        if ball_prediction.is_empty() || car.demolished || car.landing_time >= ball_prediction.last().map(|slice| slice.time).unwrap_or_default() {
             return Ok(BasicShotInfo::not_found());
         }
 
@@ -656,9 +641,28 @@ fn get_data_for_shot_with_target(target_index: usize) -> PyResult<AdvancedShotIn
             }
         }
         Shot::AirBased(shot_details) => {
-            let shot_info = AdvancedShotInfo::get_from_air(car, shot_details).ok_or_else(|| PyErr::new::<StrayedFromPathPyErr, _>(STRAYED_FROM_PATH_ERR))?;
+            let shot_info = AdvancedShotInfo::get_from_air(car, shot_details);
+            // Ok(shot_info)
 
-            Ok(shot_info)
+            let gravity = *GRAVITY.read().unwrap();
+            let vf_base = car.velocity + gravity * time_remaining;
+            let xf_base = car.velocity * time_remaining + gravity * 0.5 * time_remaining.powi(2);
+
+            let mutators = MUTATORS.read().unwrap();
+
+            if air::partial_validate(
+                shot_details.final_target,
+                car.location + xf_base,
+                vf_base,
+                mutators.boost_amount,
+                mutators.boost_accel,
+                f32::from(car.boost),
+                shot_details.time - *GAME_TIME.read().unwrap(),
+            ) {
+                Ok(shot_info)
+            } else {
+                Err(PyErr::new::<BadAccelerationPyErr, _>(BAD_ACCELERATION_ERR))
+            }
         }
     }
 }

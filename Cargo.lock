@@ -126,9 +126,9 @@ checksum = "eb9f9e6e233e5c4a35559a617bf40a4ec447db2e84c20b55a6f83167b7e57872"
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.46"
+version = "1.0.47"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "94e2ef8dbfc347b10c094890f778ee2e36ca9bb4262e86dc99cd217e35f3470b"
+checksum = "5ea3d908b0e36316caf9e9e2c4625cdde190a7e6f440d794667ed17a1855e725"
 dependencies = [
  "unicode-ident",
 ]
@@ -249,9 +249,9 @@ dependencies = [
 
 [[package]]
 name = "rl_ball_sym"
-version = "2.2.1"
+version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81c4cd75ff08826911b22c94ae8fdcd278545543cadb70fe216bc2f727820a26"
+checksum = "1f4acbe38ad449928baa43eee4bb7b2753ed224f7e7d69ac67cff9d0de5fbc4d"
 dependencies = [
  "byteorder",
  "glam",
