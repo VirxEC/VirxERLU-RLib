@@ -1,0 +1,70 @@
+name: Build & Deploy to PyPi
+
+on:
+  push:
+    branches: [ "master" ]
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sdist:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: messense/maturin-action@v1
+        with:
+          maturin-version: latest
+          container: off
+          command: sdist
+      - uses: actions/upload-artifact@v2
+        with:
+          name: sdist
+          path: target/wheels
+      - name: Publish package
+        uses: pypa/gh-action-pypi-publish@v1.5.0
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          packages_dir: target/wheels
+  
+  manylinux:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: messense/maturin-action@v1
+        with:
+          maturin-version: latest
+          container: quay.io/pypa/manylinux_2_28_x86_64:latest
+          command: build
+          args: --release
+      - uses: actions/upload-artifact@v2
+        with:
+          name: wheels
+          path: target/wheels
+      - name: Publish package
+        uses: pypa/gh-action-pypi-publish@v1.5.1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          packages_dir: target/wheels
+  windows:
+    runs-on: windows-latest
+    
+    steps:
+      - uses: messense/maturin-action@v1
+        with:
+          maturin-version: latest
+          container: off
+          command: build
+          args: --release
+      - uses: actions/upload-artifact@v2
+        with:
+          name: wheels
+          path: target/wheels
+      - name: Publish package
+        uses: pypa/gh-action-pypi-publish@v1.5.1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          packages_dir: target/wheels
+    
