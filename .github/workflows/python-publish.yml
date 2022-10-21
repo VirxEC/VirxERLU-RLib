@@ -58,7 +58,6 @@ jobs:
       - uses: messense/maturin-action@v1
         with:
           maturin-version: latest
-          container: off
           command: build
           args: --release
       - uses: actions/upload-artifact@v2
