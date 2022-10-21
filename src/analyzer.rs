@@ -281,7 +281,7 @@ impl<'a> Analyzer<'a> {
         Ok(GroundTargetInfo::from(distances, shot_type, path, jump_time, is_forwards, shot_vector, None))
     }
 
-    pub fn aerial_shot(&self, mutators: Mutators, target: Vec3A, shot_vector: Vec3A, time_remaining: f32) -> DubinsResult<AerialTargetInfo> {
-        aerial_shot_is_viable(self.car, mutators, self.gravity, target, shot_vector, time_remaining)
+    pub fn aerial_shot(&self, mutators: Mutators, target: Vec3A, shot_vector: Vec3A, time_remaining: f32, check_target_angle: Option<Vec3A>) -> DubinsResult<AerialTargetInfo> {
+        aerial_shot_is_viable(self.car, mutators, self.gravity, target, shot_vector, time_remaining, check_target_angle)
     }
 }

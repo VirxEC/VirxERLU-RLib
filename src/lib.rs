@@ -485,7 +485,7 @@ fn get_shot_with_target(
                     let ball_edge = ball.location - flatten(shot_vector) * ball.radius();
                     let target_location = ball_edge - Vec3A::new(0., 0., shot_vector.z) * (car.hitbox_offset.x + car.hitbox.length) / 2.;
 
-                    let target_info = match analyzer.aerial_shot(mutators, target_location, shot_vector, max_time_remaining) {
+                    let target_info = match analyzer.aerial_shot(mutators, target_location, shot_vector, max_time_remaining, Some(ball.location)) {
                         Ok(ti) => ti,
                         Err(_) => continue,
                     };
@@ -539,7 +539,7 @@ fn get_shot_with_target(
                     let shot_vector = (ball_edge - car.location).normalize_or_zero();
                     let target_location = ball_edge - shot_vector * (car.hitbox_offset.x + car.hitbox.length) / 2.;
 
-                    let target_info = match analyzer.aerial_shot(mutators, target_location, shot_vector, max_time_remaining) {
+                    let target_info = match analyzer.aerial_shot(mutators, target_location, shot_vector, max_time_remaining, None) {
                         Ok(ti) => ti,
                         Err(_) => continue,
                     };

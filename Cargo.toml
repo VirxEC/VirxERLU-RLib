@@ -1,6 +1,6 @@
 [package]
 name = "virx_erlu_rlib"
-version = "0.11.0"
+version = "0.11.1"
 edition = "2021"
 authors = ["VirxEC <virx@virxcase.dev>"]
 readme = "README.md"
@@ -18,7 +18,7 @@ crate-type = ["cdylib"]
 path = "src/lib.rs"
 
 [dependencies]
-rl_ball_sym = { version = "2.2.1", features = ["fast-math"] }
+rl_ball_sym = { version = "2.3.0", features = ["fast-math"] }
 dubins_paths = { version = "1.4.4", features = ["fast-math"] }
 combo_vec = "0.4.0"
 
