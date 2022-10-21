@@ -24,11 +24,6 @@ jobs:
         with:
           name: sdist
           path: target/wheels
-      - name: Publish package
-        uses: pypa/gh-action-pypi-publish@v1.5.0
-        with:
-          password: ${{ secrets.PYPI_API_TOKEN }}
-          packages_dir: target/wheels
   
   manylinux:
     runs-on: ubuntu-latest
@@ -45,11 +40,7 @@ jobs:
         with:
           name: wheels
           path: target/wheels
-      - name: Publish package
-        uses: pypa/gh-action-pypi-publish@v1.5.1
-        with:
-          password: ${{ secrets.PYPI_API_TOKEN }}
-          packages_dir: target/wheels
+          
   windows:
     runs-on: windows-latest
     
@@ -64,9 +55,23 @@ jobs:
         with:
           name: wheels
           path: target/wheels
+  
+  publish:
+    needs: [sdist, manylinux, windows]
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Download source
+        uses: actions/download-artifact@v3.0.1
+        with:
+          name: sdist
+          path: dist
+      - name: Download a wheels
+        uses: actions/download-artifact@v3.0.1
+        with:
+          name: wheels
+          path: dist
       - name: Publish package
-        uses: pypa/gh-action-pypi-publish@v1.5.1
+        uses: pypa/gh-action-pypi-publish@v1.5.0
         with:
           password: ${{ secrets.PYPI_API_TOKEN }}
-          packages_dir: target/wheels
-    
