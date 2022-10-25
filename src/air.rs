@@ -254,7 +254,7 @@ pub fn aerial_shot_is_viable(car: &Car, mutators: Mutators, gravity: Vec3A, targ
     let vf_base = car.velocity + gravity * time_remaining;
     let xf_base = car.velocity * time_remaining + gravity * 0.5 * time_remaining.powi(2);
 
-    let target_angle_check = |car_location: Vec3A| check_target_angle.map(|ball_location| angle_3d((car_location - ball_location).normalize(), -shot_vector) < PI / 2.).unwrap_or(true);
+    let target_angle_check = |car_location: Vec3A| check_target_angle.map_or(true, |ball_location| angle_3d((car_location - ball_location).normalize(), -shot_vector) < PI / 2.);
 
     let ground_time_remaining = time_remaining - car.landing_time;
     if is_on_ground && ground_time_remaining > 0. && target_angle_check(car.landing_location) {

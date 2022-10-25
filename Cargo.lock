@@ -34,9 +34,9 @@ checksum = "56394eb9bf4ad3c3c982b1d04c2aaa2845c4d3a7c6c6b8f366fde9811263e460"
 
 [[package]]
 name = "dubins_paths"
-version = "1.4.4"
+version = "1.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "00556f0c29a7e6fa4eed10f3f6c1d04296d724b1003633ae184500686c7474af"
+checksum = "945fd4688011116e346cc34a1df106aca9903044d7ff727a234d9143cfdf93cf"
 dependencies = [
  "glam",
 ]
@@ -54,9 +54,9 @@ dependencies = [
 
 [[package]]
 name = "glam"
-version = "0.21.3"
+version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "518faa5064866338b013ff9b2350dc318e14cc4fcd6cb8206d7e7c9886c98815"
+checksum = "12f597d56c1bd55a811a1be189459e8fad2bbc272616375602443bdfb37fa774"
 
 [[package]]
 name = "indoc"
@@ -66,9 +66,9 @@ checksum = "adab1eaa3408fb7f0c777a73e7465fd5656136fc93b670eb6df3c88c2c1344e3"
 
 [[package]]
 name = "libc"
-version = "0.2.135"
+version = "0.2.136"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68783febc7782c6c5cb401fbda4de5a9898be1762314da0bb2c10ced61f18b0c"
+checksum = "55edcf6c0bb319052dea84732cf99db461780fd5e8d3eb46ab6ff312ab31f197"
 
 [[package]]
 name = "lock_api"
@@ -249,9 +249,9 @@ dependencies = [
 
 [[package]]
 name = "rl_ball_sym"
-version = "2.3.1"
+version = "2.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a7919cd217ef1e56d795ccf74bbb6c10500506a66e49c98e711249eb06aecbc8"
+checksum = "e6c13d98c5992b15d0486ab153fbbabab9378ac92582eb50407d644add0698dc"
 dependencies = [
  "byteorder",
  "combo_vec",
@@ -302,7 +302,7 @@ checksum = "58ee9362deb4a96cef4d437d1ad49cffc9b9e92d202b6995674e928ce684f112"
 
 [[package]]
 name = "virx_erlu_rlib"
-version = "0.11.1"
+version = "0.11.2"
 dependencies = [
  "combo_vec",
  "dubins_paths",

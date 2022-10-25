@@ -35,7 +35,7 @@ pub fn curvature(v: f32) -> f32 {
     } else if (1750. ..2305.).contains(&v) {
         0.0018 - 4e-7 * v
     } else {
-        println!("Invalid input velocity: {}", v);
+        println!("Invalid input velocity: {v}");
         -1.
     }
 }

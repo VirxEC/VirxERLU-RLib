@@ -180,19 +180,19 @@ impl TargetOptions {
         let mut s = Vec::with_capacity(4);
 
         if let Some(min_slice) = self.min_slice {
-            s.push(format!("min_slice=={}", min_slice));
+            s.push(format!("min_slice=={min_slice}"));
         }
 
         if let Some(max_slice) = self.max_slice {
-            s.push(format!("max_slice=={}", max_slice));
+            s.push(format!("max_slice=={max_slice}"));
         }
 
         if let Some(use_absolute_max_values) = self.use_absolute_max_values {
-            s.push(format!("use_absolute_max_values=={}", use_absolute_max_values));
+            s.push(format!("use_absolute_max_values=={use_absolute_max_values}"));
         }
 
         if let Some(all) = self.all {
-            s.push(format!("all=={}", all));
+            s.push(format!("all=={all}"));
         }
 
         s.join(", ")

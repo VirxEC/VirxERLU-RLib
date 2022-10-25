@@ -1,6 +1,6 @@
 [package]
 name = "virx_erlu_rlib"
-version = "0.11.1"
+version = "0.11.2"
 edition = "2021"
 authors = ["VirxEC <virx@virxcase.dev>"]
 readme = "README.md"
@@ -23,7 +23,7 @@ dubins_paths = { version = "1.4.4", features = ["fast-math"] }
 combo_vec = "0.4.0"
 
 [dependencies.glam]
-version = "0.21.3"
+version = "0.22.0"
 features = ["fast-math"]
 
 [dependencies.pyo3]
