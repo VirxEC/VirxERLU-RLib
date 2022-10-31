@@ -251,6 +251,7 @@ pub struct Options {
 }
 
 impl Options {
+    #[inline]
     pub fn from(options: Option<TargetOptions>, max_slices: usize) -> Self {
         match options {
             Some(options) => {
@@ -321,6 +322,7 @@ impl Target {
         }
     }
 
+    #[inline]
     pub fn confirm(&mut self) {
         self.confirmed = true;
     }

@@ -57,7 +57,7 @@ pynamedmodule!(
 
 #[pyfunction]
 fn load_soccar() {
-    let (game, ball) = rl_ball_sym::load_soccar();
+    let (game, ball) = rl_ball_sym::compressed::load_soccar();
 
     *GAME.write().unwrap() = Some(game);
     *BALL.write().unwrap() = Some(ball);
@@ -70,7 +70,7 @@ fn load_soccer() {
 
 #[pyfunction]
 fn load_dropshot() {
-    let (game, ball) = rl_ball_sym::load_dropshot();
+    let (game, ball) = rl_ball_sym::compressed::load_dropshot();
 
     *GAME.write().unwrap() = Some(game);
     *BALL.write().unwrap() = Some(ball);
@@ -78,7 +78,7 @@ fn load_dropshot() {
 
 #[pyfunction]
 fn load_hoops() {
-    let (game, ball) = rl_ball_sym::load_hoops();
+    let (game, ball) = rl_ball_sym::compressed::load_hoops();
 
     *GAME.write().unwrap() = Some(game);
     *BALL.write().unwrap() = Some(ball);
@@ -86,7 +86,7 @@ fn load_hoops() {
 
 #[pyfunction]
 fn load_soccar_throwback() {
-    let (game, ball) = rl_ball_sym::load_soccar_throwback();
+    let (game, ball) = rl_ball_sym::compressed::load_soccar_throwback();
 
     *GAME.write().unwrap() = Some(game);
     *BALL.write().unwrap() = Some(ball);
@@ -107,6 +107,7 @@ pub enum BoostAmount {
 }
 
 impl BoostAmount {
+    #[inline]
     fn from(item: u8) -> BoostAmount {
         match item {
             1 => BoostAmount::Unlimited,
@@ -134,6 +135,7 @@ impl Mutators {
         }
     }
 
+    #[inline]
     pub fn from(mutators: &PyAny) -> PyResult<Self> {
         Ok(Mutators {
             boost_amount: BoostAmount::from(mutators.call_method("BoostOption", (), None)?.extract()?),
@@ -156,64 +158,11 @@ fn set_mutator_settings(py: Python, mutators: PyObject) -> PyResult<()> {
 
 #[pyfunction]
 fn tick(py: Python, packet: PyObject, prediction_time: Option<f32>) -> PyResult<()> {
-    {
-        let mut targets = TARGETS.write().unwrap();
-
-        // simulate max jump height
-        // simulate max double jump height
-        // add option for max path time
-
-        for target in targets.iter_mut() {
-            if let Some(t) = target {
-                if !t.is_confirmed() {
-                    *target = None;
-                }
-            }
+    TARGETS.write().unwrap().iter_mut().for_each(|target | {
+        if matches!(target, Some(t) if !t.is_confirmed()) {
+            *target = None;
         }
-    }
-
-    /*
-    Example GameTickPacket<
-        game_cars: [
-            PlayerInfo<
-                physics: Physics<
-                    location: Vector3<x: 0.0, y: -4608.0, z: 17.010000228881836>,
-                    rotation: Rotator<pitch: -0.009587380103766918, yaw: 1.5707963705062866, roll: 0.0>,
-                    velocity: Vector3<x: 0.0, y: 0.0, z: 0.210999995470047>,
-                    angular_velocity: Vector3<x: -0.0006099999882280827, y: 0.0, z: 0.0>
-                >,
-                score_info: ScoreInfo<score: 0, goals: 0, own_goals: 0, assists: 0, saves: 0, shots: 0, demolitions: 0>,
-                is_demolished: False,
-                has_wheel_contact: True,
-                is_super_sonic: False,
-                is_bot: True,
-                jumped: False,
-                double_jumped: False,
-                name: 'DownToEarth',
-                team: 0,
-                boost: 34,
-                hitbox: BoxShape<length: 118.00737762451172, width: 84.19940948486328, height: 36.15907287597656>,
-                hitbox_offset: Vector3<x: 13.875659942626953, y: 0.0, z: 20.754987716674805>,
-                spawn_id: 1793714700
-            >
-        ],
-        num_cars: 1,
-        game_boosts: <rlbot.utils.structures.game_data_struct.BoostPadState_Array_50 object at 0x000002C910DE8EC8>,
-        num_boost: 34,
-        game_ball: BallInfo<
-            physics: Physics<location: Vector3<x: 0.0, y: 0.0, z: 92.73999786376953>, rotation: Rotator<pitch: 0.0, yaw: 0.0, roll: 0.0>, velocity: Vector3<x: 0.0, y: 0.0, z: 0.0>, angular_velocity: Vector3<x: 0.0, y: 0.0, z: 0.0>>,
-            latest_touch: Touch<player_name: '', time_seconds: 0.0, hit_location: Vector3<x: 0.0, y: 0.0, z: 0.0>, hit_normal: Vector3<x: 0.0, y: 0.0, z: 0.0>, team: 0, player_index: 0>,
-            drop_shot_info: DropShotInfo<absorbed_force: 0.0, damage_index: 0, force_accum_recent: 0.0>,
-            collision_shape: CollisionShape<type: 1, box: BoxShape<length: 0.0, width: 0.0, height: 0.0>,
-            sphere: SphereShape<diameter: 182.49998474121094>, cylinder: CylinderShape<diameter: 0.0, height: 0.0>>
-        >,
-        game_info: GameInfo<seconds_elapsed: 718.4749755859375, game_time_remaining: -707.4849243164062, is_overtime: False, is_unlimited_time: True, is_round_active: False, is_kickoff_pause: False, is_match_ended: False, world_gravity_z: -650.0, game_speed: 0.0, frame_num: 86217>,
-        dropshot_tiles: <rlbot.utils.structures.game_data_struct.TileInfo_Array_200 object at 0x000002C910DE8EC8>,
-        num_tiles: 0,
-        teams: <rlbot.utils.structures.game_data_struct.TeamInfo_Array_2 object at 0x000002C910DE8EC8>,
-        num_teams: 2
-    >
-    */
+    });
 
     let mut game_guard = GAME.write().unwrap();
     let game = game_guard.as_mut().ok_or_else(|| PyErr::new::<NoGamePyErr, _>(NO_GAME_ERR))?;
@@ -249,12 +198,12 @@ fn tick(py: Python, packet: PyObject, prediction_time: Option<f32>) -> PyResult<
 
     // Get information about the cars on the field
     let mut cars = CARS.write().unwrap();
-    
+
     if cars.len() != packet.num_cars {
         const NEW_CAR: Car = Car::new();
         cars.resize(packet.num_cars, NEW_CAR);
     }
-    
+
     let py_game_cars = py_packet.getattr("game_cars")?;
     for (i, car) in cars.iter_mut().enumerate() {
         car.update(py_game_cars.get_item(i)?.extract()?, packet.game_info.seconds_elapsed);
@@ -272,7 +221,7 @@ fn get_slice(slice_time: f32) -> BallSlice {
 #[pyfunction]
 fn get_slice_index(slice_num: usize) -> BallSlice {
     let ball_struct = BALL_STRUCT.read().unwrap();
-    let ball = ball_struct[slice_num.clamp(1, ball_struct.len()) - 1];
+    let ball = ball_struct[slice_num.clamp(0, ball_struct.len() - 1)];
 
     BallSlice::from(ball)
 }

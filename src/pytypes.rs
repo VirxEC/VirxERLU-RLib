@@ -198,6 +198,7 @@ impl TargetOptions {
         s.join(", ")
     }
 
+    #[inline]
     fn __repr__(&self) -> String {
         format!(
             "TargetOptions(min_slice={:?}, max_slice={:?}, use_absolute_max_values={:?}, all={:?})",
@@ -247,6 +248,7 @@ impl BasicShotInfo {
 
 #[pymethods]
 impl BasicShotInfo {
+    #[inline]
     fn __str__(&self) -> String {
         match self.shot_type {
             Some(shot_type) => format!("{} shot found at time: {:.2}", shot_type.to_str(), self.time),
@@ -254,6 +256,7 @@ impl BasicShotInfo {
         }
     }
 
+    #[inline]
     fn __repr__(&self) -> String {
         match self.shot_type {
             Some(shot_type) => format!(
@@ -282,6 +285,7 @@ pub struct BallSlice {
 
 #[pymethods]
 impl BallSlice {
+    #[inline]
     fn __str__(&self) -> String {
         format!(
             "Ball @{:.2}s - location: {:?}, velocity: {:?}, angular velocity: {:?}",
@@ -289,6 +293,7 @@ impl BallSlice {
         )
     }
 
+    #[inline]
     fn __repr__(&self) -> String {
         format!(
             "BallSlice(time={}, location={:?}, velocity={:?}, angular_velocity={:?})",
@@ -344,6 +349,7 @@ impl AdvancedShotInfo {
 
 #[pymethods]
 impl AdvancedShotInfo {
+    #[inline]
     fn __str__(&self) -> String {
         if let Some(required_jump_time) = self.required_jump_time {
             format!(
@@ -355,6 +361,7 @@ impl AdvancedShotInfo {
         }
     }
 
+    #[inline]
     fn __repr__(&self) -> String {
         format!(
             "AdvancedShotInfo(final_target={:?}, distance_remaining={}, required_jump_time: {:?}, num_jumps: {:?}, path_samples=[{} items], current_path_point:{:?})",

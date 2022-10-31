@@ -86,6 +86,13 @@ rlru.new_target(*target_args)
 rlru.new_any_target(car_index, use_abs)
 rlru.new_any_target(car_index)
 
+print("get_slice_index(144):")
+slice = rlru.get_slice_index(144)
+print(slice)
+print(repr(slice))
+
+print()
+
 print("get_slice(1.2):")
 slice = rlru.get_slice(1.2)
 print(slice)

@@ -37,6 +37,7 @@ pub fn get_samples_from_line(start: PosRot, direction: Vec3A, distance: f32, ste
     samples
 }
 
+#[inline]
 pub fn get_vec3_from_vec(vec: &Vec<f32>, name: &str) -> PyResult<Vec3A> {
     if vec.len() == 3 {
         Ok(Vec3A::new(vec[0], vec[1], vec[2]))

@@ -46,10 +46,12 @@ impl<'a> Analyzer<'a> {
         }
     }
 
+    #[inline]
     fn get_max_speed(&self, slice_num: usize) -> f32 {
         self.max_speed.unwrap_or_else(|| self.car.max_speed[slice_num])
     }
 
+    #[inline]
     fn get_max_turn_radius(&self, slice_num: usize) -> f32 {
         self.max_turn_radius.unwrap_or_else(|| self.car.ctrms[slice_num])
     }
@@ -80,7 +82,6 @@ impl<'a> Analyzer<'a> {
         Err(NoPathError)
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn get_jump_info(
         &self,
         ball_location: Vec3A,
@@ -95,7 +96,7 @@ impl<'a> Analyzer<'a> {
                 let distance = 320.;
                 (
                     None,
-                    if (0_f32..distance).contains(&self.car.forward.dot(ball_location))
+                    if (0. ..distance).contains(&self.car.forward.dot(ball_location))
                         && self.car.right.dot(ball_location) < self.car.hitbox.width / 2.
                         && angle_2d(self.car.forward, shot_vector) < 0.02
                     {
@@ -124,6 +125,7 @@ impl<'a> Analyzer<'a> {
         })
     }
 
+    #[inline]
     fn should_travel_forwards(&self, time_remaining: f32, shot_vector: Vec3A) -> bool {
         // it's easier for me to think about what I want the criteria to be for going backwards, so I did that then just took the opposite of it for is_forwards
         let is_backwards = time_remaining < 4. && angle_2d(shot_vector, Vec3A::new(self.car.landing_yaw.cos(), self.car.landing_yaw.sin(), 0.)) > PI * (2. / 3.);
@@ -281,7 +283,15 @@ impl<'a> Analyzer<'a> {
         Ok(GroundTargetInfo::from(distances, shot_type, path, jump_time, is_forwards, shot_vector, None))
     }
 
-    pub fn aerial_shot(&self, mutators: Mutators, target: Vec3A, shot_vector: Vec3A, time_remaining: f32, check_target_angle: Option<Vec3A>) -> DubinsResult<AerialTargetInfo> {
+    #[inline]
+    pub fn aerial_shot(
+        &self,
+        mutators: Mutators,
+        target: Vec3A,
+        shot_vector: Vec3A,
+        time_remaining: f32,
+        check_target_angle: Option<Vec3A>,
+    ) -> DubinsResult<AerialTargetInfo> {
         aerial_shot_is_viable(self.car, mutators, self.gravity, target, shot_vector, time_remaining, check_target_angle)
     }
 }
