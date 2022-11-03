@@ -222,6 +222,13 @@ pub struct BasicShotInfo {
     is_forwards: bool,
 }
 
+impl Default for BasicShotInfo {
+    #[inline]
+    fn default() -> Self {
+        Self::not_found()
+    }
+}
+
 impl BasicShotInfo {
     #[inline]
     pub const fn not_found() -> Self {

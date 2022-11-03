@@ -546,10 +546,7 @@ fn get_shot_with_target(
             .shot = found_shot;
     }
 
-    Ok(match basic_shot_info {
-        Some(bsi) => bsi,
-        None => BasicShotInfo::not_found(),
-    })
+    Ok(basic_shot_info.unwrap_or_default())
 }
 
 #[pyfunction]
