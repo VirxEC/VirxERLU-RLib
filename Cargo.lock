@@ -330,9 +330,9 @@ dependencies = [
 
 [[package]]
 name = "rl_ball_sym"
-version = "2.4.1"
+version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c83d9ad2f2f4b2f203c520d7d1de671d427812fb05f67e008cb087a7f3a2861"
+checksum = "574fb9dbeff7bfc713137fd947af5e9ab16da1ba81d342295927537d0bbb87bb"
 dependencies = [
  "byteorder",
  "combo_vec",

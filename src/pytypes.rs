@@ -89,7 +89,7 @@ impl GameCollisionShape {
             0 => (self.box_.length + self.box_.width + self.box_.height) / 6.,
             1 => self.sphere.diameter / 2.,
             2 => self.cylinder.diameter / 2.,
-            _ => panic!("Invalid shape type: {}", self.shape_type),
+            _ => panic!("Invalid shape type: #{}", self.shape_type),
         }
     }
 }

@@ -19,7 +19,7 @@ crate-type = ["cdylib"]
 path = "src/lib.rs"
 
 [dependencies]
-rl_ball_sym = { version = "2.4.1", default-features = false, features = ["fast-math", "stable-compression"] }
+rl_ball_sym = { version = "2.5.0", default-features = false, features = ["fast-math", "stable-compression"] }
 dubins_paths = { version = "1.4.4", features = ["fast-math"] }
 combo_vec = "0.4.0"
 
@@ -36,6 +36,6 @@ rand = "0.8"
 
 [profile.release]
 codegen-units = 1
-lto = true
 panic = "abort"
+lto = true
 strip = true
