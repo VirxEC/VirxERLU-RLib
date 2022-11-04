@@ -29,7 +29,7 @@ static BALL_STRUCT: RwLock<BallPrediction> = RwLock::new(BallPrediction::new());
 static GRAVITY: RwLock<Vec3A> = RwLock::new(Vec3A::ZERO);
 static GAME_TIME: RwLock<f32> = RwLock::new(0.);
 static GAME: RwLock<Option<Game>> = RwLock::new(None);
-static BALL: RwLock<Option<Ball>> = RwLock::new(None);
+static BALL: RwLock<Ball> = RwLock::new(Ball::const_default());
 static MUTATORS: RwLock<Mutators> = RwLock::new(Mutators::new());
 static TARGETS: RwLock<ReArr<Option<Target>, 16>> = RwLock::new(rearr![]);
 
@@ -60,7 +60,7 @@ fn load_soccar() {
     let (game, ball) = rl_ball_sym::compressed::load_soccar();
 
     *GAME.write().unwrap() = Some(game);
-    *BALL.write().unwrap() = Some(ball);
+    *BALL.write().unwrap() = ball;
 }
 
 #[pyfunction]
@@ -73,7 +73,7 @@ fn load_dropshot() {
     let (game, ball) = rl_ball_sym::compressed::load_dropshot();
 
     *GAME.write().unwrap() = Some(game);
-    *BALL.write().unwrap() = Some(ball);
+    *BALL.write().unwrap() = ball;
 }
 
 #[pyfunction]
@@ -81,7 +81,7 @@ fn load_hoops() {
     let (game, ball) = rl_ball_sym::compressed::load_hoops();
 
     *GAME.write().unwrap() = Some(game);
-    *BALL.write().unwrap() = Some(ball);
+    *BALL.write().unwrap() = ball;
 }
 
 #[pyfunction]
@@ -89,7 +89,7 @@ fn load_soccar_throwback() {
     let (game, ball) = rl_ball_sym::compressed::load_soccar_throwback();
 
     *GAME.write().unwrap() = Some(game);
-    *BALL.write().unwrap() = Some(ball);
+    *BALL.write().unwrap() = ball;
 }
 
 #[pyfunction]
@@ -167,7 +167,7 @@ fn tick(py: Python, packet: PyObject, prediction_time: Option<f32>) -> PyResult<
     let mut game_guard = GAME.write().unwrap();
     let game = game_guard.as_mut().ok_or_else(|| PyErr::new::<NoGamePyErr, _>(NO_GAME_ERR))?;
 
-    let mut ball = BALL.read().unwrap().ok_or_else(|| PyErr::new::<NoBallPyErr, _>(NO_BALL_ERR))?;
+    let mut ball = *BALL.read().unwrap();
 
     let py_packet = packet.as_ref(py);
     let packet = py_packet.extract::<GamePacket>()?;

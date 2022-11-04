@@ -37,8 +37,6 @@ pub const DOUBLE_JUMP_DURATION: f32 = JUMP_MAX_DURATION + SIMULATION_DT * 2.;
 
 pub type NoGamePyErr = exceptions::PyNameError;
 pub const NO_GAME_ERR: &str = "GAME is unset. Call a function like load_soccar first.";
-pub type NoBallPyErr = exceptions::PyNameError;
-pub const NO_BALL_ERR: &str = "BALL is unset. Call a function like load_soccar first.";
 pub type NoCarPyErr = exceptions::PyIndexError;
 pub const NO_CAR_ERR: &str = "No car at the provided index.";
 pub type NoSlicesPyErr = exceptions::PyValueError;
