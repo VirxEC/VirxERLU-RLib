@@ -1,6 +1,5 @@
 use dubins_paths::{DubinsPath, PosRot};
 use glam::Vec3A;
-use pyo3::{exceptions, PyErr, PyResult};
 use std::ops::{Add, Mul, Sub};
 
 /// Get a vec of samples from a path
@@ -38,15 +37,6 @@ pub fn get_samples_from_line(start: PosRot, direction: Vec3A, distance: f32, ste
 }
 
 #[inline]
-pub fn get_vec3_from_vec(vec: &Vec<f32>, name: &str) -> PyResult<Vec3A> {
-    if vec.len() == 3 {
-        Ok(Vec3A::new(vec[0], vec[1], vec[2]))
-    } else {
-        Err(PyErr::new::<exceptions::PyIndexError, _>(format!("Key '{}' needs to be a list of exactly 3 numbers", name)))
-    }
-}
-
-#[inline]
 pub const fn get_tuple_from_vec3(vec: Vec3A) -> (f32, f32, f32) {
     let [x, y, z] = vec.to_array();
     (x, y, z)
@@ -68,18 +58,24 @@ pub fn lerp<T: Copy + Add<Output = T> + Sub<Output = T> + Mul<f32, Output = T>>(
 //     (v - a) / (b - a)
 // }
 
-fn clamp_index(s: Vec3A, start: Vec3A, end: Vec3A) -> usize {
+enum ClampDirection {
+    Middle,
+    Left,
+    Right,
+}
+
+fn clamp_index(s: Vec3A, start: Vec3A, end: Vec3A) -> ClampDirection {
     let right = s.dot(end.cross(-Vec3A::Z)) < 0.;
     let left = s.dot(start.cross(-Vec3A::Z)) > 0.;
 
     let return_original = if end.dot(start.cross(-Vec3A::Z)) > 0. { right && left } else { right || left };
 
     if return_original {
-        0
+        ClampDirection::Middle
     } else if start.dot(s) < end.dot(s) {
-        2
+        ClampDirection::Right
     } else {
-        1
+        ClampDirection::Left
     }
 }
 
@@ -147,7 +143,7 @@ impl PostCorrection {
 
         // All of this is so that the returned vector will always point towards the target z
         match clamp_index(car_to_ball_flat, left_vector_flat, right_vector_flat) {
-            0 => {
+            ClampDirection::Middle => {
                 // angle_between between uses acos, will always be between 0 and pi
                 let car_to_left_angle = left_vector_flat.angle_between(car_to_ball_flat);
                 let left_to_right_angle = left_vector_flat.angle_between(right_vector);
@@ -157,9 +153,8 @@ impl PostCorrection {
 
                 (lerp(self.target_left, self.target_right, t) - ball_location).normalize_or_zero()
             }
-            1 => left_vector,
-            2 => right_vector,
-            _ => unreachable!(),
+            ClampDirection::Left => left_vector,
+            ClampDirection::Right => right_vector,
         }
     }
 }

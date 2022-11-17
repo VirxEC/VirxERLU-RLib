@@ -5,7 +5,7 @@ use crate::{
     utils::*,
     BoostAmount, Mutators,
 };
-use dubins_paths::{self, DubinsPath, Intermediate, NoPathError, PathType, PosRot};
+use dubins_paths::{DubinsPath, Intermediate, NoPathError, PathType, PosRot, Result as DubinsResult};
 use glam::Vec3A;
 use std::f32::{consts::E, INFINITY};
 
@@ -56,7 +56,7 @@ pub fn angle_2d(vec1: Vec3A, vec2: Vec3A) -> f32 {
     flatten(vec1).normalize_or_zero().dot(flatten(vec2).normalize_or_zero()).clamp(-1., 1.).acos()
 }
 
-pub fn shortest_path_in_validate(q0: PosRot, q1: PosRot, rho: f32, car_field: &FieldRect, max_distance: f32) -> dubins_paths::Result<DubinsPath> {
+pub fn shortest_path_in_validate(q0: PosRot, q1: PosRot, rho: f32, car_field: &FieldRect, max_distance: f32) -> DubinsResult<DubinsPath> {
     let mut best_cost = INFINITY;
     let mut best_path = None;
 

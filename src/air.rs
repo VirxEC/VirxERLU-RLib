@@ -31,9 +31,8 @@ impl AerialTargetInfo {
 /// Estimation of if a pre-established aerial shot is still possible
 pub fn partial_validate(target: Vec3A, xf: Vec3A, vf: Vec3A, boost_amount: BoostAmount, boost_accel: f32, car_boost: f32, time_remaining: f32) -> bool {
     let delta_x = target - xf;
-    let f = match delta_x.try_normalize() {
-        Some(f) => f,
-        None => return true,
+    let Some(f) = delta_x.try_normalize() else {
+        return true;
     };
 
     let required_acc = delta_x.length() / time_remaining.powi(2);
