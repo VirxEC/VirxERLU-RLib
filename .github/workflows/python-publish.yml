@@ -46,6 +46,8 @@ jobs:
     
     steps:
       - uses: actions/checkout@v3
+      - name: Update Rust to last stable
+        run: rustup update stable
       - uses: messense/maturin-action@v1
         with:
           maturin-version: latest
