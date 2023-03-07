@@ -17,7 +17,7 @@ use glam::Vec3A;
 use pyo3::prelude::*;
 use pytypes::*;
 use rl_ball_sym::simulation::{
-    ball::{Ball, BallPrediction},
+    ball::{Ball, Predictions},
     game::Game,
 };
 use shot::{AirBasedShot, GroundBasedShot, Options, Shot, Target};
@@ -25,7 +25,7 @@ use std::sync::RwLock;
 use utils::*;
 
 static CARS: RwLock<ReArr<Car, 8>> = RwLock::new(rearr![]);
-static BALL_STRUCT: RwLock<BallPrediction> = RwLock::new(BallPrediction::new());
+static BALL_STRUCT: RwLock<Predictions> = RwLock::new(Predictions::new());
 static GRAVITY: RwLock<Vec3A> = RwLock::new(Vec3A::ZERO);
 static GAME_TIME: RwLock<f32> = RwLock::new(0.);
 static GAME: RwLock<Option<Game>> = RwLock::new(None);
@@ -57,7 +57,7 @@ pynamedmodule!(
 
 #[pyfunction]
 fn load_soccar() {
-    let (game, ball) = rl_ball_sym::compressed::load_soccar();
+    let (game, ball) = rl_ball_sym::compressed::load_standard();
 
     *GAME.write().unwrap() = Some(game);
     *BALL.write().unwrap() = ball;
@@ -86,7 +86,7 @@ fn load_hoops() {
 
 #[pyfunction]
 fn load_soccar_throwback() {
-    let (game, ball) = rl_ball_sym::compressed::load_soccar_throwback();
+    let (game, ball) = rl_ball_sym::compressed::load_standard_throwback();
 
     *GAME.write().unwrap() = Some(game);
     *BALL.write().unwrap() = ball;
