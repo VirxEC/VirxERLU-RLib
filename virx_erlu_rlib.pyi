@@ -4,13 +4,7 @@ from typing import Optional
 __doc__: str
 
 
-def load_soccar() -> None:
-    """
-    Loads the geometry of a standard soccar field
-    """
-
-
-def load_soccer() -> None:
+def load_standard() -> None:
     """
     Loads the geometry of a standard soccer field
     """
@@ -28,15 +22,9 @@ def load_hoops() -> None:
     """
 
 
-def load_soccar_throwback() -> None:
+def load_standard_throwback() -> None:
     """
-    Loads the geometry of the field Throwback Stadium
-    """
-
-
-def load_soccer_throwback() -> None:
-    """
-    Loads the geometry of the field Throwback Stadium
+    Loads the geometry of the field Throwback Stadium for soccer
     """
 
 

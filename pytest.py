@@ -10,7 +10,7 @@ print(rlru.__doc__)
 print()
 
 print("Loading soccar...")
-rlru.load_soccar()
+rlru.load_standard()
 
 packet = GameTickPacket()
 
