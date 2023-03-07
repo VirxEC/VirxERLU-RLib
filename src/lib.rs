@@ -96,7 +96,7 @@ pub enum BoostAmount {
     NoBoost,
 }
 
-impl BoostAmount {
+impl From<u8> for BoostAmount {
     #[inline]
     fn from(item: u8) -> BoostAmount {
         match item {
@@ -132,7 +132,7 @@ impl TryFrom<&PyAny> for Mutators {
     #[inline]
     fn try_from(mutators: &PyAny) -> PyResult<Self> {
         Ok(Mutators {
-            boost_amount: BoostAmount::from(mutators.call_method("BoostOption", (), None)?.extract()?),
+            boost_amount: mutators.call_method("BoostOption", (), None)?.extract::<u8>()?.into(),
             boost_accel: match mutators.call_method("BoostStrengthOption", (), None)?.extract()? {
                 1 => BOOST_ACCEL * 1.5,
                 2 => BOOST_ACCEL * 2.,
@@ -198,9 +198,8 @@ fn tick(py: Python, packet: PyObject, prediction_time: Option<f32>) -> PyResult<
         cars.resize(packet.num_cars, NEW_CAR);
     }
 
-    let py_game_cars = py_packet.getattr("game_cars")?;
-    for (i, car) in cars.iter_mut().enumerate() {
-        car.update(py_game_cars.get_item(i)?.extract()?, packet.game_info.seconds_elapsed);
+    for (car, pycar) in cars.iter_mut().zip(py_packet.getattr("game_cars")?.iter()?) {
+        car.update(pycar?.extract()?, packet.game_info.seconds_elapsed);
     }
 
     Ok(())
@@ -337,6 +336,115 @@ fn get_targets_length() -> usize {
     TARGETS.read().unwrap().len()
 }
 
+fn analyze_shot(analyzer: &Analyzer, balls: &Predictions, target: &Target, mutators: Mutators, temporary: bool, game_time: f32) -> Option<(Shot, BasicShotInfo)> {
+    let mut shot = None;
+
+    for (i, ball) in balls[target.options.min_slice..target.options.max_slice].iter().enumerate() {
+        if ball.location.y.abs() > 5120. + ball.collision_radius() {
+            break;
+        }
+
+        let max_time_remaining = ball.time - game_time;
+
+        let Ok(shot_type) = analyzer.get_shot_type(ball.location, max_time_remaining) else {
+            continue;
+        };
+
+        if let Some(target_location) = &target.location {
+            let post_info = PostCorrection::from(ball.location, ball.collision_radius(), target_location.left, target_location.right);
+
+            if !post_info.fits {
+                continue;
+            }
+
+            let shot_vector = post_info.get_shot_vector_target(analyzer.car.landing_location, ball.location);
+
+            if shot_type == ShotType::Aerial {
+                let ball_edge = ball.location - flatten(shot_vector) * ball.radius();
+                let target_location = ball_edge - Vec3A::new(0., 0., shot_vector.z) * (analyzer.car.hitbox_offset.x + analyzer.car.hitbox.length) / 2.;
+
+                let Ok(target_info) = analyzer.aerial_shot(mutators, target_location, shot_vector, max_time_remaining, Some(ball.location)) else {
+                    continue;
+                };
+
+                if shot.is_none() {
+                    let basic_shot_info = target_info.get_basic_shot_info(ball.time);
+                    let found_shot = if temporary { AirBasedShot::default() } else { AirBasedShot::from(ball, &target_info) }.into();
+                    shot = Some((found_shot, basic_shot_info));
+
+                    if !target.options.all {
+                        break;
+                    }
+                }
+
+                continue;
+            }
+
+            let Ok(target_info) = analyzer.target(ball, shot_vector, max_time_remaining, i, shot_type) else {
+                continue;
+            };
+
+            if target_info.can_reach(analyzer.car, max_time_remaining, mutators).is_err() {
+                continue;
+            }
+
+            if shot.is_none() {
+                let basic_shot_info = target_info.get_basic_shot_info(ball.time);
+                let found_shot = if temporary {
+                    GroundBasedShot::default()
+                } else {
+                    GroundBasedShot::from(ball, &target_info)
+                }
+                .into();
+                shot = Some((found_shot, basic_shot_info));
+
+                if !target.options.all {
+                    break;
+                }
+            }
+        } else if shot_type == ShotType::Aerial {
+            let ball_edge = ball.location - flatten(ball.location - analyzer.car.location).normalize_or_zero() * ball.radius();
+            let shot_vector = (ball_edge - analyzer.car.location).normalize_or_zero();
+            let target_location = ball_edge - shot_vector * (analyzer.car.hitbox_offset.x + analyzer.car.hitbox.length) / 2.;
+
+            let Ok(target_info) = analyzer.aerial_shot(mutators, target_location, shot_vector, max_time_remaining, None) else {
+                continue;
+            };
+
+            if shot.is_none() {
+                let basic_shot_info = target_info.get_basic_shot_info(ball.time);
+                let found_shot = if temporary { AirBasedShot::default() } else { AirBasedShot::from(ball, &target_info) }.into();
+                shot = Some((found_shot, basic_shot_info));
+
+                if !target.options.all {
+                    break;
+                }
+            }
+        } else if let Ok(target_info) = analyzer.no_target(ball, max_time_remaining, i, shot_type) {
+            if target_info.can_reach(analyzer.car, max_time_remaining, mutators).is_err() {
+                continue;
+            }
+
+            if shot.is_none() {
+                let basic_shot_info = target_info.get_basic_shot_info(ball.time);
+                let found_shot = if temporary {
+                    GroundBasedShot::default()
+                } else {
+                    GroundBasedShot::from(ball, &target_info)
+                }
+                .into();
+                shot = Some((found_shot, basic_shot_info));
+
+                if !target.options.all {
+                    break;
+                }
+            }
+        }
+    }
+
+    shot
+}
+
 #[pyfunction]
 fn get_shot_with_target(
     target_index: usize,
@@ -347,26 +455,27 @@ fn get_shot_with_target(
     may_aerial_shot: Option<bool>,
     only: Option<bool>,
 ) -> PyResult<BasicShotInfo> {
-    let only = only.unwrap_or(false);
-    let may_ground_shot = may_ground_shot.unwrap_or(!only);
-    let may_jump_shot = may_jump_shot.unwrap_or(!only);
-    let may_double_jump_shot = may_double_jump_shot.unwrap_or(!only);
-    let may_aerial_shot = may_aerial_shot.unwrap_or(!only);
     let temporary = temporary.unwrap_or(false);
 
-    if !may_ground_shot && !may_jump_shot && !may_double_jump_shot && !may_aerial_shot {
-        return Err(PyErr::new::<NoShotSelectedPyErr, _>(NO_SHOT_SELECTED_ERR));
-    }
+    let (found_shot, basic_shot_info) = {
+        let only = only.unwrap_or(false);
 
-    let mutators = *MUTATORS.read().unwrap();
-    let gravity = *GRAVITY.read().unwrap();
-    let game_time = *GAME_TIME.read().unwrap();
-    let ball_prediction = BALL_STRUCT.read().unwrap();
+        let may_shoot = [
+            may_ground_shot.unwrap_or(!only),
+            may_jump_shot.unwrap_or(!only),
+            may_double_jump_shot.unwrap_or(!only),
+            may_aerial_shot.unwrap_or(!only),
+        ];
 
-    let mut found_shot = None;
-    let mut basic_shot_info = None;
+        if !may_shoot.iter().any(|&x| x) {
+            return Err(PyErr::new::<NoShotSelectedPyErr, _>(NO_SHOT_SELECTED_ERR));
+        }
 
-    {
+        let mutators = *MUTATORS.read().unwrap();
+        let gravity = *GRAVITY.read().unwrap();
+        let game_time = *GAME_TIME.read().unwrap();
+        let balls = BALL_STRUCT.read().unwrap();
+
         let targets_gaurd = TARGETS.read().unwrap();
         let target = targets_gaurd
             .get(target_index)
@@ -377,139 +486,23 @@ fn get_shot_with_target(
         let cars = CARS.read().unwrap();
         let car = cars.get(target.car_index).ok_or_else(|| PyErr::new::<NoCarPyErr, _>(NO_CAR_ERR))?;
 
-        if ball_prediction.is_empty() || car.demolished || car.landing_time >= ball_prediction.last().map(|slice| slice.time).unwrap_or_default() {
+        if car.demolished || balls.is_empty() || car.landing_time >= balls.last().map(|slice| slice.time).unwrap_or_default() {
             return Ok(BasicShotInfo::not_found());
         }
 
-        let analyzer = {
-            let (max_speed, max_turn_radius) = if target.options.use_absolute_max_values {
-                (Some(MAX_SPEED), Some(turn_radius(MAX_SPEED)))
-            } else {
-                (None, None)
-            };
-
-            Analyzer::new(
-                (max_speed, max_turn_radius),
-                gravity,
-                may_ground_shot,
-                may_jump_shot,
-                may_double_jump_shot,
-                may_aerial_shot,
-                car,
-            )
+        let (max_speed, max_turn_radius) = if target.options.use_absolute_max_values {
+            (Some(MAX_SPEED), Some(turn_radius(MAX_SPEED)))
+        } else {
+            (None, None)
         };
 
-        for (i, ball) in ball_prediction[target.options.min_slice..target.options.max_slice].iter().enumerate() {
-            if ball.location.y.abs() > 5120. + ball.collision_radius() {
-                break;
-            }
+        let analyzer = Analyzer::new((max_speed, max_turn_radius), gravity, may_shoot, car);
 
-            let max_time_remaining = ball.time - game_time;
-
-            let Ok(shot_type) = analyzer.get_shot_type(ball.location, max_time_remaining) else {
-                continue;
-            };
-
-            if let Some(target_location) = &target.location {
-                let post_info = PostCorrection::from(ball.location, ball.collision_radius(), target_location.left, target_location.right);
-
-                if !post_info.fits {
-                    continue;
-                }
-
-                let shot_vector = post_info.get_shot_vector_target(car.landing_location, ball.location);
-
-                if shot_type == ShotType::Aerial {
-                    let ball_edge = ball.location - flatten(shot_vector) * ball.radius();
-                    let target_location = ball_edge - Vec3A::new(0., 0., shot_vector.z) * (car.hitbox_offset.x + car.hitbox.length) / 2.;
-
-                    let Ok(target_info) = analyzer.aerial_shot(mutators, target_location, shot_vector, max_time_remaining, Some(ball.location)) else {
-                        continue;
-                    };
-
-                    if found_shot.is_none() {
-                        basic_shot_info = Some(target_info.get_basic_shot_info(ball.time));
-
-                        found_shot = Some(if temporary { AirBasedShot::default() } else { AirBasedShot::from(ball, &target_info) }.into());
-
-                        if !target.options.all {
-                            break;
-                        }
-                    }
-
-                    continue;
-                }
-
-                let Ok(target_info) = analyzer.target(ball, shot_vector, max_time_remaining, i, shot_type) else {
-                    continue;
-                };
-
-                if target_info.can_reach(car, max_time_remaining, mutators).is_err() {
-                    continue;
-                }
-
-                if found_shot.is_none() {
-                    basic_shot_info = Some(target_info.get_basic_shot_info(ball.time));
-
-                    found_shot = Some(
-                        if temporary {
-                            GroundBasedShot::default()
-                        } else {
-                            GroundBasedShot::from(ball, &target_info)
-                        }
-                        .into(),
-                    );
-
-                    if !target.options.all {
-                        break;
-                    }
-                }
-            } else if shot_type == ShotType::Aerial {
-                let ball_edge = ball.location - flatten(ball.location - car.location).normalize_or_zero() * ball.radius();
-                let shot_vector = (ball_edge - car.location).normalize_or_zero();
-                let target_location = ball_edge - shot_vector * (car.hitbox_offset.x + car.hitbox.length) / 2.;
-
-                let Ok(target_info) = analyzer.aerial_shot(mutators, target_location, shot_vector, max_time_remaining, None) else {
-                    continue;
-                };
-
-                if found_shot.is_none() {
-                    basic_shot_info = Some(target_info.get_basic_shot_info(ball.time));
-
-                    found_shot = Some(if temporary { AirBasedShot::default() } else { AirBasedShot::from(ball, &target_info) }.into());
-
-                    if !target.options.all {
-                        break;
-                    }
-                }
-            } else {
-                let Ok(target_info) = analyzer.no_target(ball, max_time_remaining, i, shot_type) else {
-                    continue;
-                };
-
-                if target_info.can_reach(car, max_time_remaining, mutators).is_err() {
-                    continue;
-                }
-
-                if found_shot.is_none() {
-                    basic_shot_info = Some(target_info.get_basic_shot_info(ball.time));
-
-                    found_shot = Some(
-                        if temporary {
-                            GroundBasedShot::default()
-                        } else {
-                            GroundBasedShot::from(ball, &target_info)
-                        }
-                        .into(),
-                    );
-
-                    if !target.options.all {
-                        break;
-                    }
-                }
-            }
+        match analyze_shot(&analyzer, &balls, target, mutators, temporary, game_time) {
+            Some(a) => a,
+            None => return Ok(BasicShotInfo::not_found()),
         }
-    }
+    };
 
     if !temporary {
         TARGETS
@@ -519,10 +512,10 @@ fn get_shot_with_target(
             .ok_or_else(|| PyErr::new::<NoTargetPyErr, _>(NO_TARGET_ERR))?
             .as_mut()
             .ok_or_else(|| PyErr::new::<NoTargetPyErr, _>(NO_TARGET_ERR))?
-            .shot = found_shot;
+            .shot = Some(found_shot);
     }
 
-    Ok(basic_shot_info.unwrap_or_default())
+    Ok(basic_shot_info)
 }
 
 #[pyfunction]

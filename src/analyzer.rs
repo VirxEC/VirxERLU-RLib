@@ -11,38 +11,42 @@ use glam::Vec3A;
 use rl_ball_sym::simulation::ball::Ball;
 use std::f32::consts::PI;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Shot {
+    Ground,
+    Jump,
+    DoubleJump,
+    Aerial,
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct Analyzer<'a> {
     max_speed: Option<f32>,
     max_turn_radius: Option<f32>,
     gravity: Vec3A,
-    may_ground_shot: bool,
-    may_jump_shot: bool,
-    may_double_jump_shot: bool,
-    may_aerial_shot: bool,
-    car: &'a Car,
+    may: [bool; 4],
+    pub car: &'a Car,
 }
 
 impl<'a> Analyzer<'a> {
     #[inline]
-    pub const fn new(
-        (max_speed, max_turn_radius): (Option<f32>, Option<f32>),
-        gravity: Vec3A,
-        may_ground_shot: bool,
-        may_jump_shot: bool,
-        may_double_jump_shot: bool,
-        may_aerial_shot: bool,
-        car: &'a Car,
-    ) -> Self {
+    pub const fn new((max_speed, max_turn_radius): (Option<f32>, Option<f32>), gravity: Vec3A, may: [bool; 4], car: &'a Car) -> Self {
         Self {
             max_speed,
             max_turn_radius,
             gravity,
-            may_ground_shot,
-            may_jump_shot,
-            may_double_jump_shot,
-            may_aerial_shot,
+            may,
             car,
+        }
+    }
+
+    #[inline]
+    fn may_shoot(&self, shot: Shot) -> bool {
+        match shot {
+            Shot::Ground => self.may[0],
+            Shot::Jump => self.may[1],
+            Shot::DoubleJump => self.may[2],
+            Shot::Aerial => self.may[3],
         }
     }
 
@@ -60,22 +64,22 @@ impl<'a> Analyzer<'a> {
     /// also check if that type of shot has been enabled
     pub fn get_shot_type(&self, target: Vec3A, time_remaining: f32) -> DubinsResult<ShotType> {
         if self.car.landing_time > time_remaining {
-            if self.may_aerial_shot && self.car.last_landing_time + 0.6 < time_remaining {
+            if self.may_shoot(Shot::Aerial) && self.car.last_landing_time + 0.6 < time_remaining {
                 return Ok(ShotType::Aerial);
             }
         } else if target.z < self.car.hitbox.height / 2. + 17. {
-            if self.may_ground_shot {
+            if self.may_shoot(Shot::Ground) {
                 return Ok(ShotType::Ground);
             }
         } else if target.z < self.car.max_jump_height {
-            if self.may_jump_shot {
+            if self.may_shoot(Shot::Jump) {
                 return Ok(ShotType::Jump);
             }
-        } else if target.z < self.car.max_double_jump_height && self.may_double_jump_shot {
+        } else if target.z < self.car.max_double_jump_height && self.may_shoot(Shot::DoubleJump) {
             return Ok(ShotType::DoubleJump);
         }
 
-        if self.may_aerial_shot && self.car.last_landing_time + 0.6 < time_remaining {
+        if self.may_shoot(Shot::Aerial) && self.car.last_landing_time + 0.6 < time_remaining {
             return Ok(ShotType::Aerial);
         }
 
