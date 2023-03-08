@@ -91,30 +91,10 @@ pub struct GroundTargetInfo {
     pub is_forwards: bool,
     pub shot_vector: Vec3A,
     pub turn_targets: Option<(Vec3A, Vec3A)>,
+    pub wait_for_land: bool,
 }
 
 impl GroundTargetInfo {
-    #[inline]
-    pub const fn from(
-        distances: [f32; 4],
-        shot_type: ShotType,
-        path: DubinsPath,
-        jump_time: Option<f32>,
-        is_forwards: bool,
-        shot_vector: Vec3A,
-        turn_targets: Option<(Vec3A, Vec3A)>,
-    ) -> Self {
-        Self {
-            distances,
-            path,
-            shot_type,
-            jump_time,
-            is_forwards,
-            shot_vector,
-            turn_targets,
-        }
-    }
-
     pub fn can_reach(&self, car: &Car, max_time: f32, mutators: Mutators) -> Result<f32, ()> {
         let is_curved = PathType::CCC.contains(&self.path.type_);
 
@@ -228,7 +208,7 @@ impl GroundTargetInfo {
 
     #[inline]
     pub const fn get_basic_shot_info(&self, time: f32) -> BasicShotInfo {
-        BasicShotInfo::found(time, self.shot_type, self.shot_vector, self.is_forwards)
+        BasicShotInfo::found(time, self.shot_type, self.shot_vector, self.is_forwards, self.wait_for_land)
     }
 }
 

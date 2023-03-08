@@ -152,6 +152,7 @@ class BasicShotInfo:
     shot_type: Optional[ShotType]
     shot_vector: tuple[float, float, float]
     is_forwards: bool
+    wait_for_land: bool
 
     def __str__(self) -> str: ...
     def __repr__(self) -> str: ...

@@ -154,7 +154,7 @@ impl ShotType {
     }
 }
 
-#[pyclass(frozen)]
+#[pyclass(frozen, get_all)]
 #[derive(Clone, Copy, Debug, Default)]
 pub struct TargetOptions {
     pub min_slice: Option<usize>,
@@ -207,19 +207,14 @@ impl TargetOptions {
     }
 }
 
-#[pyclass(frozen)]
-#[allow(dead_code)]
+#[pyclass(frozen, get_all)]
 pub struct BasicShotInfo {
-    #[pyo3(get)]
     found: bool,
-    #[pyo3(get)]
     time: f32,
-    #[pyo3(get)]
     shot_type: Option<ShotType>,
-    #[pyo3(get)]
     shot_vector: (f32, f32, f32),
-    #[pyo3(get)]
     is_forwards: bool,
+    wait_for_land: bool,
 }
 
 impl Default for BasicShotInfo {
@@ -238,17 +233,19 @@ impl BasicShotInfo {
             shot_type: None,
             shot_vector: (0., 0., 0.),
             is_forwards: true,
+            wait_for_land: true,
         }
     }
 
     #[inline]
-    pub const fn found(time: f32, shot_type: ShotType, shot_vector: Vec3A, is_forwards: bool) -> Self {
+    pub const fn found(time: f32, shot_type: ShotType, shot_vector: Vec3A, is_forwards: bool, wait_for_land: bool) -> Self {
         BasicShotInfo {
             found: true,
             time,
             shot_type: Some(shot_type),
             shot_vector: get_tuple_from_vec3(shot_vector),
             is_forwards,
+            wait_for_land,
         }
     }
 }
@@ -277,16 +274,12 @@ impl BasicShotInfo {
     }
 }
 
-#[pyclass(frozen)]
+#[pyclass(frozen, get_all)]
 #[allow(dead_code)]
 pub struct BallSlice {
-    #[pyo3(get)]
     time: f32,
-    #[pyo3(get)]
     location: (f32, f32, f32),
-    #[pyo3(get)]
     velocity: (f32, f32, f32),
-    #[pyo3(get)]
     angular_velocity: (f32, f32, f32),
 }
 
@@ -323,22 +316,15 @@ impl BallSlice {
 
 type PyVec3A = (f32, f32, f32);
 
-#[pyclass(frozen)]
+#[pyclass(frozen, get_all)]
 #[allow(dead_code)]
 pub struct AdvancedShotInfo {
-    #[pyo3(get)]
     final_target: PyVec3A,
-    #[pyo3(get)]
     distance_remaining: f32,
-    #[pyo3(get)]
     required_jump_time: Option<f32>,
-    #[pyo3(get)]
     path_samples: Vec<(f32, f32)>,
-    #[pyo3(get)]
     current_path_point: PyVec3A,
-    #[pyo3(get)]
     turn_targets: Option<(PyVec3A, PyVec3A)>,
-    #[pyo3(get)]
     num_jumps: Option<u8>,
 }
 

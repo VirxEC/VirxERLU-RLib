@@ -486,7 +486,7 @@ fn get_shot_with_target(
         let cars = CARS.read().unwrap();
         let car = cars.get(target.car_index).ok_or_else(|| PyErr::new::<NoCarPyErr, _>(NO_CAR_ERR))?;
 
-        if car.demolished || balls.is_empty() || car.landing_time >= balls.last().map(|slice| slice.time).unwrap_or_default() {
+        if car.demolished || balls.is_empty() || car.time_to_land >= balls.last().map(|slice| slice.time).unwrap_or_default() {
             return Ok(BasicShotInfo::not_found());
         }
 
