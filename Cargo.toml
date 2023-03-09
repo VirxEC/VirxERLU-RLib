@@ -1,13 +1,13 @@
 [package]
 name = "virx_erlu_rlib"
-version = "0.11.4"
+version = "1.0.0"
 edition = "2021"
 authors = ["VirxEC <virx@virxcase.dev>"]
 readme = "README.md"
 description = "Rust modules for VirxERLU"
 homepage = "https://github.com/VirxEC/VirxERLU-RLib"
 license = "MIT"
-include = ["/src", "pyproject.toml", "virx_erlu_rlib.pyi", "README.md"]
+include = ["/src", "pyproject.toml", "virx_erlu_rlib.pyi", "/README.md"]
 publish = false
 rust-version = "1.65"
 
@@ -19,16 +19,20 @@ crate-type = ["cdylib"]
 path = "src/lib.rs"
 
 [dependencies]
-rl_ball_sym = { version = "2.5.1", default-features = false, features = ["fast-math", "stable-compression"] }
 dubins_paths = { version = "1.4.4", features = ["fast-math"] }
-combo_vec = "0.4.0"
+combo_vec = "0.5.1"
+
+[dependencies.rl_ball_sym]
+version = "3.0.0"
+default-features = false
+features = ["stable-compression", "standard", "dropshot", "hoops", "throwback"]
 
 [dependencies.glam]
-version = "0.22.0"
+version = "0.23.0"
 features = ["fast-math"]
 
 [dependencies.pyo3]
-version = "0.17"
+version = "0.18.1"
 features = ["extension-module", "abi3-py37"]
 
 [dev-dependencies]

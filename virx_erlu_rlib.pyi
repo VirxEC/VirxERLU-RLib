@@ -4,13 +4,7 @@ from typing import Optional
 __doc__: str
 
 
-def load_soccar() -> None:
-    """
-    Loads the geometry of a standard soccar field
-    """
-
-
-def load_soccer() -> None:
+def load_standard() -> None:
     """
     Loads the geometry of a standard soccer field
     """
@@ -28,15 +22,9 @@ def load_hoops() -> None:
     """
 
 
-def load_soccar_throwback() -> None:
+def load_standard_throwback() -> None:
     """
-    Loads the geometry of the field Throwback Stadium
-    """
-
-
-def load_soccer_throwback() -> None:
-    """
-    Loads the geometry of the field Throwback Stadium
+    Loads the geometry of the field Throwback Stadium for soccer
     """
 
 
@@ -95,7 +83,6 @@ class BallSlice:
     angular_velocity: tuple[float, float, float]
 
     def __str__(self) -> str: ...
-    def __repr__(self) -> str: ...
 
 
 def get_slice_index(i: int) -> BallSlice:
@@ -164,9 +151,9 @@ class BasicShotInfo:
     shot_type: Optional[ShotType]
     shot_vector: tuple[float, float, float]
     is_forwards: bool
+    wait_for_land: bool
 
     def __str__(self) -> str: ...
-    def __repr__(self) -> str: ...
 
 
 def get_shot_with_target(target_id: int, temporary: bool=False, may_ground_shot: Optional[bool]=None, may_jump_shot: Optional[bool]=None, may_double_jump_shot: Optional[bool]=None, may_aerial_shot: Optional[bool]=None, only: bool=False) -> BasicShotInfo:
@@ -191,7 +178,6 @@ class AdvancedShotInfo:
     num_jumps: Optional[int]
 
     def __str__(self) -> str: ...
-    def __repr__(self) -> str: ...
 
 
 def get_data_for_shot_with_target(target_id: int) -> AdvancedShotInfo:

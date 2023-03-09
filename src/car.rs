@@ -105,7 +105,7 @@ impl FieldRect {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct Car {
     pub location: Vec3A,
     pub velocity: Vec3A,
@@ -125,7 +125,7 @@ pub struct Car {
     pub airborne: bool,
     pub jumped: bool,
     pub doublejumped: bool,
-    pub landing_time: f32,
+    pub time_to_land: f32,
     pub landing_location: Vec3A,
     pub landing_velocity: Vec3A,
     pub landing_yaw: f32,
@@ -141,6 +141,7 @@ pub struct Car {
     pub max_jump_height: f32,
     pub max_double_jump_time: f32,
     pub max_double_jump_height: f32,
+    pub wait_to_jump_time: f32,
     pub init: bool,
 }
 
@@ -166,7 +167,7 @@ impl Car {
             airborne: false,
             jumped: false,
             doublejumped: false,
-            landing_time: 0.,
+            time_to_land: 0.,
             landing_location: Vec3A::ZERO,
             landing_velocity: Vec3A::ZERO,
             landing_yaw: 0.,
@@ -181,6 +182,7 @@ impl Car {
             max_jump_height: 0.,
             max_double_jump_time: 0.,
             max_double_jump_height: 0.,
+            wait_to_jump_time: 0.,
             init: false,
         }
     }
@@ -228,7 +230,7 @@ impl Car {
         }
     }
 
-    pub fn calculate_max_jump_height(&mut self, gravity: f32) {
+    fn calculate_max_jump_height(&mut self, gravity: f32) {
         let g = gravity * SIMULATION_DT;
 
         let mut t = 0.;
@@ -257,7 +259,7 @@ impl Car {
         self.max_jump_height = l_z;
     }
 
-    pub fn calculate_max_double_jump_height(&mut self, gravity: f32) {
+    fn calculate_max_double_jump_height(&mut self, gravity: f32) {
         let g = gravity * SIMULATION_DT;
 
         let mut t = 0.;
@@ -290,14 +292,22 @@ impl Car {
         self.max_double_jump_height = l_z;
     }
 
-    pub fn calculate_landing_info(&mut self, gravity: f32) {
-        self.landing_time = 0.;
+    fn calculate_landing_info(&mut self, gravity: f32) {
+        self.time_to_land = 0.;
         self.landing_location = self.location;
         self.landing_velocity = self.velocity;
         self.landing_yaw = self.yaw;
         self.landing_forward = self.forward;
         self.landing_right = self.right;
         self.landing_up = self.up;
+
+        self.wait_to_jump_time = if self.airborne {
+            ON_GROUND_WAIT_TIME
+        } else if self.last_landing_time < -ON_GROUND_WAIT_TIME {
+            0.
+        } else {
+            ON_GROUND_WAIT_TIME + self.last_landing_time
+        };
 
         if !self.airborne {
             return;
@@ -320,22 +330,22 @@ impl Car {
 
         if fall_distance <= distance_until_tv {
             let (time1, time2) = vertex_quadratic_solve_for_x(gravity, h, k, -fall_distance);
-            self.landing_time = minimum_non_negative(time1, time2);
-            self.landing_velocity.z += gravity * self.landing_time;
+            self.time_to_land = minimum_non_negative(time1, time2);
+            self.landing_velocity.z += gravity * self.time_to_land;
             self.landing_location += Vec3A::new(
-                self.velocity.x * self.landing_time,
-                self.velocity.y * self.landing_time,
-                gravity * (self.landing_time - h).powi(2) + k,
+                self.velocity.x * self.time_to_land,
+                self.velocity.y * self.time_to_land,
+                gravity * (self.time_to_land - h).powi(2) + k,
             );
         } else {
-            self.landing_time = time_until_tv;
+            self.time_to_land = time_until_tv;
 
             let dt = 1. / 120.;
             self.landing_velocity.z = terminal_velocity;
             self.landing_location += Vec3A::new(
-                self.velocity.x * self.landing_time,
-                self.velocity.y * self.landing_time,
-                gravity * (self.landing_time - h).powi(2) + k,
+                self.velocity.x * self.time_to_land,
+                self.velocity.y * self.time_to_land,
+                gravity * (self.time_to_land - h).powi(2) + k,
             );
             let g_dt = Vec3A::new(0., 0., gravity * dt);
 
@@ -351,7 +361,7 @@ impl Car {
 
                 self.landing_velocity = v_t;
                 self.landing_location = l_t;
-                self.landing_time += dt;
+                self.time_to_land += dt;
             }
 
             self.landing_location.z = if normal_gravity { 17. } else { 2300. };
@@ -364,7 +374,7 @@ impl Car {
         Self::calculate_orientation_matrix(&mut self.landing_forward, &mut self.landing_right, &mut self.landing_up, 0., self.landing_yaw, 0.);
     }
 
-    pub fn calculate_orientation_matrix(forward: &mut Vec3A, right: &mut Vec3A, up: &mut Vec3A, pitch: f32, yaw: f32, roll: f32) {
+    fn calculate_orientation_matrix(forward: &mut Vec3A, right: &mut Vec3A, up: &mut Vec3A, pitch: f32, yaw: f32, roll: f32) {
         let (s_p, c_p) = pitch.sin_cos();
         let (s_y, c_y) = yaw.sin_cos();
         let (s_r, c_r) = roll.sin_cos();
@@ -382,7 +392,7 @@ impl Car {
         up.z = c_p * c_r;
     }
 
-    pub fn calculate_max_values(&mut self, max_ball_slice: usize, mutators: Mutators) {
+    fn calculate_max_values(&mut self, max_ball_slice: usize, mutators: Mutators) {
         let mut b = f32::from(self.boost);
         let mut v = self.landing_velocity.dot(self.forward);
         let mut fast_forward = false;
@@ -393,7 +403,7 @@ impl Car {
         self.ctrms = Vec::with_capacity(max_ball_slice);
         self.ctrms.push(turn_radius(v));
 
-        let end_1 = (self.landing_time * 120.).round() as usize;
+        let end_1 = (self.time_to_land * 120.).round() as usize;
 
         for _ in 0..end_1 {
             self.max_speed.push(v);
@@ -505,11 +515,11 @@ impl Car {
         }
     }
 
-    pub fn calculate_local_values(&mut self) {
+    fn calculate_local_values(&mut self) {
         self.local_velocity = self.localize(self.velocity);
     }
 
-    pub fn calculate_field(&mut self) {
+    fn calculate_field(&mut self) {
         self.field = FieldRect::from(&self.hitbox);
     }
 
@@ -597,41 +607,36 @@ impl Car {
     }
 }
 
-#[allow(clippy::field_reassign_with_default)]
-#[allow(dead_code)]
-pub fn get_one() -> Car {
-    let mut car = super::Car::default();
-
-    // set all the values in the car
-    car.location = Vec3A::new(-3000., 1500., 20.);
-    car.velocity = Vec3A::new(0., 0., 0.);
-    car.angular_velocity = Vec3A::new(0., 0., 0.);
-    car.pitch = 0.;
-    car.yaw = 0.5;
-    car.roll = 0.;
-    car.hitbox = Hitbox {
-        length: 118.,
-        width: 84.2,
-        height: 36.2,
-    };
-    car.hitbox_offset = Vec3A::new(13.9, 0., 20.8);
-    car.boost = 48;
-    car.demolished = false;
-    car.airborne = false;
-    car.jumped = false;
-    car.doublejumped = false;
-
-    car.init(-650., 720, Mutators::new());
-
-    car
-}
-
 #[cfg(test)]
 mod tests {
-    use crate::car::get_one;
+    use crate::{
+        car::{Car, Hitbox},
+        Mutators, Vec3A,
+    };
 
     #[test]
     pub fn init_car() {
-        get_one();
+        let mut car = Car::new();
+
+        // set all the values in the car
+        car.location = Vec3A::new(-3000., 1500., 20.);
+        car.velocity = Vec3A::new(0., 0., 0.);
+        car.angular_velocity = Vec3A::new(0., 0., 0.);
+        car.pitch = 0.;
+        car.yaw = 0.5;
+        car.roll = 0.;
+        car.hitbox = Hitbox {
+            length: 118.,
+            width: 84.2,
+            height: 36.2,
+        };
+        car.hitbox_offset = Vec3A::new(13.9, 0., 20.8);
+        car.boost = 48;
+        car.demolished = false;
+        car.airborne = false;
+        car.jumped = false;
+        car.doublejumped = false;
+
+        car.init(-650., 720, Mutators::new());
     }
 }

@@ -11,38 +11,42 @@ use glam::Vec3A;
 use rl_ball_sym::simulation::ball::Ball;
 use std::f32::consts::PI;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Shot {
+    Ground,
+    Jump,
+    DoubleJump,
+    Aerial,
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct Analyzer<'a> {
     max_speed: Option<f32>,
     max_turn_radius: Option<f32>,
     gravity: Vec3A,
-    may_ground_shot: bool,
-    may_jump_shot: bool,
-    may_double_jump_shot: bool,
-    may_aerial_shot: bool,
-    car: &'a Car,
+    may: [bool; 4],
+    pub car: &'a Car,
 }
 
 impl<'a> Analyzer<'a> {
     #[inline]
-    pub const fn new(
-        (max_speed, max_turn_radius): (Option<f32>, Option<f32>),
-        gravity: Vec3A,
-        may_ground_shot: bool,
-        may_jump_shot: bool,
-        may_double_jump_shot: bool,
-        may_aerial_shot: bool,
-        car: &'a Car,
-    ) -> Self {
+    pub const fn new((max_speed, max_turn_radius): (Option<f32>, Option<f32>), gravity: Vec3A, may: [bool; 4], car: &'a Car) -> Self {
         Self {
             max_speed,
             max_turn_radius,
             gravity,
-            may_ground_shot,
-            may_jump_shot,
-            may_double_jump_shot,
-            may_aerial_shot,
+            may,
             car,
+        }
+    }
+
+    #[inline]
+    fn may_shoot(&self, shot: Shot) -> bool {
+        match shot {
+            Shot::Ground => self.may[0],
+            Shot::Jump => self.may[1],
+            Shot::DoubleJump => self.may[2],
+            Shot::Aerial => self.may[3],
         }
     }
 
@@ -59,23 +63,23 @@ impl<'a> Analyzer<'a> {
     /// get the type of shot that will be required to hit the ball
     /// also check if that type of shot has been enabled
     pub fn get_shot_type(&self, target: Vec3A, time_remaining: f32) -> DubinsResult<ShotType> {
-        if self.car.landing_time > time_remaining {
-            if self.may_aerial_shot && self.car.last_landing_time + 0.6 < time_remaining {
+        if time_remaining < self.car.time_to_land {
+            if self.may_shoot(Shot::Aerial) {
                 return Ok(ShotType::Aerial);
             }
         } else if target.z < self.car.hitbox.height / 2. + 17. {
-            if self.may_ground_shot {
+            if self.may_shoot(Shot::Ground) {
                 return Ok(ShotType::Ground);
             }
         } else if target.z < self.car.max_jump_height {
-            if self.may_jump_shot {
+            if self.may_shoot(Shot::Jump) {
                 return Ok(ShotType::Jump);
             }
-        } else if target.z < self.car.max_double_jump_height && self.may_double_jump_shot {
+        } else if target.z < self.car.max_double_jump_height && self.may_shoot(Shot::DoubleJump) {
             return Ok(ShotType::DoubleJump);
         }
 
-        if self.may_aerial_shot && self.car.last_landing_time + 0.6 < time_remaining {
+        if self.car.airborne || self.car.wait_to_jump_time + self.car.last_landing_time < time_remaining && self.may_shoot(Shot::Aerial) {
             return Ok(ShotType::Aerial);
         }
 
@@ -132,12 +136,13 @@ impl<'a> Analyzer<'a> {
         !is_backwards
     }
 
-    pub fn no_target(&self, ball: &Ball, time_remaining: f32, slice_num: usize, shot_type: ShotType) -> DubinsResult<GroundTargetInfo> {
+    pub fn no_target(&self, ball: &Ball, mut time_remaining: f32, slice_num: usize, shot_type: ShotType) -> DubinsResult<GroundTargetInfo> {
         let car_front_length = (self.car.hitbox_offset.x + self.car.hitbox.length) / 2.;
 
         let max_speed = self.get_max_speed(slice_num);
 
-        let time_remaining = time_remaining - self.car.landing_time;
+        time_remaining -= self.car.time_to_land;
+        assert!(time_remaining > 0.);
         let car_location = flatten(self.car.landing_location);
         let max_distance = time_remaining * max_speed + car_front_length + ball.radius();
 
@@ -162,13 +167,13 @@ impl<'a> Analyzer<'a> {
         }
 
         let rho = self.get_max_turn_radius(slice_num);
-        let travel_forwards = self.should_travel_forwards(time_remaining, car_to_ball);
+        let is_forwards = self.should_travel_forwards(time_remaining, car_to_ball);
         let local_ball = self.car.localize_2d_location(ball.location);
         let target_is_forwards = local_ball.x >= 0.;
         let should_turn_left = local_ball.y < 0.;
         let center_of_turn = car_location + flatten(if should_turn_left { -self.car.landing_right } else { self.car.landing_right } * rho);
 
-        let (turn_target, turn_target_2) = get_turn_exit_tanget(self.car, flatten(ball.location), center_of_turn, rho, target_is_forwards, travel_forwards);
+        let (turn_target, turn_target_2) = get_turn_exit_tanget(self.car, flatten(ball.location), center_of_turn, rho, target_is_forwards, is_forwards);
 
         // check if the exit point is in the field
         if !self.car.field.is_point_in(turn_target) {
@@ -186,14 +191,14 @@ impl<'a> Analyzer<'a> {
 
         let shot_vector = (flatten(ball.location) - turn_target).normalize_or_zero();
         let shot_vector_angle = shot_vector.y.atan2(shot_vector.x);
-        let forward_angle = if travel_forwards {
+        let forward_angle = if is_forwards {
             self.car.landing_forward.y.atan2(self.car.landing_forward.x)
         } else {
             let forward = self.car.landing_forward * Vec3A::NEG_ONE;
             forward.y.atan2(forward.x)
         };
 
-        let direction_turn_left = (travel_forwards && should_turn_left) || (!travel_forwards && !should_turn_left);
+        let direction_turn_left = (is_forwards && should_turn_left) || (!is_forwards && !should_turn_left);
 
         // find the angle between the car location and each turn exit point relative to the exit turn point centers
         let turn_angle = mod2pi(if direction_turn_left {
@@ -208,7 +213,7 @@ impl<'a> Analyzer<'a> {
             return Err(NoPathError);
         }
 
-        let enter_yaw = if travel_forwards { self.car.landing_yaw } else { mod2pi(self.car.landing_yaw + PI) };
+        let enter_yaw = if is_forwards { self.car.landing_yaw } else { mod2pi(self.car.landing_yaw + PI) };
 
         // construct a path so we can easily follow our defined turn arc
         let path = DubinsPath {
@@ -220,24 +225,26 @@ impl<'a> Analyzer<'a> {
 
         let distances = [turn_arc_distance, 0., 0., turn_final_distance];
 
-        Ok(GroundTargetInfo::from(
+        Ok(GroundTargetInfo {
             distances,
             shot_type,
             path,
             jump_time,
-            travel_forwards,
+            is_forwards,
             shot_vector,
-            Some((turn_target, turn_target_2)),
-        ))
+            turn_targets: Some((turn_target, turn_target_2)),
+            wait_for_land: self.car.airborne,
+        })
     }
 
-    pub fn target(&self, ball: &Ball, shot_vector: Vec3A, time_remaining: f32, slice_num: usize, shot_type: ShotType) -> DubinsResult<GroundTargetInfo> {
+    pub fn target(&self, ball: &Ball, shot_vector: Vec3A, mut time_remaining: f32, slice_num: usize, shot_type: ShotType) -> DubinsResult<GroundTargetInfo> {
         let offset_target = ball.location - (shot_vector * ball.radius());
         let car_front_length = (self.car.hitbox_offset.x + self.car.hitbox.length) / 2.;
 
         let max_speed = self.get_max_speed(slice_num);
 
-        let time_remaining = time_remaining - self.car.landing_time;
+        time_remaining -= self.car.time_to_land;
+        assert!(time_remaining > 0.);
         let car_location = self.car.landing_location;
         let max_distance = time_remaining * max_speed + car_front_length;
 
@@ -280,7 +287,16 @@ impl<'a> Analyzer<'a> {
         let offset_distance = end_distance - car_front_length;
         let distances = [path.segment_length(0), path.segment_length(1), path.segment_length(2), offset_distance];
 
-        Ok(GroundTargetInfo::from(distances, shot_type, path, jump_time, is_forwards, shot_vector, None))
+        Ok(GroundTargetInfo {
+            distances,
+            shot_type,
+            path,
+            jump_time,
+            is_forwards,
+            shot_vector,
+            turn_targets: None,
+            wait_for_land: self.car.airborne,
+        })
     }
 
     #[inline]

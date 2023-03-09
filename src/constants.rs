@@ -34,6 +34,7 @@ pub const JUMP_MAX_DURATION: f32 = 0.2;
 pub const JUMP_SPEED: f32 = 291. + (2. / 3.);
 pub const JUMP_ACC: f32 = 1458. + (1. / 3.);
 pub const DOUBLE_JUMP_DURATION: f32 = JUMP_MAX_DURATION + SIMULATION_DT * 2.;
+pub const ON_GROUND_WAIT_TIME: f32 = 0.6;
 
 pub type NoGamePyErr = exceptions::PyNameError;
 pub const NO_GAME_ERR: &str = "GAME is unset. Call a function like load_soccar first.";
