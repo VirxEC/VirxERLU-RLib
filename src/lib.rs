@@ -52,7 +52,7 @@ pynamedmodule!(
     tick, get_slice, get_slice_index, get_num_ball_slices, set_mutator_settings,
     new_target, new_any_target, confirm_target, remove_target, print_targets, get_targets_length,
     get_shot_with_target, get_data_for_shot_with_target],
-    classes: [TargetOptions, ShotType]
+    classes: [TargetOptions, ShotType, BallSlice, BasicShotInfo, AdvancedShotInfo]
 );
 
 #[pyfunction]
