@@ -7,7 +7,7 @@ readme = "README.md"
 description = "Rust modules for VirxERLU"
 homepage = "https://github.com/VirxEC/VirxERLU-RLib"
 license = "MIT"
-include = ["/src", "pyproject.toml", "virx_erlu_rlib.pyi", "README.md"]
+include = ["/src", "pyproject.toml", "virx_erlu_rlib.pyi", "/README.md"]
 publish = false
 rust-version = "1.65"
 
