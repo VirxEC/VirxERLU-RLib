@@ -259,19 +259,6 @@ impl BasicShotInfo {
             None => String::from("Not found"),
         }
     }
-
-    #[inline]
-    fn __repr__(&self) -> String {
-        match self.shot_type {
-            Some(shot_type) => format!(
-                "BasicShotInfo(found=True, time={}, type={}, shot_vector={:?})",
-                self.time,
-                shot_type.to_str(),
-                self.shot_vector
-            ),
-            None => String::from("BasicShotInfo(found=False)"),
-        }
-    }
 }
 
 #[pyclass(frozen, get_all)]
@@ -283,6 +270,18 @@ pub struct BallSlice {
     angular_velocity: (f32, f32, f32),
 }
 
+impl From<Ball> for BallSlice {
+    #[inline]
+    fn from(ball: Ball) -> Self {
+        BallSlice {
+            time: ball.time,
+            location: get_tuple_from_vec3(ball.location),
+            velocity: get_tuple_from_vec3(ball.velocity),
+            angular_velocity: get_tuple_from_vec3(ball.angular_velocity),
+        }
+    }
+}
+
 #[pymethods]
 impl BallSlice {
     #[inline]
@@ -291,26 +290,6 @@ impl BallSlice {
             "Ball @{:.2}s - location: {:?}, velocity: {:?}, angular velocity: {:?}",
             self.time, self.location, self.velocity, self.angular_velocity
         )
-    }
-
-    #[inline]
-    fn __repr__(&self) -> String {
-        format!(
-            "BallSlice(time={}, location={:?}, velocity={:?}, angular_velocity={:?})",
-            self.time, self.location, self.velocity, self.angular_velocity
-        )
-    }
-}
-
-impl BallSlice {
-    #[inline]
-    pub const fn from(ball: Ball) -> Self {
-        BallSlice {
-            time: ball.time,
-            location: get_tuple_from_vec3(ball.location),
-            velocity: get_tuple_from_vec3(ball.velocity),
-            angular_velocity: get_tuple_from_vec3(ball.angular_velocity),
-        }
     }
 }
 
@@ -352,19 +331,6 @@ impl AdvancedShotInfo {
         } else {
             format!("Final target: {:?}, distance remaining: {:.0}", self.final_target, self.distance_remaining)
         }
-    }
-
-    #[inline]
-    fn __repr__(&self) -> String {
-        format!(
-            "AdvancedShotInfo(final_target={:?}, distance_remaining={}, required_jump_time: {:?}, num_jumps: {:?}, path_samples=[{} items], current_path_point:{:?})",
-            self.final_target,
-            self.distance_remaining,
-            self.required_jump_time,
-            self.num_jumps,
-            self.path_samples.len(),
-            self.current_path_point,
-        )
     }
 }
 

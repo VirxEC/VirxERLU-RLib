@@ -63,7 +63,7 @@ impl<'a> Analyzer<'a> {
     /// get the type of shot that will be required to hit the ball
     /// also check if that type of shot has been enabled
     pub fn get_shot_type(&self, target: Vec3A, time_remaining: f32) -> DubinsResult<ShotType> {
-        if self.car.airborne && time_remaining < self.car.time_to_land {
+        if time_remaining < self.car.time_to_land {
             if self.may_shoot(Shot::Aerial) {
                 return Ok(ShotType::Aerial);
             }

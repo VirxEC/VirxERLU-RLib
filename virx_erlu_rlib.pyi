@@ -83,7 +83,6 @@ class BallSlice:
     angular_velocity: tuple[float, float, float]
 
     def __str__(self) -> str: ...
-    def __repr__(self) -> str: ...
 
 
 def get_slice_index(i: int) -> BallSlice:
@@ -155,7 +154,6 @@ class BasicShotInfo:
     wait_for_land: bool
 
     def __str__(self) -> str: ...
-    def __repr__(self) -> str: ...
 
 
 def get_shot_with_target(target_id: int, temporary: bool=False, may_ground_shot: Optional[bool]=None, may_jump_shot: Optional[bool]=None, may_double_jump_shot: Optional[bool]=None, may_aerial_shot: Optional[bool]=None, only: bool=False) -> BasicShotInfo:
@@ -180,7 +178,6 @@ class AdvancedShotInfo:
     num_jumps: Optional[int]
 
     def __str__(self) -> str: ...
-    def __repr__(self) -> str: ...
 
 
 def get_data_for_shot_with_target(target_id: int) -> AdvancedShotInfo:

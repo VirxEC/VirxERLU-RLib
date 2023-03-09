@@ -214,9 +214,7 @@ fn get_slice(slice_time: f32) -> BallSlice {
 #[pyfunction]
 fn get_slice_index(slice_num: usize) -> BallSlice {
     let ball_struct = BALL_STRUCT.read().unwrap();
-    let ball = ball_struct[slice_num.clamp(0, ball_struct.len() - 1)];
-
-    BallSlice::from(ball)
+    ball_struct[slice_num.clamp(0, ball_struct.len() - 1)].into()
 }
 
 #[pyfunction]

@@ -89,70 +89,60 @@ rlru.new_any_target(car_index)
 print("get_slice_index(144):")
 slice = rlru.get_slice_index(144)
 print(slice)
-print(repr(slice))
 
 print()
 
 print("get_slice(1.2):")
 slice = rlru.get_slice(1.2)
 print(slice)
-print(repr(slice))
 
 print()
 
 print("get_shot_with_target(use_absolute_max_values):")
 shot = rlru.get_shot_with_target(0)
 print(shot)
-print(repr(shot))
 
 print()
 
 print("get_data_for_shot_with_target(use_absolute_max_values):")
 data = rlru.get_data_for_shot_with_target(0)
 print(data)
-print(repr(data))
 
 print()
 
 print("get_shot_with_target():")
 shot = rlru.get_shot_with_target(1)
 print(shot)
-print(repr(shot))
 
 print()
 
 print("get_data_for_shot_with_target():")
 data = rlru.get_data_for_shot_with_target(1)
 print(data)
-print(repr(data))
 
 print()
 
 print("get_shot_with_target(any, use_absolute_max_values):")
 shot = rlru.get_shot_with_target(2)
 print(shot)
-print(repr(shot))
 
 print()
 
 print("get_data_for_shot_with_target(any, use_absolute_max_values):")
 data = rlru.get_data_for_shot_with_target(2)
 print(data)
-print(repr(data))
 
 print()
 
 print("get_shot_with_target(any):")
 shot = rlru.get_shot_with_target(3)
 print(shot)
-print(repr(shot))
 
 print()
 
 print("get_data_for_shot_with_target(any):")
 data = rlru.get_data_for_shot_with_target(3)
 print(data)
-print(repr(data))
 
 print()
 rlru.print_targets()
