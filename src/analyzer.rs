@@ -124,7 +124,7 @@ impl<'a> Analyzer<'a> {
     fn should_travel_forwards(&self, time_remaining: f32, shot_vector: Vec3A) -> bool {
         // it's easier for me to think about what I want the criteria to be for going backwards, so I did that then just took the opposite of it for is_forwards
         let is_backwards = time_remaining < 4. && angle_2d(shot_vector, Vec3A::new(self.car.landing_yaw.cos(), self.car.landing_yaw.sin(), 0.)) > PI * (2. / 3.);
-        !is_backwards
+        self.forwards_only || !is_backwards
     }
 
     pub fn no_target(&self, ball: &Ball, mut time_remaining: f32, slice_num: usize, shot_type: ShotType) -> DubinsResult<GroundTargetInfo> {
