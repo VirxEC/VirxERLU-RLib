@@ -1,6 +1,6 @@
 [package]
 name = "virx_erlu_rlib"
-version = "1.0.1"
+version = "1.1.0"
 edition = "2021"
 authors = ["VirxEC <virx@virxcase.dev>"]
 readme = "README.md"

@@ -134,9 +134,10 @@ pub struct GamePacket {
 }
 
 #[pyclass(frozen)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum ShotType {
-    Ground = 0,
+    #[default]
+    Ground,
     Jump,
     DoubleJump,
     Aerial,
@@ -161,18 +162,20 @@ pub struct TargetOptions {
     pub max_slice: Option<usize>,
     pub use_absolute_max_values: Option<bool>,
     pub all: Option<bool>,
+    pub forwards_only: Option<bool>,
 }
 
 #[pymethods]
 impl TargetOptions {
     #[new]
     #[inline]
-    const fn __new__(min_slice: Option<usize>, max_slice: Option<usize>, use_absolute_max_values: Option<bool>, all: Option<bool>) -> Self {
+    const fn __new__(min_slice: Option<usize>, max_slice: Option<usize>, use_absolute_max_values: Option<bool>, all: Option<bool>, forwards_only: Option<bool>) -> Self {
         Self {
             min_slice,
             max_slice,
             use_absolute_max_values,
             all,
+            forwards_only,
         }
     }
 
@@ -195,14 +198,18 @@ impl TargetOptions {
             s.push(format!("all=={all}"));
         }
 
+        if let Some(forwards_only) = self.forwards_only {
+            s.push(format!("forwards_only=={forwards_only}"));
+        }
+
         s.join(", ")
     }
 
     #[inline]
     fn __repr__(&self) -> String {
         format!(
-            "TargetOptions(min_slice={:?}, max_slice={:?}, use_absolute_max_values={:?}, all={:?})",
-            self.min_slice, self.max_slice, self.use_absolute_max_values, self.all
+            "TargetOptions(min_slice={:?}, max_slice={:?}, use_absolute_max_values={:?}, all={:?}, forwards_only={:?})",
+            self.min_slice, self.max_slice, self.use_absolute_max_values, self.all, self.forwards_only
         )
     }
 }

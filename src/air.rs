@@ -98,9 +98,11 @@ impl BasicAerialInfo {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(i8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum AerialJumpType {
     Secondary = -1,
+    #[default]
     None = 0,
     Normal,
     Double,

@@ -21,25 +21,16 @@ enum Shot {
 
 #[derive(Clone, Copy, Debug)]
 pub struct Analyzer<'a> {
-    max_speed: Option<f32>,
-    max_turn_radius: Option<f32>,
-    gravity: Vec3A,
-    may: [bool; 4],
+    pub max_speed: Option<f32>,
+    pub max_turn_radius: Option<f32>,
+    pub gravity: Vec3A,
+    pub may: [bool; 4],
+    pub forwards_only: bool,
+    pub car_front_length: f32,
     pub car: &'a Car,
 }
 
 impl<'a> Analyzer<'a> {
-    #[inline]
-    pub const fn new((max_speed, max_turn_radius): (Option<f32>, Option<f32>), gravity: Vec3A, may: [bool; 4], car: &'a Car) -> Self {
-        Self {
-            max_speed,
-            max_turn_radius,
-            gravity,
-            may,
-            car,
-        }
-    }
-
     #[inline]
     fn may_shoot(&self, shot: Shot) -> bool {
         match shot {
@@ -137,14 +128,12 @@ impl<'a> Analyzer<'a> {
     }
 
     pub fn no_target(&self, ball: &Ball, mut time_remaining: f32, slice_num: usize, shot_type: ShotType) -> DubinsResult<GroundTargetInfo> {
-        let car_front_length = (self.car.hitbox_offset.x + self.car.hitbox.length) / 2.;
-
         let max_speed = self.get_max_speed(slice_num);
 
         time_remaining -= self.car.time_to_land;
         assert!(time_remaining > 0.);
         let car_location = flatten(self.car.landing_location);
-        let max_distance = time_remaining * max_speed + car_front_length + ball.radius();
+        let max_distance = time_remaining * max_speed + self.car_front_length + ball.radius();
 
         // check if a simplified path is longer than the longest distance we can possibly travel
         if car_location.distance(flatten(ball.location)) > max_distance {
@@ -182,8 +171,8 @@ impl<'a> Analyzer<'a> {
 
         // compute the distance of each path, validating that it is within our current maximum travel distance (returning an error if neither are)
 
-        let turn_final_distance = turn_target.distance(ball.location) - ball.radius() - car_front_length;
-        let offset_distance = end_distance - car_front_length - ball.radius();
+        let turn_final_distance = turn_target.distance(ball.location) - ball.radius() - self.car_front_length;
+        let offset_distance = end_distance - self.car_front_length - ball.radius();
 
         if turn_final_distance < offset_distance || turn_final_distance + turn_target.distance(car_location) > max_distance {
             return Err(NoPathError);

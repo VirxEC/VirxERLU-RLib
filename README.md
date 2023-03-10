@@ -42,7 +42,7 @@ Currently, VirxERLU-RLib has:
     - Search starting slice
     - Search ending slice
     - Using the car's true max speed (2300) instead of the value based off of the current boost amount
-    - More coming
+    - Don't search for shots that involve driving backwards
 + SIMD vector math
 + Gravity mutator support
 + (Partial) Ball size mutator support
@@ -58,10 +58,10 @@ Currently, VirxERLU-RLib has:
 
 This might be a little confusing, so I'm going to explain it more.
 
-By default, every tick this library calculates the max speed that the car get get to with it's current boost amount. This has several benefits, such as being able to turn tighter on low boost and getting to locations faster. However, this is also suseptable to boost pick-ups. If you're bot picks up a small or large boost pad, the course of the bot may be entirely different after the fact.
+TL;DR enabling this makes the shots more consistent and reliable, at the cost of getting to some shots slower or even not at all (but it will know that from the start.)
 
-By passing in "use_absolute_max_values" with a value of "True" this library will make sure that the path always stays the same, and it will only get faster with boost pickups. However, this may render certain shots impossible as the bot trys to say clear of walls and can't make as tight of a turn.
+By default, every tick this library calculates the max speed that the car get get to with it's current boost amount. This has several benefits, such as being able to turn tighter on low boost and getting to locations faster. However, this is also susceptible to boost pick-ups. If you're bot picks up a small or large boost pad, the course of the bot may be entirely different after the fact.
 
-TL;DR enabling this makes the shots more consistant and reliable, at the cost of getting to some shots faster or even not at all (but it will know that from the start.)
+By passing in "use_absolute_max_values" with a value of "True" this library will make sure that the path always stays the same, and it will only get faster with boost pickups. However, this may render certain shots impossible as the bot tries to say clear of walls and can't make as tight of a turn.
 
 POTENTIAL SOLUTION: In the max speed calculation, consider all potential boost pad pickups.

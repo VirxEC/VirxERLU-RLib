@@ -4,7 +4,7 @@ use crate::{
     pytypes::{ShotType, TargetOptions},
     utils::{get_samples_from_line, get_samples_from_path},
 };
-use dubins_paths::{DubinsPath, PathType, PosRot};
+use dubins_paths::{DubinsPath, PosRot};
 use glam::Vec3A;
 use rl_ball_sym::simulation::ball::Ball;
 
@@ -52,7 +52,7 @@ impl From<AirBasedShot> for Shot {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct AirBasedShot {
     pub time: f32,
     pub final_target: Vec3A,
@@ -62,17 +62,7 @@ pub struct AirBasedShot {
 
 impl AirBasedShot {
     #[inline]
-    pub const fn default() -> Self {
-        Self {
-            time: 0.,
-            final_target: Vec3A::ZERO,
-            jump_type: AerialJumpType::None,
-            ball_location: Vec3A::ZERO,
-        }
-    }
-
-    #[inline]
-    pub const fn from(ball: &Ball, target_info: &AerialTargetInfo) -> Self {
+    pub const fn new(ball: &Ball, target_info: &AerialTargetInfo) -> Self {
         Self {
             time: ball.time,
             final_target: target_info.final_target,
@@ -82,7 +72,7 @@ impl AirBasedShot {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct GroundBasedShot {
     pub time: f32,
     pub ball_location: Vec3A,
@@ -101,31 +91,7 @@ impl GroundBasedShot {
     const STEP_DISTANCE: f32 = 10.;
     pub const ALL_STEP: usize = 3;
 
-    #[inline]
-    pub const fn default() -> Self {
-        const NEW_VEC: Vec<Vec3A> = Vec::new();
-
-        Self {
-            time: 0.,
-            ball_location: Vec3A::ZERO,
-            direction: Vec3A::ZERO,
-            distances: [0.; 4],
-            all_samples: Vec::new(),
-            samples: [NEW_VEC; 4],
-            path: DubinsPath {
-                qi: PosRot { pos: Vec3A::ZERO, rot: 0. },
-                rho: 0.,
-                param: [0., 0., 0.],
-                type_: PathType::LSL,
-            },
-            path_endpoint: PosRot { pos: Vec3A::ZERO, rot: 0. },
-            shot_type: ShotType::Ground,
-            jump_time: None,
-            turn_targets: None,
-        }
-    }
-
-    pub fn from(ball: &Ball, target: &GroundTargetInfo) -> Self {
+    pub fn new(ball: &Ball, target: &GroundTargetInfo) -> Self {
         let direction = target.shot_vector;
         let path_endpoint = target.path.endpoint();
 
@@ -248,30 +214,23 @@ pub struct Options {
     pub use_absolute_max_values: bool,
     pub min_slice: usize,
     pub max_slice: usize,
+    pub forwards_only: bool,
 }
 
 impl Options {
     #[inline]
-    pub fn from(options: Option<TargetOptions>, max_slices: usize) -> Self {
+    pub fn new(options: Option<TargetOptions>, max_slices: usize) -> Self {
         match options {
-            Some(options) => {
-                let min_slice = options.min_slice.unwrap_or(0);
-                let max_slice = options.max_slice.unwrap_or(max_slices);
-                let use_absolute_max_values = options.use_absolute_max_values.unwrap_or(false);
-                let all = options.all.unwrap_or(false);
-
-                Self {
-                    all,
-                    use_absolute_max_values,
-                    min_slice,
-                    max_slice,
-                }
-            }
+            Some(options) => Self {
+                all: options.all.unwrap_or(false),
+                use_absolute_max_values: options.use_absolute_max_values.unwrap_or(false),
+                min_slice: options.min_slice.unwrap_or(0),
+                max_slice: options.max_slice.unwrap_or(max_slices),
+                forwards_only: options.forwards_only.unwrap_or(false),
+            },
             None => Self {
-                min_slice: 0,
                 max_slice: max_slices,
-                use_absolute_max_values: false,
-                all: false,
+                ..Default::default()
             },
         }
     }

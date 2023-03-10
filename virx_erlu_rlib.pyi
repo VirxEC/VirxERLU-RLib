@@ -61,17 +61,9 @@ class TargetOptions:
     max_slice: Optional[int]
     use_absolute_max_values: Optional[bool]
     all: Optional[bool]
+    forwards_only: Optional[bool]
 
-    def __init__(self, min_slice: Optional[int]=None, max_slice: Optional[int]=None, use_absolute_max_values: Optional[bool]=None, all: Optional[bool]=None) -> TargetOptions:
-        """
-        This class doesn't actually have a custom constructor.
-        Due to limitations in PyO3, __new__ must be used instead of __init__.
-        This function is for IDE type hints only.
-
-        NOTE:
-        You can still call TargetOptions() and pass in parameters to make a new instance.
-        """
-    def __new__(self, min_slice: Optional[int]=None, max_slice: Optional[int]=None, use_absolute_max_values: Optional[bool]=None, all: Optional[bool]=None) -> TargetOptions: ...
+    def __init__(self, min_slice: Optional[int]=None, max_slice: Optional[int]=None, use_absolute_max_values: Optional[bool]=None, all: Optional[bool]=None, fowards_only: Optional[bool]=None) -> TargetOptions: ...
     def __str__(self) -> str: ...
     def __repr__(self) -> str: ...
 

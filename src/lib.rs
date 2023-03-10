@@ -230,7 +230,7 @@ fn new_target(left_target: [f32; 3], right_target: [f32; 3], car_index: usize, o
         return Err(PyErr::new::<NoSlicesPyErr, _>(NO_SLICES_ERR));
     }
 
-    let options = Options::from(options, num_slices);
+    let options = Options::new(options, num_slices);
 
     {
         let mut cars = CARS.write().unwrap();
@@ -261,7 +261,7 @@ fn new_any_target(car_index: usize, options: Option<TargetOptions>) -> PyResult<
         return Err(PyErr::new::<NoSlicesPyErr, _>(NO_SLICES_ERR));
     }
 
-    let options = Options::from(options, num_slices);
+    let options = Options::new(options, num_slices);
 
     {
         let mut cars = CARS.write().unwrap();
@@ -367,7 +367,7 @@ fn analyze_shot(analyzer: &Analyzer, balls: &Predictions, target: &Target, mutat
 
                 if shot.is_none() {
                     let basic_shot_info = target_info.get_basic_shot_info(ball.time);
-                    let found_shot = if temporary { AirBasedShot::default() } else { AirBasedShot::from(ball, &target_info) }.into();
+                    let found_shot = if temporary { AirBasedShot::default() } else { AirBasedShot::new(ball, &target_info) }.into();
                     shot = Some((found_shot, basic_shot_info));
 
                     if !target.options.all {
@@ -391,7 +391,7 @@ fn analyze_shot(analyzer: &Analyzer, balls: &Predictions, target: &Target, mutat
                 let found_shot = if temporary {
                     GroundBasedShot::default()
                 } else {
-                    GroundBasedShot::from(ball, &target_info)
+                    GroundBasedShot::new(ball, &target_info)
                 }
                 .into();
                 shot = Some((found_shot, basic_shot_info));
@@ -411,7 +411,7 @@ fn analyze_shot(analyzer: &Analyzer, balls: &Predictions, target: &Target, mutat
 
             if shot.is_none() {
                 let basic_shot_info = target_info.get_basic_shot_info(ball.time);
-                let found_shot = if temporary { AirBasedShot::default() } else { AirBasedShot::from(ball, &target_info) }.into();
+                let found_shot = if temporary { AirBasedShot::default() } else { AirBasedShot::new(ball, &target_info) }.into();
                 shot = Some((found_shot, basic_shot_info));
 
                 if !target.options.all {
@@ -428,7 +428,7 @@ fn analyze_shot(analyzer: &Analyzer, balls: &Predictions, target: &Target, mutat
                 let found_shot = if temporary {
                     GroundBasedShot::default()
                 } else {
-                    GroundBasedShot::from(ball, &target_info)
+                    GroundBasedShot::new(ball, &target_info)
                 }
                 .into();
                 shot = Some((found_shot, basic_shot_info));
@@ -494,7 +494,15 @@ fn get_shot_with_target(
             (None, None)
         };
 
-        let analyzer = Analyzer::new((max_speed, max_turn_radius), gravity, may_shoot, car);
+        let analyzer = Analyzer {
+            max_speed,
+            max_turn_radius,
+            gravity,
+            may: may_shoot,
+            forwards_only: target.options.forwards_only,
+            car_front_length: (car.hitbox_offset.x + car.hitbox.length) / 2.,
+            car,
+        };
 
         match analyze_shot(&analyzer, &balls, target, mutators, temporary, game_time) {
             Some(a) => a,
