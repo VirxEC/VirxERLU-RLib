@@ -1,12 +1,13 @@
+use dubins_paths::{DubinsPath, PosRot};
+use glam::Vec3A;
+use rl_ball_sym::simulation::ball::Ball;
+
 use crate::{
     air::{AerialJumpType, AerialTargetInfo},
     ground::GroundTargetInfo,
     pytypes::{ShotType, TargetOptions},
     utils::{get_samples_from_line, get_samples_from_path},
 };
-use dubins_paths::{DubinsPath, PosRot};
-use glam::Vec3A;
-use rl_ball_sym::simulation::ball::Ball;
 
 #[inline]
 const fn posrot_to_xy_tuple(posrot: &PosRot) -> (f32, f32) {

@@ -1,13 +1,14 @@
 use std::f32::consts::PI;
 
+use dubins_paths::{NoPathError, Result as DubinsResult};
+use glam::Vec3A;
+
 use crate::{
     car::Car,
     constants::*,
     pytypes::{BasicShotInfo, ShotType},
     BoostAmount, Mutators,
 };
-use dubins_paths::{NoPathError, Result as DubinsResult};
-use glam::Vec3A;
 
 #[inline]
 fn angle_3d(a: Vec3A, b: Vec3A) -> f32 {

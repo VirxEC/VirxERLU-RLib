@@ -1,12 +1,13 @@
+use glam::Vec3A;
+use pyo3::{pyclass, pymethods, FromPyObject};
+use rl_ball_sym::simulation::ball::Ball;
+
 use crate::{
     car::Car,
     constants::*,
     shot::{AirBasedShot, GroundBasedShot},
     utils::{flatten, get_tuple_from_vec3},
 };
-use glam::Vec3A;
-use pyo3::{pyclass, pymethods, FromPyObject};
-use rl_ball_sym::simulation::ball::Ball;
 
 #[derive(Clone, Copy, Debug, Default, FromPyObject)]
 pub struct Hitbox {
@@ -126,10 +127,11 @@ pub struct GameCar {
     pub has_wheel_contact: bool,
 }
 
-#[derive(Clone, Copy, Debug, Default, FromPyObject)]
+#[derive(Clone, Debug, Default, FromPyObject)]
 pub struct GamePacket {
     pub game_info: GameInfo,
     pub game_ball: GameBall,
+    pub game_cars: Vec<GameCar>,
     pub num_cars: usize,
 }
 

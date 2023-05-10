@@ -1,3 +1,9 @@
+use std::f32::consts::PI;
+
+use dubins_paths::{mod2pi, DubinsPath, NoPathError, PathType, PosRot, Result as DubinsResult};
+use glam::Vec3A;
+use rl_ball_sym::simulation::ball::Ball;
+
 use crate::{
     air::{aerial_shot_is_viable, AerialTargetInfo},
     car::Car,
@@ -6,10 +12,6 @@ use crate::{
     utils::flatten,
     Mutators,
 };
-use dubins_paths::{mod2pi, DubinsPath, NoPathError, PathType, PosRot, Result as DubinsResult};
-use glam::Vec3A;
-use rl_ball_sym::simulation::ball::Ball;
-use std::f32::consts::PI;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Shot {

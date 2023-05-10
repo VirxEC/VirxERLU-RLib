@@ -1,11 +1,12 @@
+use dubins_paths::DubinsPath;
+use glam::Vec3A;
+
 use crate::{
     constants::*,
     pytypes::{GameCar, Hitbox},
     utils::{flatten, minimum_non_negative, vertex_quadratic_solve_for_x},
     BoostAmount, Mutators,
 };
-use dubins_paths::DubinsPath;
-use glam::Vec3A;
 
 pub fn throttle_acceleration(forward_velocity: f32) -> f32 {
     let x = forward_velocity.abs();

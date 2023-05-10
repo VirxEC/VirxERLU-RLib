@@ -1,3 +1,8 @@
+use std::f32::{consts::E, INFINITY};
+
+use dubins_paths::{DubinsPath, Intermediate, NoPathError, PathType, PosRot, Result as DubinsResult};
+use glam::Vec3A;
+
 use crate::{
     car::{throttle_acceleration, Car, FieldRect},
     constants::*,
@@ -5,9 +10,6 @@ use crate::{
     utils::*,
     BoostAmount, Mutators,
 };
-use dubins_paths::{DubinsPath, Intermediate, NoPathError, PathType, PosRot, Result as DubinsResult};
-use glam::Vec3A;
-use std::f32::{consts::E, INFINITY};
 
 /// <https://stackoverflow.com/a/49987361/10930209>
 fn get_turn_exit_tangets(target: Vec3A, circle_center: Vec3A, radius: f32) -> (Vec3A, Vec3A) {

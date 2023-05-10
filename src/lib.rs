@@ -9,19 +9,21 @@ mod pytypes;
 mod shot;
 mod utils;
 
-use analyzer::*;
-use car::{turn_radius, Car};
+use std::sync::RwLock;
+
 use combo_vec::{rearr, ReArr};
-use constants::*;
 use glam::Vec3A;
 use pyo3::prelude::*;
-use pytypes::*;
 use rl_ball_sym::simulation::{
     ball::{Ball, Predictions},
     game::Game,
 };
+
+use analyzer::*;
+use car::{turn_radius, Car};
+use constants::*;
+use pytypes::*;
 use shot::{AirBasedShot, GroundBasedShot, Options, Shot, Target};
-use std::sync::RwLock;
 use utils::*;
 
 static CARS: RwLock<ReArr<Car, 8>> = RwLock::new(rearr![]);
@@ -144,14 +146,14 @@ impl TryFrom<&PyAny> for Mutators {
 }
 
 #[pyfunction]
-fn set_mutator_settings(py: Python, mutators: PyObject) -> PyResult<()> {
-    *MUTATORS.write().unwrap() = Mutators::try_from(mutators.as_ref(py))?;
+fn set_mutator_settings(mutators: &PyAny) -> PyResult<()> {
+    *MUTATORS.write().unwrap() = Mutators::try_from(mutators)?;
 
     Ok(())
 }
 
 #[pyfunction]
-fn tick(py: Python, packet: PyObject, prediction_time: Option<f32>) -> PyResult<()> {
+fn tick(packet: GamePacket, prediction_time: Option<f32>) -> PyResult<()> {
     TARGETS.write().unwrap().iter_mut().for_each(|target| {
         if matches!(target, Some(t) if !t.is_confirmed()) {
             *target = None;
@@ -162,9 +164,6 @@ fn tick(py: Python, packet: PyObject, prediction_time: Option<f32>) -> PyResult<
     let game = game_guard.as_mut().ok_or_else(|| PyErr::new::<NoGamePyErr, _>(NO_GAME_ERR))?;
 
     let mut ball = *BALL.read().unwrap();
-
-    let py_packet = packet.as_ref(py);
-    let packet = py_packet.extract::<GamePacket>()?;
 
     // Get general game information
     *GAME_TIME.write().unwrap() = packet.game_info.seconds_elapsed;
@@ -198,8 +197,8 @@ fn tick(py: Python, packet: PyObject, prediction_time: Option<f32>) -> PyResult<
         cars.resize(packet.num_cars, NEW_CAR);
     }
 
-    for (car, pycar) in cars.iter_mut().zip(py_packet.getattr("game_cars")?.iter()?) {
-        car.update(pycar?.extract()?, packet.game_info.seconds_elapsed);
+    for (car, pycar) in cars.iter_mut().zip(packet.game_cars.into_iter()) {
+        car.update(pycar, packet.game_info.seconds_elapsed);
     }
 
     Ok(())
