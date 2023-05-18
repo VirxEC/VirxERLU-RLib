@@ -1,23 +1,6 @@
-use dubins_paths::{DubinsPath, PosRot};
+use dubins_paths::PosRot;
 use glam::Vec3A;
 use std::ops::{Add, Mul, Sub};
-
-/// Get a vec of samples from a path
-/// Starts at the given distance
-/// Ends at the given distance
-/// Step size is given
-pub fn get_samples_from_path(path: &DubinsPath, start_distance: f32, end_distance: f32, step_distance: f32) -> Vec<PosRot> {
-    let num_steps = ((end_distance - start_distance) / step_distance).ceil() as usize;
-    let mut samples = Vec::with_capacity(num_steps);
-    let mut distance = start_distance;
-
-    while distance < end_distance {
-        samples.push(path.sample(distance));
-        distance += step_distance;
-    }
-
-    samples
-}
 
 /// Get a vec of samples
 /// Starts at the given point

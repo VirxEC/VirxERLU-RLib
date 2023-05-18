@@ -15,7 +15,7 @@ rust-version = "1.65"
 
 [lib]
 name = "virx_erlu_rlib"
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 path = "src/lib.rs"
 
 [dependencies]
@@ -33,13 +33,18 @@ features = ["fast-math"]
 
 [dependencies.pyo3]
 version = "0.18.1"
-features = ["extension-module", "abi3-py37"]
+features = ["abi3-py37"]
 
-[dev-dependencies]
-rand = "0.8"
+[features]
+default = ["pyo3/extension-module"]
 
 [profile.release]
 codegen-units = 1
 panic = "abort"
 lto = true
 strip = true
+
+[profile.release-with-debug]
+inherits = "release"
+strip = false
+debug = true

@@ -119,3 +119,7 @@ target/
 
 # pip
 .pypirc
+
+# flamegraph
+*.svg
+*.data*

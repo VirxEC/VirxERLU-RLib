@@ -6,7 +6,7 @@ use crate::{
     air::{AerialJumpType, AerialTargetInfo},
     ground::GroundTargetInfo,
     pytypes::{ShotType, TargetOptions},
-    utils::{get_samples_from_line, get_samples_from_path},
+    utils::get_samples_from_line,
 };
 
 #[inline]
@@ -106,9 +106,9 @@ impl GroundBasedShot {
 
             // the samples for each subpath
             let raw_samples = [
-                get_samples_from_path(&target.path, 0., segment_distances[0], Self::STEP_DISTANCE),
-                get_samples_from_path(&target.path, segment_distances[0], segment_distances[1], Self::STEP_DISTANCE),
-                get_samples_from_path(&target.path, segment_distances[1], segment_distances[2], Self::STEP_DISTANCE),
+                target.path.sample_many_range(Self::STEP_DISTANCE, 0f32..segment_distances[0]),
+                target.path.sample_many_range(Self::STEP_DISTANCE, segment_distances[0]..segment_distances[1]),
+                target.path.sample_many_range(Self::STEP_DISTANCE, segment_distances[1]..segment_distances[2]),
                 get_samples_from_line(path_endpoint, direction, target.distances[3], Self::STEP_DISTANCE),
             ];
 

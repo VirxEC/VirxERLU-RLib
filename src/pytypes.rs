@@ -76,11 +76,11 @@ pub struct GameCylinder {
 #[derive(Clone, Copy, Debug, Default, FromPyObject)]
 pub struct GameCollisionShape {
     #[pyo3(attribute("type"))]
-    shape_type: usize,
+    pub shape_type: usize,
     #[pyo3(attribute("box"))]
-    box_: GameBox,
-    sphere: GameSphere,
-    cylinder: GameCylinder,
+    pub box_: GameBox,
+    pub sphere: GameSphere,
+    pub cylinder: GameCylinder,
 }
 
 impl GameCollisionShape {

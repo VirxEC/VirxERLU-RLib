@@ -1,13 +1,13 @@
 #![forbid(unsafe_code)]
 
-mod air;
-mod analyzer;
-mod car;
-mod constants;
-mod ground;
-mod pytypes;
-mod shot;
-mod utils;
+pub mod air;
+pub mod analyzer;
+pub mod car;
+pub mod constants;
+pub mod ground;
+pub mod pytypes;
+pub mod shot;
+pub mod utils;
 
 use std::sync::RwLock;
 
@@ -58,7 +58,7 @@ pynamedmodule!(
 );
 
 #[pyfunction]
-fn load_standard() {
+pub fn load_standard() {
     let (game, ball) = rl_ball_sym::compressed::load_standard();
 
     *GAME.write().unwrap() = Some(game);
@@ -66,7 +66,7 @@ fn load_standard() {
 }
 
 #[pyfunction]
-fn load_dropshot() {
+pub fn load_dropshot() {
     let (game, ball) = rl_ball_sym::compressed::load_dropshot();
 
     *GAME.write().unwrap() = Some(game);
@@ -74,7 +74,7 @@ fn load_dropshot() {
 }
 
 #[pyfunction]
-fn load_hoops() {
+pub fn load_hoops() {
     let (game, ball) = rl_ball_sym::compressed::load_hoops();
 
     *GAME.write().unwrap() = Some(game);
@@ -82,7 +82,7 @@ fn load_hoops() {
 }
 
 #[pyfunction]
-fn load_standard_throwback() {
+pub fn load_standard_throwback() {
     let (game, ball) = rl_ball_sym::compressed::load_standard_throwback();
 
     *GAME.write().unwrap() = Some(game);
@@ -146,14 +146,14 @@ impl TryFrom<&PyAny> for Mutators {
 }
 
 #[pyfunction]
-fn set_mutator_settings(mutators: &PyAny) -> PyResult<()> {
+pub fn set_mutator_settings(mutators: &PyAny) -> PyResult<()> {
     *MUTATORS.write().unwrap() = Mutators::try_from(mutators)?;
 
     Ok(())
 }
 
 #[pyfunction]
-fn tick(packet: GamePacket, prediction_time: Option<f32>) -> PyResult<()> {
+pub fn tick(packet: GamePacket, prediction_time: Option<f32>) -> PyResult<()> {
     TARGETS.write().unwrap().iter_mut().for_each(|target| {
         if matches!(target, Some(t) if !t.is_confirmed()) {
             *target = None;
@@ -205,24 +205,24 @@ fn tick(packet: GamePacket, prediction_time: Option<f32>) -> PyResult<()> {
 }
 
 #[pyfunction]
-fn get_slice(slice_time: f32) -> BallSlice {
+pub fn get_slice(slice_time: f32) -> BallSlice {
     let slice_num = ((slice_time - *GAME_TIME.read().unwrap()) * TPS).round() as usize;
     get_slice_index(slice_num)
 }
 
 #[pyfunction]
-fn get_slice_index(slice_num: usize) -> BallSlice {
+pub fn get_slice_index(slice_num: usize) -> BallSlice {
     let ball_struct = BALL_STRUCT.read().unwrap();
     ball_struct[slice_num.clamp(0, ball_struct.len() - 1)].into()
 }
 
 #[pyfunction]
-fn get_num_ball_slices() -> usize {
+pub fn get_num_ball_slices() -> usize {
     BALL_STRUCT.read().unwrap().len()
 }
 
 #[pyfunction]
-fn new_target(left_target: [f32; 3], right_target: [f32; 3], car_index: usize, options: Option<TargetOptions>) -> PyResult<usize> {
+pub fn new_target(left_target: [f32; 3], right_target: [f32; 3], car_index: usize, options: Option<TargetOptions>) -> PyResult<usize> {
     let num_slices = BALL_STRUCT.read().unwrap().len();
 
     if num_slices == 0 {
@@ -253,7 +253,7 @@ fn new_target(left_target: [f32; 3], right_target: [f32; 3], car_index: usize, o
 }
 
 #[pyfunction]
-fn new_any_target(car_index: usize, options: Option<TargetOptions>) -> PyResult<usize> {
+pub fn new_any_target(car_index: usize, options: Option<TargetOptions>) -> PyResult<usize> {
     let num_slices = BALL_STRUCT.read().unwrap().len();
 
     if num_slices == 0 {
@@ -284,7 +284,7 @@ fn new_any_target(car_index: usize, options: Option<TargetOptions>) -> PyResult<
 }
 
 #[pyfunction]
-fn confirm_target(target_index: usize) -> PyResult<()> {
+pub fn confirm_target(target_index: usize) -> PyResult<()> {
     let mut targets = TARGETS.write().unwrap();
     let target = targets
         .get_mut(target_index)
@@ -301,7 +301,7 @@ fn confirm_target(target_index: usize) -> PyResult<()> {
 }
 
 #[pyfunction]
-fn remove_target(target_index: usize) {
+pub fn remove_target(target_index: usize) {
     let mut targets = TARGETS.write().unwrap();
     if targets.get(target_index).is_none() {
         return;
@@ -311,7 +311,7 @@ fn remove_target(target_index: usize) {
 }
 
 #[pyfunction]
-fn print_targets() {
+pub fn print_targets() {
     let targets = TARGETS.read().unwrap();
     let mut out = Vec::with_capacity(targets.len());
 
@@ -329,7 +329,7 @@ fn print_targets() {
 }
 
 #[pyfunction]
-fn get_targets_length() -> usize {
+pub fn get_targets_length() -> usize {
     TARGETS.read().unwrap().len()
 }
 
@@ -443,7 +443,7 @@ fn analyze_shot(analyzer: &Analyzer, balls: &Predictions, target: &Target, mutat
 }
 
 #[pyfunction]
-fn get_shot_with_target(
+pub fn get_shot_with_target(
     target_index: usize,
     temporary: Option<bool>,
     may_ground_shot: Option<bool>,
@@ -524,7 +524,7 @@ fn get_shot_with_target(
 }
 
 #[pyfunction]
-fn get_data_for_shot_with_target(target_index: usize) -> PyResult<AdvancedShotInfo> {
+pub fn get_data_for_shot_with_target(target_index: usize) -> PyResult<AdvancedShotInfo> {
     let targets_gaurd = TARGETS.read().unwrap();
     let target = targets_gaurd
         .get(target_index)
