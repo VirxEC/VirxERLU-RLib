@@ -1,4 +1,4 @@
-use dubins_paths::DubinsPath;
+use dubins_paths::{DubinsPath, PosRot};
 use glam::Vec3A;
 
 use crate::{
@@ -19,7 +19,7 @@ pub fn throttle_acceleration(forward_velocity: f32) -> f32 {
     if x < THROTTLE_ACCEL_DIVISION {
         START_THROTTLE_ACCEL_M * x + START_THROTTLE_ACCEL_B
     } else {
-        END_THROTTLE_ACCEL_M * (x - THROTTLE_ACCEL_DIVISION) + END_THROTTLE_ACCEL_B
+        END_THROTTLE_ACCEL_M * x - END_THROTTLE_ACCEL_M * THROTTLE_ACCEL_DIVISION + END_THROTTLE_ACCEL_B
     }
 }
 
@@ -82,10 +82,32 @@ impl FieldRect {
     pub fn is_path_in(&self, path: &DubinsPath) -> bool {
         let length = path.length();
 
+        let types = path.type_.to_segment_types();
+
+        let qi = PosRot {
+            pos: Vec3A::ZERO,
+            rot: path.qi.rot,
+        };
+
+        let q1 = DubinsPath::segment(path.param[0], qi, types[0]);
+        let q2 = DubinsPath::segment(path.param[1], q1, types[1]);
+
         let mut dist = Self::CHECK_DISTANCE.min(length / 2.);
 
         while dist < length {
-            if !self.is_point_in(path.sample(dist).pos) {
+            let tprime = dist / path.rho;
+
+            let q = if tprime < path.param[0] {
+                DubinsPath::segment(tprime, qi, types[0])
+            } else if tprime < path.param[0] + path.param[1] {
+                DubinsPath::segment(tprime - path.param[0], q1, types[1])
+            } else {
+                DubinsPath::segment(tprime - path.param[0] - path.param[1], q2, types[2])
+            };
+
+            let sample = (q.pos * path.rho) + path.qi.pos;
+
+            if !self.is_point_in(sample) {
                 return false;
             }
 
