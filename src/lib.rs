@@ -20,7 +20,7 @@ use rl_ball_sym::simulation::{
 };
 
 use analyzer::*;
-use car::{turn_radius, Car};
+use car::{turn_radius, Car, CarState};
 use constants::*;
 use pytypes::*;
 use shot::{AirBasedShot, GroundBasedShot, Options, Shot, Target};
@@ -483,7 +483,7 @@ pub fn get_shot_with_target(
         let cars = CARS.read().unwrap();
         let car = cars.get(target.car_index).ok_or_else(|| PyErr::new::<NoCarPyErr, _>(NO_CAR_ERR))?;
 
-        if car.demolished || balls.is_empty() || car.time_to_land >= balls.last().map(|slice| slice.time).unwrap_or_default() {
+        if car.car_state == CarState::Demolished || balls.is_empty() || car.time_to_land >= balls.last().map(|slice| slice.time).unwrap_or_default() {
             return Ok(BasicShotInfo::not_found());
         }
 

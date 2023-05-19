@@ -6,7 +6,7 @@ use rl_ball_sym::simulation::ball::Ball;
 
 use crate::{
     air::{aerial_shot_is_viable, AerialTargetInfo},
-    car::Car,
+    car::{Car, CarState},
     ground::{angle_2d, get_turn_exit_tanget, shortest_path_in_validate, GroundTargetInfo},
     pytypes::ShotType,
     utils::flatten,
@@ -72,7 +72,7 @@ impl<'a> Analyzer<'a> {
             return Ok(ShotType::DoubleJump);
         }
 
-        if self.car.airborne || self.car.wait_to_jump_time + self.car.last_landing_time < time_remaining && self.may_shoot(Shot::Aerial) {
+        if self.car.car_state != CarState::Grounded || self.car.wait_to_jump_time + self.car.last_landing_time < time_remaining && self.may_shoot(Shot::Aerial) {
             return Ok(ShotType::Aerial);
         }
 
@@ -93,9 +93,9 @@ impl<'a> Analyzer<'a> {
                 let distance = 320.;
                 (
                     None,
-                    if (0. ..distance).contains(&self.car.forward.dot(ball_location))
-                        && self.car.right.dot(ball_location) < self.car.hitbox.width / 2.
-                        && angle_2d(self.car.forward, shot_vector) < 0.02
+                    if (0. ..distance).contains(&self.car.rotmat.x_axis.dot(ball_location))
+                        && self.car.rotmat.y_axis.dot(ball_location) < self.car.hitbox.width / 2.
+                        && angle_2d(self.car.rotmat.x_axis, shot_vector) < 0.02
                     {
                         0. // for pre-aligned ground shots
                     } else {
@@ -162,7 +162,14 @@ impl<'a> Analyzer<'a> {
         let local_ball = self.car.localize_2d_location(ball.location);
         let target_is_forwards = local_ball.x >= 0.;
         let should_turn_left = local_ball.y < 0.;
-        let center_of_turn = car_location + flatten(if should_turn_left { -self.car.landing_right } else { self.car.landing_right } * rho);
+        let center_of_turn = car_location
+            + flatten(
+                if should_turn_left {
+                    -self.car.landing_rotmat.y_axis
+                } else {
+                    self.car.landing_rotmat.y_axis
+                } * rho,
+            );
 
         let (turn_target, turn_target_2) = get_turn_exit_tanget(self.car, flatten(ball.location), center_of_turn, rho, target_is_forwards, is_forwards);
 
@@ -183,9 +190,9 @@ impl<'a> Analyzer<'a> {
         let shot_vector = (flatten(ball.location) - turn_target).normalize_or_zero();
         let shot_vector_angle = shot_vector.y.atan2(shot_vector.x);
         let forward_angle = if is_forwards {
-            self.car.landing_forward.y.atan2(self.car.landing_forward.x)
+            self.car.landing_rotmat.x_axis.y.atan2(self.car.landing_rotmat.x_axis.x)
         } else {
-            let forward = self.car.landing_forward * Vec3A::NEG_ONE;
+            let forward = self.car.landing_rotmat.x_axis * Vec3A::NEG_ONE;
             forward.y.atan2(forward.x)
         };
 
@@ -224,7 +231,7 @@ impl<'a> Analyzer<'a> {
             is_forwards,
             shot_vector,
             turn_targets: Some((turn_target, turn_target_2)),
-            wait_for_land: self.car.airborne,
+            wait_for_land: self.car.car_state != CarState::Grounded,
         })
     }
 
@@ -286,7 +293,7 @@ impl<'a> Analyzer<'a> {
             is_forwards,
             shot_vector,
             turn_targets: None,
-            wait_for_land: self.car.airborne,
+            wait_for_land: self.car.car_state != CarState::Grounded,
         })
     }
 

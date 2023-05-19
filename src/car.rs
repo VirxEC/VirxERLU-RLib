@@ -1,5 +1,5 @@
 use dubins_paths::{DubinsPath, PosRot};
-use glam::Vec3A;
+use glam::{Mat3A, Quat, Vec3A};
 
 use crate::{
     constants::*,
@@ -23,8 +23,8 @@ pub fn throttle_acceleration(forward_velocity: f32) -> f32 {
     }
 }
 
-pub fn curvature(v: f32) -> f32 {
-    let v = v.abs();
+pub fn curvature(mut v: f32) -> f32 {
+    v = v.copysign(1.);
 
     if (0. ..500.).contains(&v) {
         0.0069 - 5.84e-6 * v
@@ -128,15 +128,27 @@ impl FieldRect {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum CarState {
+    Demolished,
+    #[default]
+    Grounded,
+    Jumped,
+    DoubleJumped,
+    Floating,
+}
+
 #[derive(Clone, Debug)]
 pub struct Car {
     pub location: Vec3A,
     pub velocity: Vec3A,
     pub local_velocity: Vec3A,
     pub angular_velocity: Vec3A,
-    pub forward: Vec3A,
-    pub right: Vec3A,
-    pub up: Vec3A,
+    // pub forward: Vec3A,
+    // pub right: Vec3A,
+    // pub up: Vec3A,
+    pub rotmat: Mat3A,
+    pub quat: Quat,
     pub hitbox: Hitbox,
     pub hitbox_offset: Vec3A,
     pub field: FieldRect,
@@ -144,17 +156,16 @@ pub struct Car {
     pub yaw: f32,
     pub roll: f32,
     pub boost: u8,
-    pub demolished: bool,
-    pub airborne: bool,
-    pub jumped: bool,
-    pub doublejumped: bool,
+    pub car_state: CarState,
     pub time_to_land: f32,
     pub landing_location: Vec3A,
     pub landing_velocity: Vec3A,
     pub landing_yaw: f32,
-    pub landing_forward: Vec3A,
-    pub landing_right: Vec3A,
-    pub landing_up: Vec3A,
+    // pub landing_forward: Vec3A,
+    // pub landing_right: Vec3A,
+    // pub landing_up: Vec3A,
+    pub landing_rotmat: Mat3A,
+    pub landing_quat: Quat,
     last_landing_game_time: f32,
     pub last_landing_time: f32,
     pub max_speed: Vec<f32>,
@@ -176,9 +187,11 @@ impl Car {
             velocity: Vec3A::ZERO,
             local_velocity: Vec3A::ZERO,
             angular_velocity: Vec3A::ZERO,
-            forward: Vec3A::ZERO,
-            right: Vec3A::ZERO,
-            up: Vec3A::ZERO,
+            // forward: Vec3A::ZERO,
+            // right: Vec3A::ZERO,
+            // up: Vec3A::ZERO,
+            rotmat: Mat3A::IDENTITY,
+            quat: Quat::IDENTITY,
             hitbox: Hitbox::new(),
             hitbox_offset: Vec3A::ZERO,
             field: FieldRect::new(),
@@ -186,17 +199,16 @@ impl Car {
             yaw: 0.,
             roll: 0.,
             boost: 0,
-            demolished: false,
-            airborne: false,
-            jumped: false,
-            doublejumped: false,
+            car_state: CarState::Grounded,
             time_to_land: 0.,
             landing_location: Vec3A::ZERO,
             landing_velocity: Vec3A::ZERO,
             landing_yaw: 0.,
-            landing_forward: Vec3A::ZERO,
-            landing_right: Vec3A::ZERO,
-            landing_up: Vec3A::ZERO,
+            // landing_forward: Vec3A::ZERO,
+            // landing_right: Vec3A::ZERO,
+            // landing_up: Vec3A::ZERO,
+            landing_rotmat: Mat3A::IDENTITY,
+            landing_quat: Quat::IDENTITY,
             last_landing_game_time: 0.,
             last_landing_time: 0.,
             max_speed: Vec::new(),
@@ -223,25 +235,31 @@ impl Car {
         self.hitbox_offset = py_car.hitbox_offset.into();
 
         self.boost = py_car.boost;
-        self.demolished = py_car.is_demolished;
-        self.jumped = py_car.jumped;
-        self.doublejumped = py_car.double_jumped;
 
-        let airborne = !py_car.has_wheel_contact;
-
-        if self.airborne && !airborne {
+        if self.car_state != CarState::Grounded && py_car.has_wheel_contact {
             self.last_landing_game_time = game_time;
         }
 
         self.last_landing_time = self.last_landing_game_time - game_time;
-        self.airborne = airborne;
+
+        if py_car.is_demolished {
+            self.car_state = CarState::Demolished;
+        } else if py_car.has_wheel_contact {
+            self.car_state = CarState::Grounded;
+        } else if py_car.double_jumped {
+            self.car_state = CarState::DoubleJumped;
+        } else if py_car.jumped {
+            self.car_state = CarState::Jumped;
+        } else {
+            self.car_state = CarState::Floating;
+        }
 
         self.init = false;
     }
 
     pub fn init(&mut self, gravity: f32, max_ball_slice: usize, mutators: Mutators) {
         if !self.init {
-            Self::calculate_orientation_matrix(&mut self.forward, &mut self.right, &mut self.up, self.pitch, self.yaw, self.roll);
+            Self::calculate_orientation_matrix(&mut self.quat, &mut self.rotmat, self.pitch, self.yaw, self.roll);
             self.calculate_field();
             self.calculate_landing_info(gravity);
             self.calculate_local_values();
@@ -320,11 +338,10 @@ impl Car {
         self.landing_location = self.location;
         self.landing_velocity = self.velocity;
         self.landing_yaw = self.yaw;
-        self.landing_forward = self.forward;
-        self.landing_right = self.right;
-        self.landing_up = self.up;
+        self.landing_rotmat = Mat3A::from_cols(self.rotmat.x_axis, self.rotmat.y_axis, Vec3A::Z);
+        self.landing_quat = Quat::from_mat3a(&self.landing_rotmat.transpose());
 
-        self.wait_to_jump_time = if self.airborne {
+        self.wait_to_jump_time = if self.car_state != CarState::Grounded {
             ON_GROUND_WAIT_TIME
         } else if self.last_landing_time < -ON_GROUND_WAIT_TIME {
             0.
@@ -332,7 +349,7 @@ impl Car {
             ON_GROUND_WAIT_TIME + self.last_landing_time
         };
 
-        if !self.airborne {
+        if self.car_state == CarState::Grounded {
             return;
         }
 
@@ -394,30 +411,32 @@ impl Car {
             self.landing_yaw = self.landing_velocity.y.atan2(self.landing_velocity.x);
         }
 
-        Self::calculate_orientation_matrix(&mut self.landing_forward, &mut self.landing_right, &mut self.landing_up, 0., self.landing_yaw, 0.);
+        Self::calculate_orientation_matrix(&mut self.landing_quat, &mut self.landing_rotmat, 0., self.landing_yaw, 0.);
     }
 
-    fn calculate_orientation_matrix(forward: &mut Vec3A, right: &mut Vec3A, up: &mut Vec3A, pitch: f32, yaw: f32, roll: f32) {
+    fn calculate_orientation_matrix(quat: &mut Quat, rotmat: &mut Mat3A, pitch: f32, yaw: f32, roll: f32) {
         let (s_p, c_p) = pitch.sin_cos();
         let (s_y, c_y) = yaw.sin_cos();
         let (s_r, c_r) = roll.sin_cos();
 
-        forward.x = c_p * c_y;
-        forward.y = c_p * s_y;
-        forward.z = s_p;
+        rotmat.x_axis.x = c_p * c_y;
+        rotmat.x_axis.y = c_p * s_y;
+        rotmat.x_axis.z = s_p;
 
-        right.x = c_y * s_p * s_r - c_r * s_y;
-        right.y = s_y * s_p * s_r + c_r * c_y;
-        right.z = -c_p * s_r;
+        rotmat.y_axis.x = c_y * s_p * s_r - c_r * s_y;
+        rotmat.y_axis.y = s_y * s_p * s_r + c_r * c_y;
+        rotmat.y_axis.z = -c_p * s_r;
 
-        up.x = -c_r * c_y * s_p - s_r * s_y;
-        up.y = -c_r * s_y * s_p + s_r * c_y;
-        up.z = c_p * c_r;
+        rotmat.z_axis.x = -c_r * c_y * s_p - s_r * s_y;
+        rotmat.z_axis.y = -c_r * s_y * s_p + s_r * c_y;
+        rotmat.z_axis.z = c_p * c_r;
+
+        *quat = Quat::from_mat3a(&rotmat.transpose());
     }
 
     fn calculate_max_values(&mut self, max_ball_slice: usize, mutators: Mutators) {
         let mut b = f32::from(self.boost);
-        let mut v = self.landing_velocity.dot(self.forward);
+        let mut v = self.landing_velocity.dot(self.rotmat.x_axis);
         let mut fast_forward = false;
 
         self.max_speed = Vec::with_capacity(max_ball_slice);
@@ -553,7 +572,7 @@ impl Car {
 
     #[inline]
     pub fn localize_2d(&self, vec: Vec3A) -> Vec3A {
-        Vec3A::new(vec.dot(self.landing_forward), vec.dot(self.landing_right), 0.)
+        self.landing_quat * vec
     }
 
     // pub fn localize_location(car: &Car, vec: Vec3A) -> Vec3A {
@@ -562,7 +581,7 @@ impl Car {
 
     #[inline]
     pub fn localize(&self, vec: Vec3A) -> Vec3A {
-        Vec3A::new(vec.dot(self.forward), vec.dot(self.right), vec.dot(self.up))
+        self.quat * vec
     }
 
     // pub fn globalize(car: &Car, vec: Vec3A) -> Vec3A {
@@ -633,7 +652,7 @@ impl Car {
 #[cfg(test)]
 mod tests {
     use crate::{
-        car::{Car, Hitbox},
+        car::{Car, CarState, Hitbox},
         Mutators, Vec3A,
     };
 
@@ -655,10 +674,7 @@ mod tests {
         };
         car.hitbox_offset = Vec3A::new(13.9, 0., 20.8);
         car.boost = 48;
-        car.demolished = false;
-        car.airborne = false;
-        car.jumped = false;
-        car.doublejumped = false;
+        car.car_state = CarState::Grounded;
 
         car.init(-650., 720, Mutators::new());
     }

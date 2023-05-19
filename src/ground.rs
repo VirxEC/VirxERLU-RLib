@@ -85,6 +85,13 @@ pub fn shortest_path_in_validate(q0: PosRot, q1: PosRot, rho: f32, car_field: &F
 }
 
 #[derive(Clone, Copy, Debug)]
+pub enum CantReachError {
+    NoTime,
+    ForwardsReqTooFast,
+    BackwardsReqTooFast,
+}
+
+#[derive(Clone, Copy, Debug)]
 pub struct GroundTargetInfo {
     pub distances: [f32; 4],
     pub path: DubinsPath,
@@ -97,7 +104,7 @@ pub struct GroundTargetInfo {
 }
 
 impl GroundTargetInfo {
-    pub fn can_reach(&self, car: &Car, max_time: f32, mutators: Mutators) -> Result<f32, ()> {
+    pub fn can_reach(&self, car: &Car, max_time: f32, mutators: Mutators) -> Result<f32, CantReachError> {
         let is_curved = PathType::CCC.contains(&self.path.type_);
 
         let total_d = self.distances.iter().sum::<f32>();
@@ -117,13 +124,25 @@ impl GroundTargetInfo {
         let mut b = f32::from(car.boost) - b_s;
         let mut v = flatten(car.landing_velocity).length() * direction;
 
+        let boost_accel = if mutators.boost_amount == BoostAmount::NoBoost {
+            0.
+        } else {
+            mutators.boost_accel * SIMULATION_DT
+        };
+
+        let boost_consumption_dt = if mutators.boost_amount == BoostAmount::Unlimited {
+            0.
+        } else {
+            BOOST_CONSUMPTION_DT
+        };
+
         loop {
             if self.distances[3] < f32::EPSILON && d < 1. {
                 return Ok(t_r.max(0.));
             }
 
             if t_r <= 0. {
-                return Err(());
+                return Err(CantReachError::NoTime);
             }
 
             let r = d * direction / t_r;
@@ -156,41 +175,34 @@ impl GroundTargetInfo {
                 };
 
                 if r > quick_max_speed {
-                    return Err(());
+                    return Err(CantReachError::ForwardsReqTooFast);
                 }
             } else if MIN_SPEED > r {
-                return Err(());
+                return Err(CantReachError::BackwardsReqTooFast);
             }
 
             let throttle_accel = throttle_acceleration(v);
-            let (throttle, boost) = {
-                let (mut throttle, mut boost) = get_throttle_and_boost(throttle_accel, b, if v < 0. { -t } else { t });
+            let (mut throttle, mut boost) = get_throttle_and_boost(throttle_accel, b, if v < 0. { -t } else { t });
 
-                if t <= 0. {
-                    boost = false;
-                }
-
-                if v < 0. {
-                    throttle *= -1.;
-                }
-
-                (throttle, boost)
-            };
-            let mut accel = 0.;
-
-            if throttle == 0. {
-                accel += COAST_ACC * SIMULATION_DT * -v.signum();
-            } else if throttle.signum() == v.signum() {
-                accel += throttle_accel * SIMULATION_DT * throttle;
-            } else {
-                accel += BRAKE_ACC_DT.copysign(throttle);
+            if t <= 0. {
+                boost = false;
             }
 
-            if mutators.boost_amount != BoostAmount::NoBoost && boost {
-                accel += mutators.boost_accel * SIMULATION_DT;
-                if mutators.boost_amount != BoostAmount::Unlimited {
-                    b -= BOOST_CONSUMPTION_DT;
-                }
+            throttle *= 1f32.copysign(v);
+
+            let mut accel = 0.;
+
+            accel += if throttle == 0. {
+                COAST_ACC * SIMULATION_DT * 1f32.copysign(-v)
+            } else if throttle * v >= 0. {
+                throttle_accel * SIMULATION_DT * throttle
+            } else {
+                BRAKE_ACC_DT.copysign(throttle)
+            };
+
+            if boost {
+                accel += boost_accel;
+                b -= boost_consumption_dt;
             }
 
             if !(is_middle_straight || d < self.distances[3]) {

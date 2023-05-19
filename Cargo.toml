@@ -19,7 +19,7 @@ crate-type = ["cdylib", "rlib"]
 path = "src/lib.rs"
 
 [dependencies]
-dubins_paths = { version = "1.6.0", features = ["glam"] }
+dubins_paths = { version = "1.7.0", features = ["glam"] }
 combo_vec = "0.5.1"
 
 [dependencies.rl_ball_sym]
