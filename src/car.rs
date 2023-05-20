@@ -8,21 +8,20 @@ use crate::{
     BoostAmount, Mutators,
 };
 
-pub fn throttle_acceleration(forward_velocity: f32) -> f32 {
-    let x = forward_velocity.abs();
+#[must_use]
+pub fn throttle_acceleration(mut forward_velocity: f32) -> f32 {
+    forward_velocity = forward_velocity.abs();
 
-    if x >= MAX_SPEED_NO_BOOST {
-        return 0.;
-    }
-
-    // use y = mx + b to find the throttle acceleration
-    if x < THROTTLE_ACCEL_DIVISION {
-        START_THROTTLE_ACCEL_M * x + START_THROTTLE_ACCEL_B
+    if forward_velocity >= MAX_SPEED_NO_BOOST {
+        0.
+    } else if forward_velocity < THROTTLE_ACCEL_DIVISION {
+        START_THROTTLE_ACCEL_M * forward_velocity + START_THROTTLE_ACCEL_B
     } else {
-        END_THROTTLE_ACCEL_M * x - END_THROTTLE_ACCEL_M * THROTTLE_ACCEL_DIVISION + END_THROTTLE_ACCEL_B
+        END_THROTTLE_ACCEL_M * forward_velocity - END_THROTTLE_ACCEL_M * THROTTLE_ACCEL_DIVISION + END_THROTTLE_ACCEL_B
     }
 }
 
+#[must_use]
 pub fn curvature(mut v: f32) -> f32 {
     v = v.copysign(1.);
 
@@ -43,6 +42,7 @@ pub fn curvature(mut v: f32) -> f32 {
 }
 
 #[inline]
+#[must_use]
 pub fn turn_radius(v: f32) -> f32 {
     1. / curvature(v)
 }
@@ -59,6 +59,7 @@ impl FieldRect {
     const CHECK_DISTANCE: f32 = 400.;
 
     #[inline]
+    #[must_use]
     pub const fn new() -> Self {
         Self {
             goal_x: 0.,
@@ -68,6 +69,7 @@ impl FieldRect {
         }
     }
 
+    #[must_use]
     pub fn from(car_hitbox: &Hitbox) -> Self {
         let half_car_len = car_hitbox.length / 2.;
 
@@ -79,6 +81,7 @@ impl FieldRect {
         }
     }
 
+    #[must_use]
     pub fn is_path_in(&self, path: &DubinsPath) -> bool {
         let length = path.length();
 
@@ -117,6 +120,7 @@ impl FieldRect {
         true
     }
 
+    #[must_use]
     pub fn is_point_in(&self, p: Vec3A) -> bool {
         let p = [p.x.abs(), p.y.abs()];
 
@@ -129,7 +133,7 @@ impl FieldRect {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum CarState {
+pub enum State {
     Demolished,
     #[default]
     Grounded,
@@ -156,7 +160,7 @@ pub struct Car {
     pub yaw: f32,
     pub roll: f32,
     pub boost: u8,
-    pub car_state: CarState,
+    pub car_state: State,
     pub time_to_land: f32,
     pub landing_location: Vec3A,
     pub landing_velocity: Vec3A,
@@ -181,6 +185,7 @@ pub struct Car {
 
 impl Car {
     #[inline]
+    #[must_use]
     pub const fn new() -> Self {
         Self {
             location: Vec3A::ZERO,
@@ -199,7 +204,7 @@ impl Car {
             yaw: 0.,
             roll: 0.,
             boost: 0,
-            car_state: CarState::Grounded,
+            car_state: State::Grounded,
             time_to_land: 0.,
             landing_location: Vec3A::ZERO,
             landing_velocity: Vec3A::ZERO,
@@ -236,22 +241,22 @@ impl Car {
 
         self.boost = py_car.boost;
 
-        if self.car_state != CarState::Grounded && py_car.has_wheel_contact {
+        if self.car_state != State::Grounded && py_car.has_wheel_contact {
             self.last_landing_game_time = game_time;
         }
 
         self.last_landing_time = self.last_landing_game_time - game_time;
 
         if py_car.is_demolished {
-            self.car_state = CarState::Demolished;
+            self.car_state = State::Demolished;
         } else if py_car.has_wheel_contact {
-            self.car_state = CarState::Grounded;
+            self.car_state = State::Grounded;
         } else if py_car.double_jumped {
-            self.car_state = CarState::DoubleJumped;
+            self.car_state = State::DoubleJumped;
         } else if py_car.jumped {
-            self.car_state = CarState::Jumped;
+            self.car_state = State::Jumped;
         } else {
-            self.car_state = CarState::Floating;
+            self.car_state = State::Floating;
         }
 
         self.init = false;
@@ -341,7 +346,7 @@ impl Car {
         self.landing_rotmat = Mat3A::from_cols(self.rotmat.x_axis, self.rotmat.y_axis, Vec3A::Z);
         self.landing_quat = Quat::from_mat3a(&self.landing_rotmat.transpose());
 
-        self.wait_to_jump_time = if self.car_state != CarState::Grounded {
+        self.wait_to_jump_time = if self.car_state != State::Grounded {
             ON_GROUND_WAIT_TIME
         } else if self.last_landing_time < -ON_GROUND_WAIT_TIME {
             0.
@@ -349,7 +354,7 @@ impl Car {
             ON_GROUND_WAIT_TIME + self.last_landing_time
         };
 
-        if self.car_state == CarState::Grounded {
+        if self.car_state == State::Grounded {
             return;
         }
 
@@ -566,11 +571,13 @@ impl Car {
     }
 
     #[inline]
+    #[must_use]
     pub fn localize_2d_location(&self, vec: Vec3A) -> Vec3A {
         self.localize_2d(vec - self.landing_location)
     }
 
     #[inline]
+    #[must_use]
     pub fn localize_2d(&self, vec: Vec3A) -> Vec3A {
         self.landing_quat * vec
     }
@@ -580,6 +587,7 @@ impl Car {
     // }
 
     #[inline]
+    #[must_use]
     pub fn localize(&self, vec: Vec3A) -> Vec3A {
         self.quat * vec
     }
@@ -588,6 +596,7 @@ impl Car {
     //     car.forward * vec.x + car.right * vec.y + car.up * vec.z + car.location
     // }
 
+    #[must_use]
     pub fn jump_time_to_height(&self, gravity: f32, height_goal: f32) -> f32 {
         let g = gravity * SIMULATION_DT;
 
@@ -616,6 +625,7 @@ impl Car {
         t
     }
 
+    #[must_use]
     pub fn double_jump_time_to_height(&self, gravity: f32, height_goal: f32) -> f32 {
         let g = gravity * SIMULATION_DT;
 
@@ -652,7 +662,7 @@ impl Car {
 #[cfg(test)]
 mod tests {
     use crate::{
-        car::{Car, CarState, Hitbox},
+        car::{Car, Hitbox, State},
         Mutators, Vec3A,
     };
 
@@ -674,7 +684,7 @@ mod tests {
         };
         car.hitbox_offset = Vec3A::new(13.9, 0., 20.8);
         car.boost = 48;
-        car.car_state = CarState::Grounded;
+        car.car_state = State::Grounded;
 
         car.init(-650., 720, Mutators::new());
     }

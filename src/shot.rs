@@ -23,6 +23,7 @@ pub enum Shot {
 
 impl Shot {
     #[inline]
+    #[must_use]
     pub const fn time(&self) -> f32 {
         match self {
             Shot::GroundBased(shot) => shot.time,
@@ -31,6 +32,7 @@ impl Shot {
     }
 
     #[inline]
+    #[must_use]
     pub const fn ball_location(&self) -> Vec3A {
         match self {
             Shot::GroundBased(shot) => shot.ball_location,
@@ -63,6 +65,7 @@ pub struct AirBasedShot {
 
 impl AirBasedShot {
     #[inline]
+    #[must_use]
     pub const fn new(ball: &Ball, target_info: &AerialTargetInfo) -> Self {
         Self {
             time: ball.time,
@@ -170,6 +173,7 @@ impl GroundBasedShot {
         ((start_index + end_index) / 2, min_distance)
     }
 
+    #[must_use]
     pub fn find_min_distance_index(&self, target: Vec3A) -> (usize, usize) {
         let mut min_distance = f32::MAX;
         let mut min_distance_index = 0;
@@ -188,6 +192,7 @@ impl GroundBasedShot {
         (min_distance_index, min_distance_index_in_section)
     }
 
+    #[must_use]
     pub fn get_distance_along_shot_and_index(&self, segment: usize, index: usize) -> (f32, usize) {
         let pre_distance = match segment {
             0 => 0.,
@@ -245,6 +250,7 @@ pub struct TargetLocation {
 
 impl TargetLocation {
     #[inline]
+    #[must_use]
     pub const fn new(left: Vec3A, right: Vec3A) -> Self {
         Self { left, right }
     }
@@ -261,6 +267,7 @@ pub struct Target {
 
 impl Target {
     #[inline]
+    #[must_use]
     pub const fn new(target_left: Vec3A, target_right: Vec3A, car_index: usize, options: Options) -> Self {
         Self {
             car_index,
@@ -272,6 +279,7 @@ impl Target {
     }
 
     #[inline]
+    #[must_use]
     pub const fn new_any(car_index: usize, options: Options) -> Self {
         Self {
             car_index,
@@ -288,6 +296,7 @@ impl Target {
     }
 
     #[inline]
+    #[must_use]
     pub const fn is_confirmed(&self) -> bool {
         self.confirmed
     }

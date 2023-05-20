@@ -18,6 +18,7 @@ pub struct Hitbox {
 
 impl Hitbox {
     #[inline]
+    #[must_use]
     pub const fn new() -> Self {
         Self {
             length: 0.,
@@ -85,6 +86,7 @@ pub struct GameCollisionShape {
 
 impl GameCollisionShape {
     #[inline]
+    #[must_use]
     pub fn get_radius(&self) -> f32 {
         match self.shape_type {
             0 => (self.box_.length + self.box_.width + self.box_.height) / 6.,
@@ -147,6 +149,7 @@ pub enum ShotType {
 
 impl ShotType {
     #[inline]
+    #[must_use]
     pub const fn to_str(self) -> &'static str {
         match self {
             ShotType::Ground => "Ground",
@@ -235,6 +238,7 @@ impl Default for BasicShotInfo {
 
 impl BasicShotInfo {
     #[inline]
+    #[must_use]
     pub const fn not_found() -> Self {
         BasicShotInfo {
             found: false,
@@ -247,6 +251,7 @@ impl BasicShotInfo {
     }
 
     #[inline]
+    #[must_use]
     pub const fn found(time: f32, shot_type: ShotType, shot_vector: Vec3A, is_forwards: bool, wait_for_land: bool) -> Self {
         BasicShotInfo {
             found: true,
@@ -318,11 +323,13 @@ pub struct AdvancedShotInfo {
 
 impl AdvancedShotInfo {
     #[inline]
+    #[must_use]
     pub const fn get_distance_remaining(&self) -> f32 {
         self.distance_remaining
     }
 
     #[inline]
+    #[must_use]
     pub const fn get_final_target(&self) -> PyVec3A {
         self.final_target
     }
@@ -387,6 +394,7 @@ impl AdvancedShotInfo {
     }
 
     #[inline]
+    #[must_use]
     pub fn get_from_air(car: &Car, shot: &AirBasedShot) -> Self {
         Self {
             final_target: get_tuple_from_vec3(shot.final_target),

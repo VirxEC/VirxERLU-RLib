@@ -1,11 +1,21 @@
+use rand::{rngs::ThreadRng, Rng};
+
 use virx_erlu_rlib::{pytypes::*, *};
 
-fn get_random_packet() -> GamePacket {
+fn get_random_packet(rng: &mut ThreadRng) -> GamePacket {
     GamePacket {
         game_ball: GameBall {
             physics: GamePhysics {
-                location: GameVec { x: 0., y: 0., z: 1000.1 },
-                velocity: GameVec { x: 0., y: 0., z: -0.001 },
+                location: GameVec {
+                    x: rng.gen_range(-3000f32..3000.),
+                    y: rng.gen_range(-4000f32..4000.),
+                    z: rng.gen_range(20f32..1900.),
+                },
+                velocity: GameVec {
+                    x: rng.gen_range(-1000f32..1000.),
+                    y: rng.gen_range(-1000f32..1000.),
+                    z: rng.gen_range(-1000f32..1000.),
+                },
                 angular_velocity: GameVec::default(),
                 rotation: GameRot::default(),
             },
@@ -24,7 +34,11 @@ fn get_random_packet() -> GamePacket {
             .map(|_| GameCar {
                 physics: GamePhysics {
                     location: GameVec { x: 3500., y: -3500., z: 100. },
-                    velocity: GameVec::default(),
+                    velocity: GameVec {
+                        x: rng.gen_range(-1000f32..1000.),
+                        y: rng.gen_range(-1000f32..1000.),
+                        z: rng.gen_range(-1000f32..1000.),
+                    },
                     angular_velocity: GameVec::default(),
                     rotation: GameRot { pitch: 0., yaw: 1.1, roll: 0. },
                 },
@@ -45,11 +59,13 @@ fn get_random_packet() -> GamePacket {
 fn main() {
     load_standard();
 
+    let mut thread_rng = rand::thread_rng();
+
     let left_target = [800., 5120., 0.];
     let right_target = [-800., 5120., 0.];
 
-    for _ in 0..1000 {
-        let packet = get_random_packet();
+    for _ in 0..10000 {
+        let packet = get_random_packet(&mut thread_rng);
         tick(packet, None).unwrap();
 
         let car_index = 0;

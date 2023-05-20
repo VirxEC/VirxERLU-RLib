@@ -6,6 +6,7 @@ use std::ops::{Add, Mul, Sub};
 /// Starts at the given point
 /// Ends after the given distance
 /// Goes in the direction of the given vector
+#[must_use]
 pub fn get_samples_from_line(start: PosRot, direction: Vec3A, distance: f32, step_distance: f32) -> Vec<PosRot> {
     let mut samples = Vec::with_capacity((distance / step_distance).ceil() as usize);
     let mut current_distance = 0.;
@@ -20,6 +21,7 @@ pub fn get_samples_from_line(start: PosRot, direction: Vec3A, distance: f32, ste
 }
 
 #[inline]
+#[must_use]
 pub const fn get_tuple_from_vec3(vec: Vec3A) -> (f32, f32, f32) {
     let [x, y, z] = vec.to_array();
     (x, y, z)
@@ -63,6 +65,7 @@ fn clamp_index(s: Vec3A, start: Vec3A, end: Vec3A) -> ClampDirection {
 }
 
 #[inline]
+#[must_use]
 pub const fn flatten(vec: Vec3A) -> Vec3A {
     let [x, y, _] = vec.to_array();
     Vec3A::new(x, y, 0.)
@@ -84,31 +87,24 @@ pub struct PostCorrection {
 }
 
 impl PostCorrection {
-    pub fn from(ball_location: Vec3A, ball_radius: f32, target_left: Vec3A, target_right: Vec3A) -> Self {
+    #[must_use]
+    pub fn new(ball_location: Vec3A, ball_radius: f32, target_left: Vec3A, target_right: Vec3A) -> Self {
         let goal_line_perp = (target_right - target_left).cross(Vec3A::Z);
 
-        let left_adjusted = target_left + (target_left - ball_location).normalize_or_zero().cross(-Vec3A::Z) * ball_radius;
-        let right_adjusted = target_right + (target_right - ball_location).normalize_or_zero().cross(Vec3A::Z) * ball_radius;
+        let left_adjusted = (target_left - ball_location).normalize().cross(-Vec3A::Z) * ball_radius;
+        let right_adjusted = (target_right - ball_location).normalize().cross(Vec3A::Z) * ball_radius;
 
-        let left_corrected = if (left_adjusted - target_left).dot(goal_line_perp) > 0. {
-            target_left
-        } else {
-            left_adjusted
-        };
+        let left_corrected = target_left + if left_adjusted.dot(goal_line_perp) > 0. { Vec3A::ZERO } else { left_adjusted };
 
-        let right_corrected = if (right_adjusted - target_right).dot(goal_line_perp) > 0. {
-            target_right
-        } else {
-            right_adjusted
-        };
+        let right_corrected = target_right + if right_adjusted.dot(goal_line_perp) > 0. { Vec3A::ZERO } else { right_adjusted };
 
         let left_to_right = right_corrected - left_corrected;
-        let new_goal_line = left_to_right.normalize_or_zero();
+        let new_goal_line = left_to_right.normalize();
         let new_goal_width = left_to_right.length();
 
         let new_goal_perp = new_goal_line.cross(Vec3A::Z);
         let goal_center = left_corrected + new_goal_line * new_goal_width * 0.5;
-        let ball_to_goal = (goal_center - ball_location).normalize_or_zero();
+        let ball_to_goal = (goal_center - ball_location).normalize();
 
         Self {
             target_left: left_corrected,
@@ -117,12 +113,13 @@ impl PostCorrection {
         }
     }
 
+    #[must_use]
     pub fn get_shot_vector_target(&self, car_location: Vec3A, ball_location: Vec3A) -> Vec3A {
-        let left_vector = (self.target_left - ball_location).normalize_or_zero();
+        let left_vector = (self.target_left - ball_location).normalize();
         let left_vector_flat = flatten(left_vector);
-        let right_vector = (self.target_right - ball_location).normalize_or_zero();
+        let right_vector = (self.target_right - ball_location).normalize();
         let right_vector_flat = flatten(right_vector);
-        let car_to_ball_flat = flatten(ball_location - car_location).normalize_or_zero();
+        let car_to_ball_flat = flatten(ball_location - car_location).normalize();
 
         // All of this is so that the returned vector will always point towards the target z
         match clamp_index(car_to_ball_flat, left_vector_flat, right_vector_flat) {
@@ -134,7 +131,7 @@ impl PostCorrection {
                 // convert angles to a value between 0 and 1
                 let t = car_to_left_angle / left_to_right_angle;
 
-                (lerp(self.target_left, self.target_right, t) - ball_location).normalize_or_zero()
+                (lerp(self.target_left, self.target_right, t) - ball_location).normalize()
             }
             ClampDirection::Left => left_vector,
             ClampDirection::Right => right_vector,
@@ -143,6 +140,7 @@ impl PostCorrection {
 }
 
 #[inline]
+#[must_use]
 pub fn minimum_non_negative(x1: f32, x2: f32) -> f32 {
     // get the smallest, non-negative value
     if x1 < 0. {
@@ -160,6 +158,7 @@ pub fn minimum_non_negative(x1: f32, x2: f32) -> f32 {
 // (y - k) / a = (x - h)^2
 // sqrt((y - k) / a) = x - h
 // sqrt((y - k) / a) + h = x
+#[must_use]
 pub fn vertex_quadratic_solve_for_x(a: f32, h: f32, k: f32, y: f32) -> (f32, f32) {
     if a == 0. {
         return (0., 0.);

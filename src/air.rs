@@ -4,7 +4,7 @@ use dubins_paths::{NoPathError, Result as DubinsResult};
 use glam::Vec3A;
 
 use crate::{
-    car::{Car, CarState},
+    car::{Car, State},
     constants::*,
     pytypes::{BasicShotInfo, ShotType},
     BoostAmount, Mutators,
@@ -25,12 +25,14 @@ pub struct AerialTargetInfo {
 
 impl AerialTargetInfo {
     #[inline]
+    #[must_use]
     pub const fn get_basic_shot_info(&self, time: f32) -> BasicShotInfo {
         BasicShotInfo::found(time, ShotType::Aerial, self.shot_vector, true, self.wait_for_land)
     }
 }
 
 /// Estimation of if a pre-established aerial shot is still possible
+#[must_use]
 pub fn partial_validate(target: Vec3A, xf: Vec3A, vf: Vec3A, boost_amount: BoostAmount, boost_accel: f32, car_boost: f32, time_remaining: f32) -> bool {
     let delta_x = target - xf;
     let Some(f) = delta_x.try_normalize() else {
@@ -118,13 +120,13 @@ pub fn aerial_shot_is_viable(
     time_remaining: f32,
     check_target_angle: Option<Vec3A>,
 ) -> DubinsResult<AerialTargetInfo> {
-    let is_on_ground = car.car_state == CarState::Grounded || time_remaining > car.time_to_land;
+    let is_on_ground = car.car_state == State::Grounded || time_remaining > car.time_to_land;
 
     if is_on_ground && car.rotmat.z_axis.z >= 0. && time_remaining <= JUMP_MAX_DURATION {
         return Err(NoPathError);
     }
 
-    let land_time = if car.car_state != CarState::Grounded { car.time_to_land } else { car.last_landing_time };
+    let land_time = if car.car_state != State::Grounded { car.time_to_land } else { car.last_landing_time };
     if is_on_ground && land_time + ON_GROUND_WAIT_TIME > time_remaining {
         return Err(NoPathError);
     }
@@ -200,9 +202,9 @@ pub fn aerial_shot_is_viable(
             // car,
         };
 
-        if car.car_state != CarState::DoubleJumped
+        if car.car_state != State::DoubleJumped
             && (!is_on_ground
-                || (car.car_state != CarState::Grounded && (car.velocity.z + gravity.z * car.time_to_land) + mutators.boost_accel * car.time_to_land + JUMP_SPEED > 0.))
+                || (car.car_state != State::Grounded && (car.velocity.z + gravity.z * car.time_to_land) + mutators.boost_accel * car.time_to_land + JUMP_SPEED > 0.))
         {
             let vf = vf_base + car.rotmat.z_axis * JUMP_SPEED;
             let xf = car.location + xf_base + car.rotmat.z_axis * (JUMP_SPEED * time_remaining);
@@ -214,7 +216,7 @@ pub fn aerial_shot_is_viable(
 
         if !is_on_ground
             || car.rotmat.z_axis.z < 0.
-            || (car.car_state != CarState::Grounded && (car.velocity.z + gravity.z * car.time_to_land) + mutators.boost_accel * car.time_to_land > 0.)
+            || (car.car_state != State::Grounded && (car.velocity.z + gravity.z * car.time_to_land) + mutators.boost_accel * car.time_to_land > 0.)
         {
             if let Some((jump_type, boost)) = basic_aerial_info.validate(car.location + xf_base, vf_base, AerialJumpType::None) {
                 found.push((jump_type, boost, false));

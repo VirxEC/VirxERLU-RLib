@@ -6,7 +6,7 @@ use rl_ball_sym::simulation::ball::Ball;
 
 use crate::{
     air::{aerial_shot_is_viable, AerialTargetInfo},
-    car::{Car, CarState},
+    car::{Car, State},
     ground::{angle_2d, get_turn_exit_tanget, shortest_path_in_validate, GroundTargetInfo},
     pytypes::ShotType,
     utils::flatten,
@@ -72,7 +72,7 @@ impl<'a> Analyzer<'a> {
             return Ok(ShotType::DoubleJump);
         }
 
-        if self.car.car_state != CarState::Grounded || self.car.wait_to_jump_time + self.car.last_landing_time < time_remaining && self.may_shoot(Shot::Aerial) {
+        if self.car.car_state != State::Grounded || self.car.wait_to_jump_time + self.car.last_landing_time < time_remaining && self.may_shoot(Shot::Aerial) {
             return Ok(ShotType::Aerial);
         }
 
@@ -231,7 +231,7 @@ impl<'a> Analyzer<'a> {
             is_forwards,
             shot_vector,
             turn_targets: Some((turn_target, turn_target_2)),
-            wait_for_land: self.car.car_state != CarState::Grounded,
+            wait_for_land: self.car.car_state != State::Grounded,
         })
     }
 
@@ -293,7 +293,7 @@ impl<'a> Analyzer<'a> {
             is_forwards,
             shot_vector,
             turn_targets: None,
-            wait_for_land: self.car.car_state != CarState::Grounded,
+            wait_for_land: self.car.car_state != State::Grounded,
         })
     }
 
