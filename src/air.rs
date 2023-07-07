@@ -1,7 +1,7 @@
 use std::f32::consts::PI;
 
 use dubins_paths::{NoPathError, Result as DubinsResult};
-use glam::Vec3A;
+use glam::{Vec2, Vec3A};
 
 use crate::{
     car::{Car, State},
@@ -70,7 +70,24 @@ impl BasicAerialInfo {
         let f = delta_x.try_normalize()?;
         let phi = angle_3d(f, self.car_forward);
 
-        let turn_time = 3. * (phi / 9.).sqrt();
+        let turn_time = if phi < 0.1 {
+            TURN_TIME_POLY_EST[7] * phi as f64 + TURN_TIME_POLY_EST[8]
+        } else {
+            let x = Vec2::new(delta_x.z.atan2(delta_x.x), delta_x.y.atan2(delta_x.x)).length() as f64;
+
+            if x < 0.2 {
+                TURN_TIME_POLY_EST[9] * x.powi(2) + TURN_TIME_POLY_EST[10] * x + TURN_TIME_POLY_EST[11]
+            } else {
+                TURN_TIME_POLY_EST[0] * x.powi(6)
+                    + TURN_TIME_POLY_EST[1] * x.powi(5)
+                    + TURN_TIME_POLY_EST[2] * x.powi(4)
+                    + TURN_TIME_POLY_EST[3] * x.powi(3)
+                    + TURN_TIME_POLY_EST[4] * x.powi(2)
+                    + TURN_TIME_POLY_EST[5] * x
+                    + TURN_TIME_POLY_EST[6]
+            }
+        } as f32;
+
         if turn_time > self.time_remaining {
             return None;
         }

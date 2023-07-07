@@ -18,7 +18,7 @@ pub const END_THROTTLE_ACCEL_B: f32 = 160.;
 
 pub const AERIAL_THROTTLE_ACCEL: f32 = 100. * (2. / 3.);
 pub const BOOST_ACCEL: f32 = 991. + 2. / 3.;
-pub const AERIAL_START_BOOST_ANGLE: f32 = 0.5;
+pub const AERIAL_START_BOOST_ANGLE: f32 = 0.1;
 
 pub const MIN_BOOST_CONSUMPTION: f32 = BOOST_CONSUMPTION * MIN_BOOST_TIME;
 pub const BOOST_CONSUMPTION_DT: f32 = BOOST_CONSUMPTION * SIMULATION_DT;
@@ -61,3 +61,20 @@ pub const STICKY_FORCE: f32 = -325.;
 pub const STICKY_TIMER: f32 = SIMULATION_DT * 3.;
 pub const HOLD_BONUS: f32 = 292. * 5.;
 pub const MAX_HOLD_TIME: f32 = 0.2;
+
+// magic numbers from the gods themselves
+// aka scipy.optimize.curve_fit
+pub const TURN_TIME_POLY_EST: [f64; 12] = [
+    -1.87039867e-03,
+    2.89665376e-02,
+    -1.79716410e-01,
+    5.88462548e-01,
+    -1.10170154e+00,
+    1.30438381e+00,
+    2.31720904e-02,
+    3.43119958e-10,
+    8.33333398e-03,
+    -1.00249604e+01,
+    4.97746568e+00,
+    -3.68316625e-01,
+];
