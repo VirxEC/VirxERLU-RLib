@@ -53,7 +53,11 @@ fn clamp_index(s: Vec3A, start: Vec3A, end: Vec3A) -> ClampDirection {
     let right = s.dot(end.cross(-Vec3A::Z)) < 0.;
     let left = s.dot(start.cross(-Vec3A::Z)) > 0.;
 
-    let return_original = if end.dot(start.cross(-Vec3A::Z)) > 0. { right && left } else { right || left };
+    let return_original = if end.dot(start.cross(-Vec3A::Z)) > 0. {
+        right && left
+    } else {
+        right || left
+    };
 
     if return_original {
         ClampDirection::Middle
@@ -94,9 +98,19 @@ impl PostCorrection {
         let left_adjusted = (target_left - ball_location).normalize().cross(-Vec3A::Z) * ball_radius;
         let right_adjusted = (target_right - ball_location).normalize().cross(Vec3A::Z) * ball_radius;
 
-        let left_corrected = target_left + if left_adjusted.dot(goal_line_perp) > 0. { Vec3A::ZERO } else { left_adjusted };
+        let left_corrected = target_left
+            + if left_adjusted.dot(goal_line_perp) > 0. {
+                Vec3A::ZERO
+            } else {
+                left_adjusted
+            };
 
-        let right_corrected = target_right + if right_adjusted.dot(goal_line_perp) > 0. { Vec3A::ZERO } else { right_adjusted };
+        let right_corrected = target_right
+            + if right_adjusted.dot(goal_line_perp) > 0. {
+                Vec3A::ZERO
+            } else {
+                right_adjusted
+            };
 
         let left_to_right = right_corrected - left_corrected;
         let new_goal_line = left_to_right.normalize();

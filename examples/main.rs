@@ -33,14 +33,22 @@ fn get_random_packet(rng: &mut ThreadRng) -> GamePacket {
         game_cars: (0..64)
             .map(|_| GameCar {
                 physics: GamePhysics {
-                    location: GameVec { x: 3500., y: -3500., z: 100. },
+                    location: GameVec {
+                        x: 3500.,
+                        y: -3500.,
+                        z: 100.,
+                    },
                     velocity: GameVec {
                         x: rng.gen_range(-1000f32..1000.),
                         y: rng.gen_range(-1000f32..1000.),
                         z: rng.gen_range(-1000f32..1000.),
                     },
                     angular_velocity: GameVec::default(),
-                    rotation: GameRot { pitch: 0., yaw: 1.1, roll: 0. },
+                    rotation: GameRot {
+                        pitch: 0.,
+                        yaw: 1.1,
+                        roll: 0.,
+                    },
                 },
                 boost: 50,
                 hitbox: Hitbox {

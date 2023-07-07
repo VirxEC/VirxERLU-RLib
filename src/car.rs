@@ -367,7 +367,11 @@ impl Car {
         let k = self.velocity.z * self.velocity.z / -gravity;
 
         let normal_gravity = gravity < 0.;
-        let fall_distance = if normal_gravity { self.location.z - 17. } else { 2030. - self.location.z };
+        let fall_distance = if normal_gravity {
+            self.location.z - 17.
+        } else {
+            2030. - self.location.z
+        };
 
         let terminal_velocity = 2300. - flatten(self.velocity).length();
         let time_until_tv = terminal_velocity / -gravity;

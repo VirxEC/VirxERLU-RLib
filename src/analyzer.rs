@@ -72,7 +72,9 @@ impl<'a> Analyzer<'a> {
             return Ok(ShotType::DoubleJump);
         }
 
-        if self.car.car_state != State::Grounded || self.car.wait_to_jump_time + self.car.last_landing_time < time_remaining && self.may_shoot(Shot::Aerial) {
+        if self.car.car_state != State::Grounded
+            || self.car.wait_to_jump_time + self.car.last_landing_time < time_remaining && self.may_shoot(Shot::Aerial)
+        {
             return Ok(ShotType::Aerial);
         }
 
@@ -104,7 +106,9 @@ impl<'a> Analyzer<'a> {
                 )
             }
             ShotType::Jump => {
-                let time = self.car.jump_time_to_height(self.gravity.z, target.z - self.car.hitbox.height / 2.);
+                let time = self
+                    .car
+                    .jump_time_to_height(self.gravity.z, target.z - self.car.hitbox.height / 2.);
 
                 (Some(time), time * max_speed + 128.)
             }
@@ -114,7 +118,9 @@ impl<'a> Analyzer<'a> {
                     return Err(NoPathError);
                 }
 
-                let time = self.car.double_jump_time_to_height(self.gravity.z, target.z - self.car.hitbox.height / 2.);
+                let time = self
+                    .car
+                    .double_jump_time_to_height(self.gravity.z, target.z - self.car.hitbox.height / 2.);
 
                 (Some(time), time * max_speed + 128.)
             }
@@ -125,11 +131,21 @@ impl<'a> Analyzer<'a> {
     #[inline]
     fn should_travel_forwards(&self, time_remaining: f32, shot_vector: Vec3A) -> bool {
         // it's easier for me to think about what I want the criteria to be for going backwards, so I did that then just took the opposite of it for is_forwards
-        let is_backwards = time_remaining < 4. && angle_2d(shot_vector, Vec3A::new(self.car.landing_yaw.cos(), self.car.landing_yaw.sin(), 0.)) > PI * (2. / 3.);
+        let is_backwards = time_remaining < 4.
+            && angle_2d(
+                shot_vector,
+                Vec3A::new(self.car.landing_yaw.cos(), self.car.landing_yaw.sin(), 0.),
+            ) > PI * (2. / 3.);
         self.forwards_only || !is_backwards
     }
 
-    pub fn no_target(&self, ball: &Ball, mut time_remaining: f32, slice_num: usize, shot_type: ShotType) -> DubinsResult<GroundTargetInfo> {
+    pub fn no_target(
+        &self,
+        ball: &Ball,
+        mut time_remaining: f32,
+        slice_num: usize,
+        shot_type: ShotType,
+    ) -> DubinsResult<GroundTargetInfo> {
         let max_speed = self.get_max_speed(slice_num);
 
         time_remaining -= self.car.time_to_land;
@@ -147,7 +163,14 @@ impl<'a> Analyzer<'a> {
         let (jump_time, end_distance) = if shot_type == ShotType::Ground {
             (None, 0.)
         } else {
-            self.get_jump_info(ball.location, ball.location, car_to_ball, max_speed, time_remaining, shot_type)?
+            self.get_jump_info(
+                ball.location,
+                ball.location,
+                car_to_ball,
+                max_speed,
+                time_remaining,
+                shot_type,
+            )?
         };
 
         if let Some(jump_time) = jump_time {
@@ -171,7 +194,14 @@ impl<'a> Analyzer<'a> {
                 } * rho,
             );
 
-        let (turn_target, turn_target_2) = get_turn_exit_tanget(self.car, flatten(ball.location), center_of_turn, rho, target_is_forwards, is_forwards);
+        let (turn_target, turn_target_2) = get_turn_exit_tanget(
+            self.car,
+            flatten(ball.location),
+            center_of_turn,
+            rho,
+            target_is_forwards,
+            is_forwards,
+        );
 
         // check if the exit point is in the field
         if !self.car.field.is_point_in(turn_target) {
@@ -211,7 +241,11 @@ impl<'a> Analyzer<'a> {
             return Err(NoPathError);
         }
 
-        let enter_yaw = if is_forwards { self.car.landing_yaw } else { mod2pi(self.car.landing_yaw + PI) };
+        let enter_yaw = if is_forwards {
+            self.car.landing_yaw
+        } else {
+            mod2pi(self.car.landing_yaw + PI)
+        };
 
         // construct a path so we can easily follow our defined turn arc
         let path = DubinsPath {
@@ -235,7 +269,14 @@ impl<'a> Analyzer<'a> {
         })
     }
 
-    pub fn target(&self, ball: &Ball, shot_vector: Vec3A, mut time_remaining: f32, slice_num: usize, shot_type: ShotType) -> DubinsResult<GroundTargetInfo> {
+    pub fn target(
+        &self,
+        ball: &Ball,
+        shot_vector: Vec3A,
+        mut time_remaining: f32,
+        slice_num: usize,
+        shot_type: ShotType,
+    ) -> DubinsResult<GroundTargetInfo> {
         let offset_target = ball.location - (shot_vector * ball.radius());
         let car_front_length = (self.car.hitbox_offset.x + self.car.hitbox.length) / 2.;
 
@@ -250,7 +291,14 @@ impl<'a> Analyzer<'a> {
         if flatten(car_location).distance(flatten(offset_target)) > max_distance {
             return Err(NoPathError);
         }
-        let (jump_time, end_distance) = self.get_jump_info(ball.location, offset_target, shot_vector, max_speed, time_remaining, shot_type)?;
+        let (jump_time, end_distance) = self.get_jump_info(
+            ball.location,
+            offset_target,
+            shot_vector,
+            max_speed,
+            time_remaining,
+            shot_type,
+        )?;
 
         if let Some(jump_time) = jump_time {
             // if we have enough time for just the jump
@@ -262,7 +310,9 @@ impl<'a> Analyzer<'a> {
         let exit_turn_target = flatten(offset_target) - (flatten(shot_vector).normalize_or_zero() * end_distance);
 
         // check if the exit point is in the field, and make sure a simplified version of the path isn't longer than the longest distance we can travel
-        if !self.car.field.is_point_in(flatten(exit_turn_target)) || flatten(car_location).distance(exit_turn_target) + end_distance > max_distance {
+        if !self.car.field.is_point_in(flatten(exit_turn_target))
+            || flatten(car_location).distance(exit_turn_target) + end_distance > max_distance
+        {
             return Err(NoPathError);
         }
 
@@ -283,7 +333,12 @@ impl<'a> Analyzer<'a> {
         let path = shortest_path_in_validate(q0, q1, self.get_max_turn_radius(slice_num), &self.car.field, max_distance)?;
 
         let offset_distance = end_distance - car_front_length;
-        let distances = [path.segment_length(0), path.segment_length(1), path.segment_length(2), offset_distance];
+        let distances = [
+            path.segment_length(0),
+            path.segment_length(1),
+            path.segment_length(2),
+            offset_distance,
+        ];
 
         Ok(GroundTargetInfo {
             distances,
@@ -306,6 +361,14 @@ impl<'a> Analyzer<'a> {
         time_remaining: f32,
         check_target_angle: Option<Vec3A>,
     ) -> DubinsResult<AerialTargetInfo> {
-        aerial_shot_is_viable(self.car, mutators, self.gravity, target, shot_vector, time_remaining, check_target_angle)
+        aerial_shot_is_viable(
+            self.car,
+            mutators,
+            self.gravity,
+            target,
+            shot_vector,
+            time_remaining,
+            check_target_angle,
+        )
     }
 }

@@ -41,7 +41,8 @@ pub const NO_GAME_ERR: &str = "GAME is unset. Call a function like load_soccar f
 pub type NoCarPyErr = exceptions::PyIndexError;
 pub const NO_CAR_ERR: &str = "No car at the provided index.";
 pub type NoSlicesPyErr = exceptions::PyValueError;
-pub const NO_SLICES_ERR: &str = "Ball prediction struct has not been initialized yet. Try calling a function like tick() first.";
+pub const NO_SLICES_ERR: &str =
+    "Ball prediction struct has not been initialized yet. Try calling a function like tick() first.";
 pub type NoTargetPyErr = exceptions::PyIndexError;
 pub const NO_TARGET_ERR: &str = "Target no longer exists.";
 pub type NoShotPyErr = exceptions::PyLookupError;

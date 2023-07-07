@@ -174,7 +174,13 @@ pub struct TargetOptions {
 impl TargetOptions {
     #[new]
     #[inline]
-    const fn __new__(min_slice: Option<usize>, max_slice: Option<usize>, use_absolute_max_values: Option<bool>, all: Option<bool>, forwards_only: Option<bool>) -> Self {
+    const fn __new__(
+        min_slice: Option<usize>,
+        max_slice: Option<usize>,
+        use_absolute_max_values: Option<bool>,
+        all: Option<bool>,
+        forwards_only: Option<bool>,
+    ) -> Self {
         Self {
             min_slice,
             max_slice,
@@ -345,7 +351,10 @@ impl AdvancedShotInfo {
                 self.final_target, self.distance_remaining, required_jump_time, self.num_jumps
             )
         } else {
-            format!("Final target: {:?}, distance remaining: {:.0}", self.final_target, self.distance_remaining)
+            format!(
+                "Final target: {:?}, distance remaining: {:.0}",
+                self.final_target, self.distance_remaining
+            )
         }
     }
 }
@@ -376,7 +385,12 @@ impl AdvancedShotInfo {
         };
 
         // get all the samples from the vec after index
-        let samples = shot.all_samples.iter().skip(index / GroundBasedShot::ALL_STEP).copied().collect();
+        let samples = shot
+            .all_samples
+            .iter()
+            .skip(index / GroundBasedShot::ALL_STEP)
+            .copied()
+            .collect();
 
         Some(Self {
             final_target: get_tuple_from_vec3(flatten(target)),

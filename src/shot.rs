@@ -110,8 +110,12 @@ impl GroundBasedShot {
             // the samples for each subpath
             let raw_samples = [
                 target.path.sample_many_range(Self::STEP_DISTANCE, 0f32..segment_distances[0]),
-                target.path.sample_many_range(Self::STEP_DISTANCE, segment_distances[0]..segment_distances[1]),
-                target.path.sample_many_range(Self::STEP_DISTANCE, segment_distances[1]..segment_distances[2]),
+                target
+                    .path
+                    .sample_many_range(Self::STEP_DISTANCE, segment_distances[0]..segment_distances[1]),
+                target
+                    .path
+                    .sample_many_range(Self::STEP_DISTANCE, segment_distances[1]..segment_distances[2]),
                 get_samples_from_line(path_endpoint, direction, target.distances[3], Self::STEP_DISTANCE),
             ];
 

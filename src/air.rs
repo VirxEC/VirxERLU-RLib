@@ -33,7 +33,15 @@ impl AerialTargetInfo {
 
 /// Estimation of if a pre-established aerial shot is still possible
 #[must_use]
-pub fn partial_validate(target: Vec3A, xf: Vec3A, vf: Vec3A, boost_amount: BoostAmount, boost_accel: f32, car_boost: f32, time_remaining: f32) -> bool {
+pub fn partial_validate(
+    target: Vec3A,
+    xf: Vec3A,
+    vf: Vec3A,
+    boost_amount: BoostAmount,
+    boost_accel: f32,
+    car_boost: f32,
+    time_remaining: f32,
+) -> bool {
     let delta_x = target - xf;
     let Some(f) = delta_x.try_normalize() else {
         return true;
@@ -143,7 +151,11 @@ pub fn aerial_shot_is_viable(
         return Err(NoPathError);
     }
 
-    let land_time = if car.car_state != State::Grounded { car.time_to_land } else { car.last_landing_time };
+    let land_time = if car.car_state != State::Grounded {
+        car.time_to_land
+    } else {
+        car.last_landing_time
+    };
     if is_on_ground && land_time + ON_GROUND_WAIT_TIME > time_remaining {
         return Err(NoPathError);
     }
@@ -165,8 +177,11 @@ pub fn aerial_shot_is_viable(
     let vf_base = car.velocity + gravity * time_remaining;
     let xf_base = car.velocity * time_remaining + gravity * 0.5 * time_remaining.powi(2);
 
-    let target_angle_check =
-        |car_location: Vec3A| check_target_angle.map_or(true, |ball_location| angle_3d((car_location - ball_location).normalize(), -shot_vector) < PI / 2.);
+    let target_angle_check = |car_location: Vec3A| {
+        check_target_angle.map_or(true, |ball_location| {
+            angle_3d((car_location - ball_location).normalize(), -shot_vector) < PI / 2.
+        })
+    };
 
     let ground_time_remaining = time_remaining - car.time_to_land - car.wait_to_jump_time;
     if is_on_ground && ground_time_remaining > 0. && target_angle_check(car.landing_location) {
@@ -185,7 +200,8 @@ pub fn aerial_shot_is_viable(
         if time_remaining > DOUBLE_JUMP_DURATION {
             const TOTAL_JUMP_ACC_2: f32 = JUMP_SPEED + TOTAL_JUMP_ACC;
             const PARITAL_JUMP_LOC: f32 = 2. * JUMP_SPEED + JUMP_ACC * JUMP_MAX_DURATION;
-            const JUMP_LOC_P2: f32 = -(JUMP_SPEED * JUMP_MAX_DURATION + 0.5 * JUMP_MAX_DURATION * JUMP_MAX_DURATION * JUMP_ACC);
+            const JUMP_LOC_P2: f32 =
+                -(JUMP_SPEED * JUMP_MAX_DURATION + 0.5 * JUMP_MAX_DURATION * JUMP_MAX_DURATION * JUMP_ACC);
 
             let vf = vf_base + car.rotmat.z_axis * TOTAL_JUMP_ACC_2;
             let xf = car.landing_location + xf_base + car.rotmat.z_axis * (time_remaining * PARITAL_JUMP_LOC + JUMP_LOC_P2);
@@ -221,7 +237,11 @@ pub fn aerial_shot_is_viable(
 
         if car.car_state != State::DoubleJumped
             && (!is_on_ground
-                || (car.car_state != State::Grounded && (car.velocity.z + gravity.z * car.time_to_land) + mutators.boost_accel * car.time_to_land + JUMP_SPEED > 0.))
+                || (car.car_state != State::Grounded
+                    && (car.velocity.z + gravity.z * car.time_to_land)
+                        + mutators.boost_accel * car.time_to_land
+                        + JUMP_SPEED
+                        > 0.))
         {
             let vf = vf_base + car.rotmat.z_axis * JUMP_SPEED;
             let xf = car.location + xf_base + car.rotmat.z_axis * (JUMP_SPEED * time_remaining);
@@ -233,9 +253,12 @@ pub fn aerial_shot_is_viable(
 
         if !is_on_ground
             || car.rotmat.z_axis.z < 0.
-            || (car.car_state != State::Grounded && (car.velocity.z + gravity.z * car.time_to_land) + mutators.boost_accel * car.time_to_land > 0.)
+            || (car.car_state != State::Grounded
+                && (car.velocity.z + gravity.z * car.time_to_land) + mutators.boost_accel * car.time_to_land > 0.)
         {
-            if let Some((jump_type, boost)) = basic_aerial_info.validate(car.location + xf_base, vf_base, AerialJumpType::None) {
+            if let Some((jump_type, boost)) =
+                basic_aerial_info.validate(car.location + xf_base, vf_base, AerialJumpType::None)
+            {
                 found.push((jump_type, boost, false));
             }
         }
