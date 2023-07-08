@@ -70,7 +70,6 @@ pub fn angle_2d(vec1: Vec3A, vec2: Vec3A) -> f32 {
     flatten(vec1)
         .normalize_or_zero()
         .dot(flatten(vec2).normalize_or_zero())
-        .clamp(-1., 1.)
         .acos()
 }
 
@@ -132,22 +131,13 @@ pub struct GroundTargetInfo {
 impl GroundTargetInfo {
     pub fn can_reach(&self, car: &Car, max_time: f32, mutators: Mutators) -> Result<f32, CantReachError> {
         let is_curved = PathType::CCC.contains(&self.path.type_);
-
         let total_d = self.distances.iter().sum::<f32>();
-
-        let middle_range = {
-            let start = self.distances[0];
-            let end = start + self.distances[1];
-
-            start..end
-        };
-
+        let middle_range = self.distances[0]..self.distances[0] + self.distances[1];
         let direction = if self.is_forwards { 1. } else { -1. };
 
         let mut d = total_d;
         let mut t_r = max_time;
-        let b_s = f32::from(car.boost.min(12));
-        let mut b = f32::from(car.boost) - b_s;
+        let mut b = f32::from(car.boost - car.boost.min(12));
         let mut v = flatten(car.landing_velocity).length() * direction;
 
         let boost_accel = if mutators.boost_amount == BoostAmount::NoBoost {
@@ -216,9 +206,7 @@ impl GroundTargetInfo {
 
             throttle *= 1f32.copysign(v);
 
-            let mut accel = 0.;
-
-            accel += if throttle == 0. {
+            let mut accel = if throttle == 0. {
                 COAST_ACC * SIMULATION_DT * 1f32.copysign(-v)
             } else if throttle * v >= 0. {
                 throttle_accel * SIMULATION_DT * throttle
@@ -237,10 +225,8 @@ impl GroundTargetInfo {
             }
 
             v += accel;
-
             t_r -= SIMULATION_DT;
-            let d_delta = (v * direction) * SIMULATION_DT;
-            d -= d_delta;
+            d -= v * direction * SIMULATION_DT;
         }
 
         Ok(t_r)
@@ -257,22 +243,24 @@ fn get_throttle_and_boost(throttle_accel: f32, b: f32, t: f32, boost_accel: f32)
     let acceleration = t / REACTION_TIME;
 
     if acceleration <= BRAKE_COAST_TRANSITION {
-        (-1., false)
-    } else if BRAKE_COAST_TRANSITION < acceleration && acceleration < COASTING_THROTTLE_TRANSITION {
-        (0., false)
-    } else {
-        let throttle_boost_transition = throttle_accel + 0.5 * boost_accel;
-        if (COASTING_THROTTLE_TRANSITION..throttle_boost_transition).contains(&acceleration) {
-            let throttle = if throttle_accel == 0. {
+        return (-1., false);
+    } else if (BRAKE_COAST_TRANSITION..COASTING_THROTTLE_TRANSITION).contains(&acceleration) {
+        return (0., false);
+    }
+
+    let throttle_boost_transition = throttle_accel + 0.5 * boost_accel;
+    if (COASTING_THROTTLE_TRANSITION..throttle_boost_transition).contains(&acceleration) {
+        (
+            if throttle_accel == 0. {
                 1.
             } else {
                 (acceleration / throttle_accel).clamp(0.02, 1.)
-            };
-            (throttle, false)
-        } else if throttle_boost_transition < acceleration {
-            (1., b >= MIN_BOOST_CONSUMPTION && t > 0.)
-        } else {
-            (0., false)
-        }
+            },
+            false,
+        )
+    } else if throttle_boost_transition < acceleration {
+        (1., b >= MIN_BOOST_CONSUMPTION && t > 0.)
+    } else {
+        (0., false)
     }
 }

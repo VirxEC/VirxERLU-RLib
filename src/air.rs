@@ -12,7 +12,7 @@ use crate::{
 
 #[inline]
 fn angle_3d(a: Vec3A, b: Vec3A) -> f32 {
-    a.dot(b).clamp(-1., 1.).acos()
+    a.dot(b).acos()
 }
 
 #[derive(Debug)]
@@ -47,14 +47,14 @@ pub fn partial_validate(
         return true;
     };
 
-    let required_acc = delta_x.length() / time_remaining.powi(2);
+    let required_acc = 2. * delta_x.length() / time_remaining.powi(2);
     let ratio = required_acc / boost_accel;
     if ratio.abs() > 1. {
         return false;
     }
 
     let tau2 = time_remaining - time_remaining * (1. - ratio).sqrt();
-    if boost_amount != BoostAmount::Unlimited && (tau2.floor() * BOOST_CONSUMPTION).ceil() >= car_boost {
+    if boost_amount != BoostAmount::Unlimited && (tau2 * BOOST_CONSUMPTION).floor() >= car_boost {
         return false;
     }
 
@@ -75,7 +75,7 @@ impl BasicAerialInfo {
     /// Estimation of if the aerial is valid
     fn validate(&self, xf: Vec3A, vf: Vec3A, jump_type: AerialJumpType) -> Option<(AerialJumpType, f32)> {
         let delta_x = self.target - xf;
-        let f = delta_x.try_normalize()?;
+        let f = delta_x.normalize();
         let phi = angle_3d(f, self.car_forward);
 
         let turn_time = if phi < 0.1 {
@@ -100,25 +100,22 @@ impl BasicAerialInfo {
             return None;
         }
 
-        // when we start boosting
-        let tau1 = turn_time * (1. - AERIAL_START_BOOST_ANGLE / phi.max(f32::EPSILON)).clamp(0., 1.);
-
-        let required_acc = 2. * delta_x.length() / (self.time_remaining - tau1).powi(2);
+        let required_acc = 2. * delta_x.length() / (self.time_remaining - turn_time).powi(2);
         let ratio = required_acc / self.boost_accel;
         if ratio.abs() >= 0.9 {
             return None;
         }
 
         // when we stop boosting
-        let tau2 = self.time_remaining - (self.time_remaining - tau1) * (1. - ratio.clamp(0., 1.)).sqrt();
+        let tau2 = self.time_remaining - (self.time_remaining - turn_time) * (1. - ratio).sqrt();
 
-        let boost_estimate = (tau2 - tau1).floor() * BOOST_CONSUMPTION;
+        let boost_estimate = (tau2 - turn_time).floor() * BOOST_CONSUMPTION;
         if self.boost_amount != BoostAmount::Unlimited && boost_estimate.ceil() >= self.car_boost {
             return None;
         }
 
         // velocity estimate
-        if (vf + f * (self.boost_accel * (tau2 - tau1))).length() >= MAX_SPEED * 0.9 {
+        if (vf + f * (self.boost_accel * (tau2 - turn_time))).length() >= MAX_SPEED * 0.9 {
             return None;
         }
 
